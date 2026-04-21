@@ -282,9 +282,22 @@ PUT    /api/agency                  Update branding
 - For production, add rate limiting (`express-rate-limit`) and HTTPS.
 - Store uploaded files on S3/Cloudinary rather than local disk in production.
 - Add Redis session/cache for large agencies with many clients.
-<img width="1919" height="858" alt="Screenshot 2026-04-17 172021" src="https://github.com/user-attachments/assets/24dbc6cb-fc65-4e0b-8658-93084f093e09" />
-<img width="659" height="533" alt="Screenshot 2026-04-17 172811" src="https://github.com/user-attachments/assets/c3a1da10-5157-41bb-a074-102168c65272" />
-<img width="660" height="789" alt="Screenshot 2026-04-17 172753" src="https://github.com/user-attachments/assets/8e44baf2-244c-4715-81c6-4f5accb03540" />
-<img width="1919" height="873" alt="Screenshot 2026-04-17 172050" src="https://github.com/user-attachments/assets/4ba9a123-fcbe-4020-923f-89abb17e085d" />
-<img width="1917" height="861" alt="Screenshot 2026-04-17 172034" src="https://github.com/user-attachments/assets/b9e31ef9-7310-4e1a-b283-40f17a6b1388" />
+
+<img width="632" height="654" alt="Screenshot 2026-04-17 171845" src="https://github.com/user-attachments/assets/90c24bd2-4984-4345-9fd1-6dd2551383c2" />
+
+<img width="674" height="720" alt="Screenshot 2026-04-17 171857" src="https://github.com/user-attachments/assets/bdf1b5ea-1722-4023-b368-ce5e78cdfb4a" />
+
+<img width="1919" height="969" alt="Screenshot 2026-04-21 134151" src="https://github.com/user-attachments/assets/6c1fdbb8-b9e0-4227-a9fa-e72b547dde02" />
+
+<img width="1919" height="870" alt="Screenshot 2026-04-17 172009" src="https://github.com/user-attachments/assets/cb2fd3d1-cda8-4fc5-9013-fe04944cce20" />
+
+<img width="1919" height="858" alt="Screenshot 2026-04-17 172021" src="https://github.com/user-attachments/assets/5bc81fe0-38b2-4bcc-b7fd-f81ebe0649e2" />
+
+<img width="1917" height="861" alt="Screenshot 2026-04-17 172034" src="https://github.com/user-attachments/assets/432382f2-7751-46d0-b14d-58626c43a0c5" />
+
+<img width="1919" height="873" alt="Screenshot 2026-04-17 172050" src="https://github.com/user-attachments/assets/9db03e57-d084-4746-bebd-f4f7eedc8c63" />
+
+<img width="660" height="789" alt="Screenshot 2026-04-17 172753" src="https://github.com/user-attachments/assets/fb341ac5-d6d6-425e-b6a2-d891b4799db7" />
+
+<img width="659" height="533" alt="Screenshot 2026-04-17 172811" src="https://github.com/user-attachments/assets/bbc6e681-cd86-4c5e-86d2-958a9ae24c3c" />
 
