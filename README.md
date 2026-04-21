@@ -1,3 +1,4 @@
+<img width="659" height="533" alt="Screenshot 2026-04-17 172811" src="https://github.com/user-attachments/assets/0181f6d4-7c4e-46fe-b528-ab0089359975" />
 # AdInsight — Performance Marketing Report Generator
 
 A full-stack PERN (PostgreSQL, Express, React, Node.js) application for digital marketing agencies to generate professional performance reports for Meta Ads, Google Ads, and other platforms.
