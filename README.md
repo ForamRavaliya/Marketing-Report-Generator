@@ -1,4 +1,4 @@
-<img width="659" height="533" alt="Screenshot 2026-04-17 172811" src="https://github.com/user-attachments/assets/0181f6d4-7c4e-46fe-b528-ab0089359975" />
+
 # AdInsight — Performance Marketing Report Generator
 
 A full-stack PERN (PostgreSQL, Express, React, Node.js) application for digital marketing agencies to generate professional performance reports for Meta Ads, Google Ads, and other platforms.
@@ -282,3 +282,9 @@ PUT    /api/agency                  Update branding
 - For production, add rate limiting (`express-rate-limit`) and HTTPS.
 - Store uploaded files on S3/Cloudinary rather than local disk in production.
 - Add Redis session/cache for large agencies with many clients.
+<img width="1919" height="858" alt="Screenshot 2026-04-17 172021" src="https://github.com/user-attachments/assets/24dbc6cb-fc65-4e0b-8658-93084f093e09" />
+<img width="659" height="533" alt="Screenshot 2026-04-17 172811" src="https://github.com/user-attachments/assets/c3a1da10-5157-41bb-a074-102168c65272" />
+<img width="660" height="789" alt="Screenshot 2026-04-17 172753" src="https://github.com/user-attachments/assets/8e44baf2-244c-4715-81c6-4f5accb03540" />
+<img width="1919" height="873" alt="Screenshot 2026-04-17 172050" src="https://github.com/user-attachments/assets/4ba9a123-fcbe-4020-923f-89abb17e085d" />
+<img width="1917" height="861" alt="Screenshot 2026-04-17 172034" src="https://github.com/user-attachments/assets/b9e31ef9-7310-4e1a-b283-40f17a6b1388" />
+
