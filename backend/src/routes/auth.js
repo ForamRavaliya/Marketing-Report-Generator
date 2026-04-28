@@ -94,9 +94,9 @@ router.post('/register', async (req, res) => {
         secondaryColor: agency.secondary_color,
       },
     });
-  } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ error: 'Registration failed: ' + error.message });
+  catch (error) {
+    console.error("REGISTER ERROR:", error);  // 👈 ADD THIS
+    res.status(500).json({ error: error.message });
   }
 });
 
