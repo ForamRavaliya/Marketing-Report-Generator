@@ -20,7 +20,7 @@ router.post('/login', async (req, res) => {
     );
 
     if (!result.rows.length) return res.status(401).json({ error: 'Invalid credentials' });
-
+console.log("JWT_SECRET:", process.env.JWT_SECRET);
     const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
@@ -112,7 +112,7 @@ router.get('/me', authenticate, async (req, res) => {
     if (!result.rows.length) {
       return res.status(404).json({ error: "User not found" });
     }
-
+console.log("JWT_SECRET:", process.env.JWT_SECRET);
     const user = result.rows[0];
 
     res.json({
