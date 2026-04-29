@@ -99,7 +99,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Get current user
 router.get('/me', authenticate, async (req, res) => {
   try {
     const result = await db.query(
@@ -107,7 +106,7 @@ router.get('/me', authenticate, async (req, res) => {
        FROM users u
        LEFT JOIN agencies a ON u.agency_id = a.id
        WHERE u.id = $1`,
-      [req.user.id]
+      [req.user.userId]   // ✅ FIXED
     );
 
     if (!result.rows.length) {
