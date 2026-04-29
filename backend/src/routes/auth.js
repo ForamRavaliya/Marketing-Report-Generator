@@ -12,10 +12,10 @@ router.post('/login', async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
     const result = await db.query(
-      `SELECT u.*, a.name as agency_name, a.logo_url, a.primary_color, a.secondary_color 
-       FROM users u 
-       LEFT JOIN agencies a ON u.agency_id = a.id 
-       WHERE u.email = $1 AND u.is_active = TRUE`,
+      `SELECT u.*, a.name as agency_name, a.primary_color, a.secondary_color
+       FROM users u
+       LEFT JOIN agencies a ON u.agency_id = a.id
+       WHERE u.email = $1`,
       [email.toLowerCase()]
     );
 
@@ -103,8 +103,10 @@ router.post('/register', async (req, res) => {
 // Get current user
 router.get('/me', authenticate, async (req, res) => {
   const result = await db.query(
-    `SELECT u.*, a.name as agency_name, a.logo_url, a.primary_color, a.secondary_color 
-     FROM users u LEFT JOIN agencies a ON u.agency_id = a.id WHERE u.id = $1`,
+    `SELECT u.*, a.name as agency_name, a.primary_color, a.secondary_color
+     FROM users u
+     LEFT JOIN agencies a ON u.agency_id = a.id
+     WHERE u.id = $1`,
     [req.user.id]
   );
   const user = result.rows[0];
