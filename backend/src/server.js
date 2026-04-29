@@ -19,6 +19,8 @@ app.use(cors({
     'http://localhost:3000',
     'https://marketing-report-generator.vercel.app'
   ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
