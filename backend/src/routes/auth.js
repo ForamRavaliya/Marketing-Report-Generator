@@ -36,7 +36,6 @@ router.post('/login', async (req, res) => {
         role: user.role,
         agencyId: user.agency_id,
         agencyName: user.agency_name,
-        logoUrl: user.logo_url,
         primaryColor: user.primary_color,
         secondaryColor: user.secondary_color,
       },
@@ -102,25 +101,36 @@ router.post('/register', async (req, res) => {
 
 // Get current user
 router.get('/me', authenticate, async (req, res) => {
-  const result = await db.query(
-    `SELECT u.*, a.name as agency_name, a.primary_color, a.secondary_color
-     FROM users u
-     LEFT JOIN agencies a ON u.agency_id = a.id
-     WHERE u.id = $1`,
-    [req.user.id]
-  );
-  const user = result.rows[0];
-  res.json({
-    id: user.id,
-    email: user.email,
-    fullName: user.full_name,
-    role: user.role,
-    agencyId: user.agency_id,
-    agencyName: user.agency_name,
-    logoUrl: user.logo_url,
-    primaryColor: user.primary_color,
-    secondaryColor: user.secondary_color,
-  });
+  try {
+    const result = await db.query(
+      `SELECT u.*, a.name as agency_name, a.primary_color, a.secondary_color
+       FROM users u
+       LEFT JOIN agencies a ON u.agency_id = a.id
+       WHERE u.id = $1`,
+      [req.user.id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = result.rows[0];
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      fullName: user.full_name,
+      role: user.role,
+      agencyId: user.agency_id,
+      agencyName: user.agency_name,
+      primaryColor: user.primary_color,
+      secondaryColor: user.secondary_color,
+    });
+
+  } catch (error) {
+    console.error("ME ERROR:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;
