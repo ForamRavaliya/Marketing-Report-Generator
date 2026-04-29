@@ -13,11 +13,11 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
 
     if (token) {
-      // token already handled in api interceptor
       api.get('/auth/me')
         .then(res => setUser(res.data))
         .catch(() => {
           localStorage.removeItem('token');
+          setUser(null);   // ✅ ADD THIS LINE
         })
         .finally(() => setLoading(false));
     } else {
@@ -30,6 +30,7 @@ export const AuthProvider = ({ children }) => {
     const { token, user } = res.data;
 
     localStorage.setItem('token', token);
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(user);
 
     return user;
@@ -40,6 +41,7 @@ export const AuthProvider = ({ children }) => {
     const { token, user } = res.data;
 
     localStorage.setItem('token', token);
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(user);
 
     return user;
