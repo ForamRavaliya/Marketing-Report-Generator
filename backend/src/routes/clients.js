@@ -21,7 +21,8 @@ router.get('/', async (req, res) => {
     );
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch clients' });
+     console.error("CLIENTS ERROR:", error);   // ✅ ADD THIS
+      res.status(500).json({ error: error.message }); // ✅ CHANGE THIS
   }
 });
 
