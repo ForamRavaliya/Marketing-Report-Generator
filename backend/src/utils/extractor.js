@@ -94,10 +94,19 @@ const COLUMN_MAP = {
 
 const findColumn = (headers, fieldVariants) => {
   const lowerHeaders = headers.map(h => h?.toString().toLowerCase().trim());
+
   for (const variant of fieldVariants) {
-    const idx = lowerHeaders.indexOf(variant.toLowerCase());
+    const v = variant.toLowerCase();
+
+    // exact match first
+    let idx = lowerHeaders.indexOf(v);
+    if (idx !== -1) return headers[idx];
+
+    // partial match for columns like "Amount spent (INR)"
+    idx = lowerHeaders.findIndex(h => h.includes(v));
     if (idx !== -1) return headers[idx];
   }
+
   return null;
 };
 
@@ -117,7 +126,12 @@ const parseMarketingData = (records) => {
   }
 
   const campaigns = [];
-  let totalSpend = 0, totalImpressions = 0, totalClicks = 0, totalConversions = 0, totalRevenue = 0;
+  let totalSpend = 0,
+    totalImpressions = 0,
+    totalClicks = 0,
+    totalConversions = 0,
+    totalRevenue = 0,
+    totalReach = 0;
 
   for (const record of records) {
     const spend = parseNum(colMap.spend ? record[colMap.spend] : 0);
@@ -125,13 +139,13 @@ const parseMarketingData = (records) => {
     const clicks = parseNum(colMap.clicks ? record[colMap.clicks] : 0);
     const conversions = parseNum(colMap.conversions ? record[colMap.conversions] : 0);
     const revenue = parseNum(colMap.revenue ? record[colMap.revenue] : 0);
-
+    const reach = parseNum(colMap.reach ? record[colMap.reach] : 0);
     totalSpend += spend;
     totalImpressions += impressions;
     totalClicks += clicks;
     totalConversions += conversions;
-    totalRevenue += revenue;
-
+    totalRevenue += revenue,
+    totalReach += reach;
     campaigns.push({
       name: colMap.campaignName ? record[colMap.campaignName] : 'Campaign',
       platform: colMap.platform ? record[colMap.platform]?.toLowerCase() : 'other',
@@ -144,7 +158,7 @@ const parseMarketingData = (records) => {
       cpa: colMap.cpa ? parseNum(record[colMap.cpa]) : (conversions > 0 ? spend / conversions : 0),
       roas: colMap.roas ? parseNum(record[colMap.roas]) : (spend > 0 ? revenue / spend : 0),
       revenue,
-      reach: parseNum(colMap.reach ? record[colMap.reach] : 0),
+      reach,
       rawData: record,
     });
   }
@@ -159,6 +173,7 @@ const parseMarketingData = (records) => {
     cpa: totalConversions > 0 ? totalSpend / totalConversions : 0,
     roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
     revenue: totalRevenue,
+    reach: totalReach,
   };
 
   return { metrics, campaigns, rawText: '' };
