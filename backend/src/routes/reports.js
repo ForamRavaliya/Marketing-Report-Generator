@@ -93,7 +93,11 @@ router.post('/generate', async (req, res) => {
     const fileName = `report-${clientId}-${Date.now()}.pdf`;
     const filePath = path.join(outputDir, fileName);
 
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 50,
+      bufferPages: true   // ✅ REQUIRED
+    });
     const writeStream = fs.createWriteStream(filePath);
     doc.pipe(writeStream);
 
@@ -104,13 +108,13 @@ router.post('/generate', async (req, res) => {
     const LIGHT = '#F1F5F9';
     const WHITE = '#FFFFFF';
 
-    // Helper: hex to rgb
+   /* // Helper: hex to rgb
     const hexToRgb = (hex) => {
       const r = parseInt(hex.slice(1, 3), 16);
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
       return [r, g, b];
-    };
+    };  */
 
     // Cover page
     doc.rect(0, 0, doc.page.width, 200).fill(PRIMARY);
@@ -146,15 +150,27 @@ router.post('/generate', async (req, res) => {
     doc.moveTo(50, 282).lineTo(545, 282).stroke(PRIMARY);
     doc.moveDown(0.5);
 
+    // Safe summary values
+    const safeSummary = {
+      spend: summary?.spend || 0,
+      impressions: summary?.impressions || 0,
+      clicks: summary?.clicks || 0,
+      conversions: summary?.conversions || 0,
+      ctr: summary?.ctr || 0,
+      cpc: summary?.cpc || 0,
+      cpa: summary?.cpa || 0,
+      roas: summary?.roas || 0,
+    };
+
     const metrics = [
-      { label: 'Total Spend', value: formatCurrency(summary?.spend || 0) },
-      { label: 'Impressions', value: formatNum(summary?.impressions || 0) },
-      { label: 'Clicks', value: formatNum(summary?.clicks || 0) },
-      { label: 'CTR', value: formatPct(summary?.ctr || 0) },
-      { label: 'CPC', value: formatCurrency(summary?.cpc || 0) },
-      { label: 'Conversions', value: formatNum(summary?.conversions || 0) },
-      { label: 'CPA', value: formatCurrency(summary?.cpa || 0) },
-      { label: 'ROAS', value: `${formatNum(summary?.roas || 0, 2)}x` },
+      { label: 'Total Spend', value: formatCurrency(safeSummary.spend) },
+      { label: 'Impressions', value: formatNum(safeSummary.impressions) },
+      { label: 'Clicks', value: formatNum(safeSummary.clicks) },
+      { label: 'CTR', value: formatPct(safeSummary.ctr) },
+      { label: 'CPC', value: formatCurrency(safeSummary.cpc) },
+      { label: 'Conversions', value: formatNum(safeSummary.conversions) },
+      { label: 'CPA', value: formatCurrency(safeSummary.cpa) },
+      { label: 'ROAS', value: `${formatNum(safeSummary.roas, 2)}x` },
     ];
 
     const cols = 4;
@@ -171,8 +187,16 @@ router.post('/generate', async (req, res) => {
       const y = startY + row * (cardH + gap);
 
       doc.rect(x, y, cardW, cardH).fill(LIGHT);
-      doc.fillColor(GRAY).fontSize(8).font('Helvetica').text(m.label.toUpperCase(), x + 8, y + 10, { width: cardW - 16 });
-      doc.fillColor(DARK).fontSize(16).font('Helvetica-Bold').text(m.value, x + 8, y + 28, { width: cardW - 16 });
+
+      doc.fillColor(GRAY)
+        .fontSize(8)
+        .font('Helvetica')
+        .text(m.label.toUpperCase(), x + 8, y + 10, { width: cardW - 16 });
+
+      doc.fillColor(DARK)
+        .fontSize(16)
+        .font('Helvetica-Bold')
+        .text(m.value, x + 8, y + 28, { width: cardW - 16 });
     });
 
     // Monthly trends table
@@ -262,7 +286,7 @@ router.post('/generate', async (req, res) => {
     // Footer on all pages
     const pages = doc.bufferedPageRange();
     for (let i = 0; i < pages.count; i++) {
-      doc.switchToPage(i + 1);
+      doc.switchToPage(i);
       doc.rect(0, doc.page.height - 40, doc.page.width, 40).fill(LIGHT);
       doc.fillColor(GRAY).fontSize(8)
         .text(`${agency?.name || 'Agency'} | Confidential | Page ${i + 1} of ${pages.count}`,
@@ -273,7 +297,7 @@ router.post('/generate', async (req, res) => {
 
     writeStream.on('finish', async () => {
       const BASE_URL = "https://marketing-report-generator-p9wj.onrender.com";
-        const fileUrl = `${BASE_URL}/data/reports/${fileName}`;
+      const fileUrl = `${BASE_URL}/data/reports/${fileName}`;
       // Save report record
       await db.query(
         `INSERT INTO generated_reports (client_id, agency_id, created_by, title, date_range_start, date_range_end, file_path)
