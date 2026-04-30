@@ -61,7 +61,7 @@ router.post('/generate', async (req, res) => {
         params
       ),
       db.query(
-        `SELECT TO_CHAR(report_month, 'Mon YYYY') as month, SUM(spend) as spend, 
+        `SELECT TO_CHAR(report_month, 'Mon YYYY') as month, SUM(spend) as spend,
           SUM(clicks) as clicks, SUM(conversions) as conversions,
           CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas
          FROM performance_data pd ${whereClause} GROUP BY report_month ORDER BY report_month`,
@@ -118,6 +118,8 @@ router.post('/generate', async (req, res) => {
 
     // Cover page
     doc.rect(0, 0, doc.page.width, 200).fill(PRIMARY);
+
+    doc.fillColor(WHITE);
 
     if (agencyBranding && agency?.logo_url) {
       const logoPath = path.join(__dirname, '../..', agency.logo_url);
@@ -186,7 +188,19 @@ router.post('/generate', async (req, res) => {
       const x = startX + col * (cardW + gap);
       const y = startY + row * (cardH + gap);
 
-      doc.rect(x, y, cardW, cardH).fill(LIGHT);
+     doc.rect(x, y, cardW, cardH).fill(LIGHT);
+
+     // ✅ RESET TEXT COLOR AFTER FILL
+     doc.fillColor(DARK);
+
+     doc.fontSize(8)
+       .font('Helvetica')
+       .text(m.label.toUpperCase(), x + 8, y + 10, { width: cardW - 16 });
+
+     doc.fillColor(DARK)
+       .fontSize(16)
+       .font('Helvetica-Bold')
+       .text(m.value, x + 8, y + 28, { width: cardW - 16 });
 
       doc.fillColor(GRAY)
         .fontSize(8)
@@ -210,7 +224,8 @@ router.post('/generate', async (req, res) => {
       let tY = 85;
 
       // Header row
-      doc.rect(50, tY, 495, 22).fill(PRIMARY);
+      doc.rect(50, tY, 495, 20).fill(PRIMARY);
+      doc.fillColor(DARK);
       let tX = 50;
       headers.forEach((h, i) => {
         doc.fillColor(WHITE).fontSize(9).font('Helvetica-Bold')
@@ -255,6 +270,8 @@ router.post('/generate', async (req, res) => {
       let cY = campY + 35;
 
       doc.rect(50, cY, 495, 22).fill(PRIMARY);
+       // ✅ VERY IMPORTANT: RESET TEXT COLOR
+      doc.fillColor('#ffffff');   // white text on blue header
       let cX = 50;
       cHeaders.forEach((h, i) => {
         doc.fillColor(WHITE).fontSize(9).font('Helvetica-Bold')
@@ -325,7 +342,7 @@ router.post('/generate', async (req, res) => {
 router.get('/history/:clientId', async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT gr.*, u.full_name as created_by_name 
+      `SELECT gr.*, u.full_name as created_by_name
        FROM generated_reports gr
        LEFT JOIN users u ON gr.created_by = u.id
        WHERE gr.client_id=$1
