@@ -95,8 +95,7 @@ router.post('/generate', async (req, res) => {
 
     const doc = new PDFDocument({
       size: 'A4',
-      margin: 50,
-      bufferPages: true   // ✅ REQUIRED
+      margin: 50
     });
     const writeStream = fs.createWriteStream(filePath);
     doc.pipe(writeStream);
@@ -300,16 +299,16 @@ router.post('/generate', async (req, res) => {
       });
     }
 
-    // Footer on all pages
-    const pages = doc.bufferedPageRange();
-    for (let i = 0; i < pages.count; i++) {
-      doc.switchToPage(i);
-      doc.rect(0, doc.page.height - 40, doc.page.width, 40).fill(LIGHT);
-      doc.fillColor(GRAY).fontSize(8)
-        .text(`${agency?.name || 'Agency'} | Confidential | Page ${i + 1} of ${pages.count}`,
-          50, doc.page.height - 25, { align: 'center', width: doc.page.width - 100 });
-    }
-
+    // Simple footer only on current page
+    doc.fillColor(GRAY)
+      .fontSize(8)
+      .font('Helvetica')
+      .text(
+        `${agency?.name || 'Agency'} | Confidential`,
+        50,
+        doc.page.height - 30,
+        { align: 'center', width: doc.page.width - 100 }
+      );
     doc.end();
 
     writeStream.on('finish', async () => {
