@@ -142,7 +142,9 @@ async function processFile(uploadId, fileType, filePath, clientId, platform, dat
 
     // Store individual campaigns
     for (const camp of campaigns) {
-      if (!camp.spend && !camp.impressions) continue;
+      if (
+        !camp.spend && !camp.impressions && !camp.clicks && !camp.conversions && !camp.reach
+      ) continue;
 
       // Upsert campaign
       let campaignId = null;
