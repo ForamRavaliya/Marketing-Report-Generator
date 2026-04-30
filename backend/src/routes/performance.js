@@ -30,21 +30,46 @@ router.get('/summary/:clientId', async (req, res) => {
 
     const result = await db.query(
       `SELECT 
-        SUM(spend) as total_spend,
-        SUM(impressions) as total_impressions,
-        SUM(clicks) as total_clicks,
-        CASE WHEN SUM(impressions) > 0 THEN SUM(clicks)::float / SUM(impressions) * 100 ELSE 0 END as avg_ctr,
-        CASE WHEN SUM(clicks) > 0 THEN SUM(spend) / SUM(clicks) ELSE 0 END as avg_cpc,
-        SUM(conversions) as total_conversions,
-        CASE WHEN SUM(conversions) > 0 THEN SUM(spend) / SUM(conversions) ELSE 0 END as avg_cpa,
-        CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as avg_roas,
-        SUM(revenue) as total_revenue,
-        COUNT(DISTINCT pd.id) as data_points
+         SUM(COALESCE(spend, 0)) as total_spend,
+         SUM(COALESCE(reach, 0)) as total_reach,
+         SUM(COALESCE(impressions, 0)) as total_impressions,
+         SUM(COALESCE(clicks, 0)) as total_clicks,
+
+         CASE WHEN SUM(COALESCE(impressions,0)) > 0
+           THEN SUM(clicks)::float / SUM(impressions) * 100 ELSE 0 END as avg_ctr,
+
+         CASE WHEN SUM(COALESCE(clicks,0)) > 0
+           THEN SUM(spend) / SUM(clicks) ELSE 0 END as avg_cpc,
+
+         SUM(COALESCE(conversions,0)) as total_conversions,
+
+         CASE WHEN SUM(COALESCE(conversions,0)) > 0
+           THEN SUM(spend) / SUM(conversions) ELSE 0 END as avg_cpa,
+
+         CASE WHEN SUM(COALESCE(spend,0)) > 0
+           THEN SUM(revenue) / SUM(spend) ELSE 0 END as avg_roas,
+
+         SUM(COALESCE(revenue,0)) as total_revenue,
+         COUNT(DISTINCT pd.id) as data_points
        FROM performance_data pd ${whereClause}`,
       params
     );
 
-    res.json(result.rows[0]);
+   const row = result.rows[0] || {};
+
+   res.json({
+     spend: parseFloat(row.total_spend) || 0,
+     reach: parseFloat(row.total_reach) || 0,
+     impressions: parseFloat(row.total_impressions) || 0,
+     clicks: parseFloat(row.total_clicks) || 0,
+     conversions: parseFloat(row.total_conversions) || 0,
+     ctr: parseFloat(row.avg_ctr) || 0,
+     cpc: parseFloat(row.avg_cpc) || 0,
+     cpa: parseFloat(row.avg_cpa) || 0,
+     roas: parseFloat(row.avg_roas) || 0,
+     revenue: parseFloat(row.total_revenue) || 0,
+     dataPoints: parseInt(row.data_points) || 0,
+   });
   } catch (error) {
     console.error('Summary error:', error);
     res.status(500).json({ error: 'Failed to fetch summary' });
