@@ -27,7 +27,12 @@ const authenticate = async (req, res, next) => {
 
     // ✅ FIX 2: MATCH your /me route
     req.user = {
-      userId: result.rows[0].id
+      userId: result.rows[0].id,
+        id: result.rows[0].id,
+        email: result.rows[0].email,
+        full_name: result.rows[0].full_name,
+        role: result.rows[0].role,
+        agency_id: result.rows[0].agency_id
     };
 
     next();
