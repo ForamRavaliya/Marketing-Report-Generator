@@ -23,6 +23,79 @@ const formatCurrency = (n) =>
   })}`;
 const formatPct = (n) => `${formatNum(n, 2)}%`;
 
+//Bar Chart
+const drawBarChart = (doc, data, options) => {
+  const { x, y, width, title, labelKey, valueKey, color } = options;
+
+  doc.fillColor('#1E293B')
+    .fontSize(16)
+    .font('Helvetica-Bold')
+    .text(title, x, y);
+
+  const startY = y + 30;
+  const max = Math.max(...data.map(d => Number(d[valueKey] || 0)), 1);
+
+  const barHeight = 16;
+  const gap = 12;
+
+  data.slice(0, 6).forEach((d, i) => {
+    const label = (d[labelKey] || 'Unknown').substring(0, 20);
+    const value = Number(d[valueKey] || 0);
+
+    const barWidth = (value / max) * (width - 160);
+    const rowY = startY + i * (barHeight + gap);
+
+    // Label
+    doc.fillColor('#64748B')
+      .fontSize(8)
+      .text(label, x, rowY + 3, { width: 130 });
+
+    // Bar
+    doc.rect(x + 140, rowY, barWidth, barHeight).fill(color);
+
+    // Value
+    doc.fillColor('#1E293B')
+      .fontSize(8)
+      .text(formatCurrency(value), x + 145 + barWidth, rowY + 3);
+  });
+};
+
+//Insights FXN
+const drawInsights = (doc, summary) => {
+  doc.addPage();
+
+  doc.fillColor('#1E293B')
+    .fontSize(18)
+    .font('Helvetica-Bold')
+    .text('Insights & Recommendations', 50, 50);
+
+  doc.moveTo(50, 72).lineTo(545, 72).stroke('#2563EB');
+
+  doc.fillColor('#64748B')
+    .fontSize(11)
+    .font('Helvetica')
+    .text(`• Total Spend: ${formatCurrency(summary.spend)}`, 50, 100)
+    .text(`• Total Reach: ${formatNum(summary.reach)}`, 50, 120)
+    .text(`• Total Impressions: ${formatNum(summary.impressions)}`, 50, 140)
+    .text(`• Leads Generated: ${formatNum(summary.conversions)}`, 50, 160)
+    .text(`• Cost per Lead: ${formatCurrency(summary.cpa)}`, 50, 180);
+
+  doc.moveDown(2);
+
+  doc.fillColor('#1E293B')
+    .fontSize(14)
+    .font('Helvetica-Bold')
+    .text('Recommendations', 50, 230);
+
+  doc.fillColor('#64748B')
+    .fontSize(11)
+    .text('• Increase budget on high-performing campaigns', 50, 260)
+    .text('• Pause low ROI campaigns', 50, 280)
+    .text('• Focus on campaigns with lowest cost per lead', 50, 300)
+    .text('• Optimize creatives for better CTR', 50, 320);
+};
+
+
 // Generate PDF report
 router.post('/generate', async (req, res) => {
   try {
@@ -205,7 +278,7 @@ metrics.forEach((m, i) => {
   const x = startX + col * (cardW + gap);
   const y = startY + row * (cardH + gap);
 
-  doc.rect(x, y, cardW, cardH).fill(LIGHT);
+  doc.roundedRect(x, y, cardW, cardH, 8).fill(LIGHT);
 
   doc.fillColor(GRAY)
     .fontSize(8)
@@ -305,6 +378,22 @@ metrics.forEach((m, i) => {
       });
     }
 
+// 📊 Chart Page
+if (campaigns.length > 0) {
+  doc.addPage();
+
+  drawBarChart(doc, campaigns, {
+    x: 50,
+    y: 60,
+    width: 500,
+    title: 'Top Campaigns by Spend',
+    labelKey: 'name',
+    valueKey: 'spend',
+    color: PRIMARY,
+  });
+}
+ drawInsights(doc, safeSummary);
+
     // Simple footer only on current page
     doc.fillColor(GRAY)
       .fontSize(8)
@@ -315,6 +404,7 @@ metrics.forEach((m, i) => {
         doc.page.height - 30,
         { align: 'center', width: doc.page.width - 100 }
       );
+
     doc.end();
 
     writeStream.on('finish', async () => {
