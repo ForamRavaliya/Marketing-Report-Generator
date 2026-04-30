@@ -8,6 +8,7 @@ const { authenticate, JWT_SECRET } = require('../middleware/auth');
 // Login
 router.post('/login', async (req, res) => {
   try {
+  console.log("JWT_SECRET:", process.env.JWT_SECRET); // ✅ ADD HERE
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
@@ -20,7 +21,7 @@ router.post('/login', async (req, res) => {
     );
 
     if (!result.rows.length) return res.status(401).json({ error: 'Invalid credentials' });
-console.log("JWT_SECRET:", process.env.JWT_SECRET);
+
     const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
@@ -101,6 +102,7 @@ router.post('/register', async (req, res) => {
 
 router.get('/me', authenticate, async (req, res) => {
   try {
+  console.log("JWT_SECRET:", process.env.JWT_SECRET); // ✅ ADD HERE
     const result = await db.query(
       `SELECT u.*, a.name as agency_name, a.primary_color, a.secondary_color
        FROM users u
@@ -112,7 +114,7 @@ router.get('/me', authenticate, async (req, res) => {
     if (!result.rows.length) {
       return res.status(404).json({ error: "User not found" });
     }
-console.log("JWT_SECRET:", process.env.JWT_SECRET);
+
     const user = result.rows[0];
 
     res.json({
