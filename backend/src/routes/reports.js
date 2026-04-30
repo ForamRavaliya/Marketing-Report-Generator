@@ -32,31 +32,42 @@ const drawBarChart = (doc, data, options) => {
     .font('Helvetica-Bold')
     .text(title, x, y);
 
-  const startY = y + 30;
+  const startY = y + 35;
   const max = Math.max(...data.map(d => Number(d[valueKey] || 0)), 1);
 
-  const barHeight = 16;
-  const gap = 12;
+  const labelW = 150;
+  const valueW = 90;
+  const chartW = width - labelW - valueW - 25;
+
+  const barHeight = 18;
+  const gap = 14;
 
   data.slice(0, 6).forEach((d, i) => {
-    const label = (d[labelKey] || 'Unknown').substring(0, 20);
+    const label = String(d[labelKey] || 'Unknown').substring(0, 22);
     const value = Number(d[valueKey] || 0);
-
-    const barWidth = (value / max) * (width - 160);
+    const barWidth = Math.max((value / max) * chartW, 4);
     const rowY = startY + i * (barHeight + gap);
 
-    // Label
     doc.fillColor('#64748B')
       .fontSize(8)
-      .text(label, x, rowY + 3, { width: 130 });
+      .font('Helvetica-Bold')
+      .text(label, x, rowY + 4, { width: labelW - 10 });
 
-    // Bar
-    doc.rect(x + 140, rowY, barWidth, barHeight).fill(color);
+    doc.roundedRect(x + labelW, rowY, barWidth, barHeight, 3).fill(color);
 
-    // Value
     doc.fillColor('#1E293B')
       .fontSize(8)
-      .text(formatCurrency(value), x + 145 + barWidth, rowY + 3);
+      .font('Helvetica-Bold')
+      .text(
+        formatCurrency(value),
+        x + labelW + chartW + 10,
+        rowY + 4,
+        {
+          width: valueW,
+          align: 'left',
+          lineBreak: false
+        }
+      );
   });
 };
 
