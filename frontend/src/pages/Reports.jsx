@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { getClients, generateReport, getReportHistory } from '../utils/api';
 import toast from 'react-hot-toast';
 import { FileBarChart2, Download, ExternalLink, Clock } from 'lucide-react';
-
+import { getClients, generateReport, getReportHistory, getSummary } from '../utils/api';
 const PLATFORMS = ['all', 'meta', 'google', 'linkedin', 'twitter', 'tiktok'];
 const BACKEND_URL = 'https://marketing-report-generator-p9wj.onrender.com';
 
@@ -25,6 +24,7 @@ export default function Reports() {
   const [generating, setGenerating] = useState(false);
   const [history, setHistory] = useState([]);
   const [generatedUrl, setGeneratedUrl] = useState(null);
+  const [summary, setSummary] = useState(null);
 
   useEffect(() => {
     getClients().then(setClients).catch(() => {});
@@ -37,6 +37,15 @@ export default function Reports() {
       setHistory([]);
     }
   }, [form.clientId]);
+useEffect(() => {
+  if (form.clientId) {
+    getSummary(form.clientId)
+      .then(setSummary)
+      .catch(() => setSummary(null));
+  } else {
+    setSummary(null);
+  }
+}, [form.clientId]);
 
   const set = (k) => (e) =>
     setForm((f) => ({
@@ -237,43 +246,119 @@ export default function Reports() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div
-            className="card card-pad"
-            style={{
-              background: 'linear-gradient(135deg,#EFF6FF,#F5F3FF)',
-              border: '1px solid #BFDBFE',
-            }}
-          >
-            <div
-              style={{
-                fontWeight: 700,
-                fontSize: 14,
-                marginBottom: 12,
-                color: 'var(--primary)',
-              }}
-            >
-              What's included in the report
+        {summary && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14 }}>
+              Live Performance Snapshot
             </div>
 
-            {[
-              'Performance summary cards (Spend, Impressions, Clicks, CTR, CPC, CPA, ROAS)',
-              'Month-over-month comparison table with % change',
-              'Monthly performance trends',
-              'Top campaigns breakdown table',
-              'Platform allocation & budget split',
-              'Agency logo & custom branding',
-            ].map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-                <span style={{ color: 'var(--success)', flexShrink: 0, marginTop: 1 }}>✓</span>
-                <span style={{ fontSize: 12, color: 'var(--text2)' }}>{item}</span>
-              </div>
-            ))}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              {[
+                { label: 'Spend', value: `Rs. ${Number(summary.spend || 0).toLocaleString('en-IN')}` },
+                { label: 'Reach', value: Number(summary.reach || 0).toLocaleString('en-IN') },
+                { label: 'Impressions', value: Number(summary.impressions || 0).toLocaleString('en-IN') },
+                { label: 'Leads', value: Number(summary.conversions || 0).toLocaleString('en-IN') },
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    background: 'linear-gradient(135deg,#F8FAFC,#EEF2FF)',
+                    border: '1px solid #E2E8F0',
+                  }}
+                >
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                    {item.label}
+                  </div>
+                  <div style={{ fontSize: 17, fontWeight: 800 }}>
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+        )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+         <div
+           className="card card-pad"
+           style={{
+             background: 'linear-gradient(135deg,#EEF2FF,#F8FAFC)',
+             border: '1px solid #C7D2FE',
+             boxShadow: '0 18px 35px rgba(15, 23, 42, 0.08)',
+           }}
+         >
 
+           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+             <div
+               style={{
+                 width: 38,
+                 height: 38,
+                 borderRadius: 12,
+                 background: 'linear-gradient(135deg,#2563EB,#7C3AED)',
+                 display: 'flex',
+                 alignItems: 'center',
+                 justifyContent: 'center',
+               }}
+             >
+               <FileBarChart2 size={18} color="#fff" />
+             </div>
+             <div>
+               <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text)' }}>
+                 Premium PDF Report
+               </div>
+               <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+                 Visual, clean and mentor-ready format
+               </div>
+             </div>
+           </div>
+
+           {[
+             { title: 'Executive Summary', desc: 'Spend, reach, impressions, leads and cost per lead' },
+             { title: 'Visual Charts', desc: 'Top campaign spend bar chart inside PDF' },
+             { title: 'Campaign Table', desc: 'Campaign-wise performance breakdown' },
+             { title: 'Insights', desc: 'Auto-written observations and recommendations' },
+             { title: 'Branding', desc: 'Agency name, colors and professional cover page' },
+           ].map((item, i) => (
+             <div
+               key={i}
+               style={{
+                 display: 'flex',
+                 gap: 10,
+                 padding: '10px 0',
+                 borderTop: i === 0 ? 'none' : '1px solid rgba(99,102,241,.15)',
+               }}
+             >
+               <div
+                 style={{
+                   width: 22,
+                   height: 22,
+                   borderRadius: '50%',
+                   background: '#DCFCE7',
+                   color: '#15803D',
+                   fontSize: 12,
+                   fontWeight: 800,
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   flexShrink: 0,
+                 }}
+               >
+                 ✓
+               </div>
+               <div>
+                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                   {item.title}
+                 </div>
+                 <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
+                   {item.desc}
+                 </div>
+               </div>
+             </div>
+           ))}
+         </div>
           <div className="card">
             <div
               className="card-pad"
