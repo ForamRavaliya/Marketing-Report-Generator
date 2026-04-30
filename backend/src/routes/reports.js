@@ -273,7 +273,7 @@ router.post('/generate', async (req, res) => {
 
     writeStream.on('finish', async () => {
       const BASE_URL = "https://marketing-report-generator-p9wj.onrender.com";
-
+        const fileUrl = `${BASE_URL}/data/reports/${fileName}`;
       // Save report record
       await db.query(
         `INSERT INTO generated_reports (client_id, agency_id, created_by, title, date_range_start, date_range_end, file_path)
