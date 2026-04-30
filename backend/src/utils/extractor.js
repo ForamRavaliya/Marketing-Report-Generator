@@ -144,8 +144,9 @@ const parseMarketingData = (records) => {
     totalImpressions += impressions;
     totalClicks += clicks;
     totalConversions += conversions;
-    totalRevenue += revenue,
+    totalRevenue += revenue;
     totalReach += reach;
+
     campaigns.push({
       name: colMap.campaignName ? record[colMap.campaignName] : 'Campaign',
       platform: colMap.platform ? record[colMap.platform]?.toLowerCase() : 'other',
