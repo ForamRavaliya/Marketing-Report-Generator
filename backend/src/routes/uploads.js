@@ -97,20 +97,46 @@ async function processFile(uploadId, fileType, filePath, clientId, platform, dat
     const reportMonth = dateStart ? new Date(dateStart) : new Date();
     reportMonth.setDate(1);
 
-    // Store aggregated metrics
-    if (metrics.spend || metrics.impressions || metrics.clicks) {
+    // Store aggregated metrics (ONLY if data exists)
+    if (
+      metrics.spend ||
+      metrics.impressions ||
+      metrics.clicks ||
+      metrics.conversions ||
+      metrics.reach
+    ) {
       await db.query(
-        `INSERT INTO performance_data 
+        `INSERT INTO performance_data
           (client_id, upload_id, platform, report_month, date_range_start, date_range_end,
-           spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, raw_data)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-         ON CONFLICT (client_id, platform, report_month, campaign_id) 
-         DO UPDATE SET spend=EXCLUDED.spend, impressions=EXCLUDED.impressions, 
-           clicks=EXCLUDED.clicks, updated_at=NOW()`,
-        [clientId, uploadId, platform || 'other', reportMonth, dateStart || null, dateEnd || null,
-         metrics.spend || 0, metrics.impressions || 0, metrics.clicks || 0,
-         metrics.ctr || 0, metrics.cpc || 0, metrics.conversions || 0,
-         metrics.cpa || 0, metrics.roas || 0, metrics.revenue || 0, JSON.stringify(metrics)]
+           spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, raw_data)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         ON CONFLICT (client_id, platform, report_month, campaign_id)
+         DO UPDATE SET
+           spend=EXCLUDED.spend,
+           impressions=EXCLUDED.impressions,
+           clicks=EXCLUDED.clicks,
+           conversions=EXCLUDED.conversions,
+           reach=EXCLUDED.reach,
+           updated_at=NOW()`,
+        [
+          clientId,
+          uploadId,
+          platform || 'meta',
+          reportMonth,
+          dateStart || null,
+          dateEnd || null,
+          metrics.spend || 0,
+          metrics.impressions || 0,
+          metrics.clicks || 0,
+          metrics.ctr || 0,
+          metrics.cpc || 0,
+          metrics.conversions || 0,
+          metrics.cpa || 0,
+          metrics.roas || 0,
+          metrics.revenue || 0,
+          metrics.reach || 0,
+          JSON.stringify(metrics),
+        ]
       );
     }
 

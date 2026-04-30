@@ -16,7 +16,11 @@ const formatNum = (n, decimals = 0) => {
   });
 };
 
-const formatCurrency = (n) => `$${formatNum(n, 2)}`;
+const formatCurrency = (n) =>
+  `₹${parseFloat(n || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 const formatPct = (n) => `${formatNum(n, 2)}%`;
 
 // Generate PDF report
@@ -50,16 +54,29 @@ router.post('/generate', async (req, res) => {
     if (platform && platform !== 'all') { whereClause += ` AND pd.platform = $${idx++}`; params.push(platform); }
 
     const [summaryResult, trendsResult, platformsResult, campaignsResult] = await Promise.all([
-      db.query(
-        `SELECT SUM(spend) as spend, SUM(impressions) as impressions, SUM(clicks) as clicks,
-          SUM(conversions) as conversions, SUM(revenue) as revenue,
-          CASE WHEN SUM(impressions) > 0 THEN SUM(clicks)::float / SUM(impressions) * 100 ELSE 0 END as ctr,
-          CASE WHEN SUM(clicks) > 0 THEN SUM(spend) / SUM(clicks) ELSE 0 END as cpc,
-          CASE WHEN SUM(conversions) > 0 THEN SUM(spend) / SUM(conversions) ELSE 0 END as cpa,
-          CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas
-         FROM performance_data pd ${whereClause}`,
-        params
-      ),
+     db.query(
+       `SELECT
+         SUM(COALESCE(spend, 0)) as spend,
+         SUM(COALESCE(impressions, 0)) as impressions,
+         SUM(COALESCE(clicks, 0)) as clicks,
+         SUM(COALESCE(conversions, 0)) as conversions,
+         SUM(COALESCE(revenue, 0)) as revenue,
+         SUM(COALESCE(reach, 0)) as reach,
+         CASE WHEN SUM(COALESCE(impressions, 0)) > 0
+           THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100
+           ELSE 0 END as ctr,
+         CASE WHEN SUM(COALESCE(clicks, 0)) > 0
+           THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(clicks, 0))
+           ELSE 0 END as cpc,
+         CASE WHEN SUM(COALESCE(conversions, 0)) > 0
+           THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0))
+           ELSE 0 END as cpa,
+         CASE WHEN SUM(COALESCE(spend, 0)) > 0
+           THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
+           ELSE 0 END as roas
+        FROM performance_data pd ${whereClause}`,
+       params
+     ),
       db.query(
         `SELECT TO_CHAR(report_month, 'Mon YYYY') as month, SUM(spend) as spend,
           SUM(clicks) as clicks, SUM(conversions) as conversions,
@@ -152,26 +169,27 @@ router.post('/generate', async (req, res) => {
     doc.moveDown(0.5);
 
     // Safe summary values
-    const safeSummary = {
-      spend: summary?.spend || 0,
-      impressions: summary?.impressions || 0,
-      clicks: summary?.clicks || 0,
-      conversions: summary?.conversions || 0,
-      ctr: summary?.ctr || 0,
-      cpc: summary?.cpc || 0,
-      cpa: summary?.cpa || 0,
-      roas: summary?.roas || 0,
-    };
+   const safeSummary = {
+     spend: summary?.spend || 0,
+     reach: summary?.reach || 0,
+     impressions: summary?.impressions || 0,
+     clicks: summary?.clicks || 0,
+     conversions: summary?.conversions || 0,
+     ctr: summary?.ctr || 0,
+     cpc: summary?.cpc || 0,
+     cpa: summary?.cpa || 0,
+     roas: summary?.roas || 0,
+   };
 
     const metrics = [
       { label: 'Total Spend', value: formatCurrency(safeSummary.spend) },
+      { label: 'Reach', value: formatNum(safeSummary.reach) },
       { label: 'Impressions', value: formatNum(safeSummary.impressions) },
       { label: 'Clicks', value: formatNum(safeSummary.clicks) },
+      { label: 'Leads / Results', value: formatNum(safeSummary.conversions) },
       { label: 'CTR', value: formatPct(safeSummary.ctr) },
       { label: 'CPC', value: formatCurrency(safeSummary.cpc) },
-      { label: 'Conversions', value: formatNum(safeSummary.conversions) },
-      { label: 'CPA', value: formatCurrency(safeSummary.cpa) },
-      { label: 'ROAS', value: `${formatNum(safeSummary.roas, 2)}x` },
+      { label: 'Cost / Lead', value: formatCurrency(safeSummary.cpa) },
     ];
 
     const cols = 4;
@@ -181,36 +199,24 @@ router.post('/generate', async (req, res) => {
     const startY = 295;
     const gap = 10;
 
-    metrics.forEach((m, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = startX + col * (cardW + gap);
-      const y = startY + row * (cardH + gap);
+metrics.forEach((m, i) => {
+  const col = i % cols;
+  const row = Math.floor(i / cols);
+  const x = startX + col * (cardW + gap);
+  const y = startY + row * (cardH + gap);
 
-     doc.rect(x, y, cardW, cardH).fill(LIGHT);
+  doc.rect(x, y, cardW, cardH).fill(LIGHT);
 
-     // ✅ RESET TEXT COLOR AFTER FILL
-     doc.fillColor(DARK);
+  doc.fillColor(GRAY)
+    .fontSize(8)
+    .font('Helvetica')
+    .text(m.label.toUpperCase(), x + 8, y + 10, { width: cardW - 16 });
 
-     doc.fontSize(8)
-       .font('Helvetica')
-       .text(m.label.toUpperCase(), x + 8, y + 10, { width: cardW - 16 });
-
-     doc.fillColor(DARK)
-       .fontSize(16)
-       .font('Helvetica-Bold')
-       .text(m.value, x + 8, y + 28, { width: cardW - 16 });
-
-      doc.fillColor(GRAY)
-        .fontSize(8)
-        .font('Helvetica')
-        .text(m.label.toUpperCase(), x + 8, y + 10, { width: cardW - 16 });
-
-      doc.fillColor(DARK)
-        .fontSize(16)
-        .font('Helvetica-Bold')
-        .text(m.value, x + 8, y + 28, { width: cardW - 16 });
-    });
+  doc.fillColor(DARK)
+    .fontSize(16)
+    .font('Helvetica-Bold')
+    .text(m.value, x + 8, y + 28, { width: cardW - 16 });
+});
 
     // Monthly trends table
     if (trends.length > 0) {
