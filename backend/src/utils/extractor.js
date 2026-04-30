@@ -13,10 +13,38 @@ const extractFromExcel = async (filePath) => {
   const XLSX = require('xlsx');
   const workbook = XLSX.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
-  const records = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+    header: 1,
+    defval: '',
+  });
+
+  // Find actual header row
+  const headerIndex = rows.findIndex(row =>
+    row.some(cell =>
+      String(cell).toLowerCase().trim() === 'campaign name'
+    )
+  );
+
+  if (headerIndex === -1) {
+    console.log('Excel headers not found');
+    return { metrics: {}, campaigns: [], rawText: '' };
+  }
+
+  const headers = rows[headerIndex].map(h => String(h).trim());
+
+  const records = rows.slice(headerIndex + 1)
+    .filter(row => row.some(cell => String(cell).trim() !== ''))
+    .map(row => {
+      const obj = {};
+      headers.forEach((h, i) => {
+        if (h) obj[h] = row[i];
+      });
+      return obj;
+    });
+
   return parseMarketingData(records);
 };
-
 const extractFromPDF = async (filePath) => {
   try {
     const pdfParse = require('pdf-parse');
@@ -90,6 +118,13 @@ const COLUMN_MAP = {
   frequency: ['frequency', 'avg. frequency'],
   campaignName: ['campaign', 'campaign name', 'campaign_name', 'ad campaign', 'campaign title'],
   platform: ['platform', 'channel', 'network', 'source'],
+  deliveryLevel: ['delivery level'],
+  adSetName: ['ad set name'],
+  resultType: ['result type'],
+  starts: ['starts'],
+  ends: ['ends'],
+  reportingStarts: ['reporting starts'],
+  reportingEnds: ['reporting ends'],
 };
 
 const findColumn = (headers, fieldVariants) => {
@@ -134,6 +169,13 @@ const parseMarketingData = (records) => {
     totalReach = 0;
 
   for (const record of records) {
+  const deliveryLevel = colMap.deliveryLevel
+    ? String(record[colMap.deliveryLevel] || '').toLowerCase().trim()
+    : '';
+
+  if (deliveryLevel !== 'campaign') {
+    continue;
+  }
     const spend = parseNum(colMap.spend ? record[colMap.spend] : 0);
     const impressions = parseNum(colMap.impressions ? record[colMap.impressions] : 0);
     const clicks = parseNum(colMap.clicks ? record[colMap.clicks] : 0);
@@ -149,7 +191,7 @@ const parseMarketingData = (records) => {
 
     campaigns.push({
       name: colMap.campaignName ? record[colMap.campaignName] : 'Campaign',
-      platform: colMap.platform ? record[colMap.platform]?.toLowerCase() : 'other',
+      platform: colMap.platform ? record[colMap.platform]?.toLowerCase() : 'meta',
       spend,
       impressions,
       clicks,
