@@ -69,7 +69,10 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     // Run extraction asynchronously
     processFile(uploadId, fileType, filePath, clientId, platform, dateRangeStart, dateRangeEnd)
-      .catch(err => console.error('Extraction error:', err));
+      .catch(err){
+      console.error("MANUAL UPLOAD ERROR:", error);
+        res.status(500).json({ error: error.message });
+      }
 
     res.status(201).json({
       uploadId,
