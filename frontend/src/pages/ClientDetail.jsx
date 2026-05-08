@@ -91,7 +91,13 @@ const [adForm, setAdForm] = useState({
     </div>
   );
 
-  const TABS = ['overview', 'trends', 'campaigns', 'platforms', 'integrations'];
+  const TABS = [
+    'overview',
+    'trends',
+    'campaigns',
+    'platforms',
+    'integrations',
+  ];
 // Hanlers
 const handleAddAdAccount = async () => {
   try {
