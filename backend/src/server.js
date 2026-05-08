@@ -23,6 +23,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/data', express.static(path.join(__dirname, '../data')));
 
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/clients', require('./routes/clients'));
@@ -32,6 +33,7 @@ app.use('/api/performance', require('./routes/performance'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/agency', require('./routes/agency'));
+app.use('/api/ad-accounts', require('./routes/adAccounts'));
 
 // Health check
 app.get('/api/health', (req, res) => {
