@@ -387,7 +387,8 @@ router.post('/generate', async (req, res) => {
 
     const doc = new PDFDocument({
       size: 'A4',
-      margin: 50
+      margin: 50,
+      bufferPages: true,
     });
     const writeStream = fs.createWriteStream(filePath);
     doc.pipe(writeStream);
@@ -656,15 +657,7 @@ if (platforms.length > 0) {
  drawInsights(doc, safeSummary, currency);
 
     // Simple footer only on current page
-    doc.fillColor(GRAY)
-      .fontSize(8)
-      .font('Helvetica')
-      .text(
-        `${agency?.name || 'Agency'} | Confidential`,
-        50,
-        doc.page.height - 30,
-        { align: 'center', width: doc.page.width - 100 }
-      );
+
 const range = doc.bufferedPageRange();
 
 for (let i = 0; i < range.count; i++) {
