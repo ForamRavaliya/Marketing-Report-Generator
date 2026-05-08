@@ -385,11 +385,10 @@ router.post('/generate', async (req, res) => {
     const fileName = `report-${clientId}-${Date.now()}.pdf`;
     const filePath = path.join(outputDir, fileName);
 
-    const doc = new PDFDocument({
-      size: 'A4',
-      margin: 50,
-      bufferPages: true,
-    });
+   const doc = new PDFDocument({
+     size: 'A4',
+     margin: 50,
+   });
     const writeStream = fs.createWriteStream(filePath);
     doc.pipe(writeStream);
 
@@ -560,10 +559,8 @@ metrics.forEach((m, i) => {
       */
       if (campaigns.length > 0) {
 
-        doc.addPage();
-
-        const campY = 50;
-        doc.roundedRect(35, 35, 525, 320, 12)
+        const campY = 320;
+        doc.roundedRect(35, 300, 525, 380, 12)
           .fillAndStroke('#FFFFFF', '#E2E8F0');
       doc.fillColor(DARK).fontSize(18).font('Helvetica-Bold').text('Top Campaigns', 50, campY);
       doc.moveTo(50, campY + 22).lineTo(545, campY + 22).stroke(PRIMARY);
@@ -612,7 +609,7 @@ if (campaigns.length > 0 || trends.length > 0) {
       x: 50,
       y: 50,
       width: 500,
-      height: 250,
+      height: 180,
       title: 'Monthly Spend Trend',
       labelKey: 'month',
       valueKey: 'spend',
@@ -634,18 +631,18 @@ if (campaigns.length > 0) {
 
 if (platforms.length > 0) {
 
-    doc.addPage();
+
 
     drawPieChart(doc, platforms, {
       x: 160,
-      y: 210,
-      radius: 70,
+      y: 430,
+      radius: 55,
       title: 'Platform Spend Distribution',
     }, currency);
 
     drawNumberBarChart(doc, platforms, {
       x: 50,
-      y: 360,
+      y: 520,
       width: 500,
       title: 'Platform-wise Leads',
       labelKey: 'platform',
@@ -660,32 +657,6 @@ if (platforms.length > 0) {
 
 
 
-const range = doc.bufferedPageRange();
-
-for (let i = 0; i < range.count; i++) {
-
-  doc.switchToPage(i);
-
-  const page = doc.page;
-
-  doc.save();
-
-  doc.fontSize(8)
-    .fillColor('#94A3B8')
-    .font('Helvetica')
-    .text(
-      `${agency?.name || 'Agency'} • Confidential Report • Page ${i + 1}`,
-      50,
-      page.height - 40,
-      {
-        width: page.width - 100,
-        align: 'center',
-        lineBreak: false,
-      }
-    );
-
-  doc.restore();
-}
     doc.end();
 
     writeStream.on('finish', async () => {
