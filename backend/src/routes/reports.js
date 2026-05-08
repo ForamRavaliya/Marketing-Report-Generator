@@ -205,7 +205,7 @@ const drawPieChart = (doc, data, options, currency = 'INR') => {
   doc.fillColor('#1E293B')
     .fontSize(16)
     .font('Helvetica-Bold')
-    .text(title, x - 40, y - radius - 45);
+    .text(title, x - 80, y - radius - 55);
 
   const total = data.reduce((sum, d) => sum + Number(d.spend || 0), 0);
 
@@ -630,19 +630,17 @@ if (campaigns.length > 0) {
 }
 
 if (platforms.length > 0) {
-
-
-
+doc.addPage();
     drawPieChart(doc, platforms, {
       x: 160,
-      y: 430,
-      radius: 55,
+      y: 180,
+      radius: 70,
       title: 'Platform Spend Distribution',
     }, currency);
 
     drawNumberBarChart(doc, platforms, {
       x: 50,
-      y: 520,
+      y: 360,
       width: 500,
       title: 'Platform-wise Leads',
       labelKey: 'platform',
@@ -654,8 +652,6 @@ if (platforms.length > 0) {
  drawInsights(doc, safeSummary, currency);
 
     // Simple footer only on current page
-
-
 
     doc.end();
 
