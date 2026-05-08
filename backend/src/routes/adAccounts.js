@@ -45,12 +45,27 @@ router.post('/', async (req, res) => {
 router.get('/client/:clientId', async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, client_id, platform, ad_account_id, status, last_synced_at, created_at
+      `SELECT id, client_id, platform, ad_account_id, status, sync_frequency, last_synced_at, created_at
        FROM ad_accounts
        WHERE client_id = $1 AND agency_id = $2
        ORDER BY created_at DESC`,
       [req.params.clientId, req.user.agency_id]
     );
+await db.query(
+  `INSERT INTO sync_logs
+   (ad_account_id, client_id, agency_id, platform, mode, rows_synced, status, message)
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+  [
+    account.id,
+    account.client_id,
+    account.agency_id,
+    account.platform,
+    account.access_token ? 'live-api' : 'demo',
+    syncedRows.length,
+    'success',
+    'Ad data synced successfully',
+  ]
+);
 
     res.json(result.rows);
   } catch (error) {
@@ -99,23 +114,35 @@ router.post('/:id/sync', async (req, res) => {
     }
 
     for (const row of syncedRows) {
-      const campaignResult = await db.query(
-        `INSERT INTO campaigns (client_id, name, platform)
-         VALUES ($1, $2, $3)
-         RETURNING id`,
-        [account.client_id, row.campaignName, account.platform]
-      );
+     const campaignResult = await db.query(
+       `INSERT INTO campaigns (client_id, name, platform)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (client_id, name, platform)
+        DO UPDATE SET name = EXCLUDED.name
+        RETURNING id`,
+       [account.client_id, row.campaignName, account.platform]
+     );
 
       const campaignId = campaignResult.rows[0].id;
 
       await db.query(
         `INSERT INTO performance_data
-         (client_id, campaign_id, platform, report_month, spend, reach, impressions, clicks, conversions, revenue)
-         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, $8, $9)`,
+         (client_id, campaign_id, platform, report_month, external_campaign_name,
+          spend, reach, impressions, clicks, conversions, revenue)
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (client_id, platform, external_campaign_name, report_month)
+         DO UPDATE SET
+           spend = EXCLUDED.spend,
+           reach = EXCLUDED.reach,
+           impressions = EXCLUDED.impressions,
+           clicks = EXCLUDED.clicks,
+           conversions = EXCLUDED.conversions,
+           revenue = EXCLUDED.revenue`,
         [
           account.client_id,
           campaignId,
           account.platform,
+          row.campaignName,
           row.spend,
           row.reach,
           row.impressions,
@@ -151,6 +178,37 @@ router.post('/:id/sync', async (req, res) => {
   }
 });
 
+// Update sync frequency
+router.put('/:id/frequency', async (req, res) => {
+  try {
+    const { syncFrequency } = req.body;
+
+    if (!['manual', 'daily', 'weekly'].includes(syncFrequency)) {
+      return res.status(400).json({ error: 'Invalid sync frequency' });
+    }
+
+    const result = await db.query(
+      `UPDATE ad_accounts
+       SET sync_frequency = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND agency_id = $3
+       RETURNING id, sync_frequency`,
+      [syncFrequency, req.params.id, req.user.agency_id]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Ad account not found' });
+    }
+
+    res.json({
+      message: 'Sync frequency updated',
+      syncFrequency: result.rows[0].sync_frequency,
+    });
+  } catch (error) {
+    console.error('Update frequency error:', error);
+    res.status(500).json({ error: 'Failed to update sync frequency' });
+  }
+});
 // Delete ad account
 router.delete('/:id', async (req, res) => {
   try {

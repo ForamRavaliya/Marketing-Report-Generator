@@ -26,6 +26,8 @@ export const getClient = (id) => api.get(`/clients/${id}`).then(r => r.data);
 export const createClient = (data) => api.post('/clients', data).then(r => r.data);
 export const updateClient = (id, data) => api.put(`/clients/${id}`, data).then(r => r.data);
 export const deleteClient = (id) => api.delete(`/clients/${id}`).then(r => r.data);
+export const updateAdAccountFrequency = (id, syncFrequency) =>
+  api.put(`/ad-accounts/${id}/frequency`, { syncFrequency }).then(r => r.data);
 // Ad Accounts
 export const getAdAccounts = (clientId) =>
   api.get(`/ad-accounts/client/${clientId}`).then(r => r.data);
