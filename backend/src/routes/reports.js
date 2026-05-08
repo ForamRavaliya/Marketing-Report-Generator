@@ -258,37 +258,125 @@ const drawPieChart = (doc, data, options, currency = 'INR') => {
 //Insights FXN
 const drawInsights = (doc, summary, currency = 'INR') => {
   doc.addPage();
-doc.roundedRect(30, 30, 535, 720, 14)
-  .fillAndStroke('#FFFFFF', '#E2E8F0');
-  doc.fillColor('#1E293B')
-    .fontSize(18)
-    .font('Helvetica-Bold')
-    .text('Insights & Recommendations', 50, 50);
 
-  doc.moveTo(50, 72).lineTo(545, 72).stroke('#2563EB');
+  // Page card
+  doc.roundedRect(30, 30, 535, 720, 14)
+    .fillAndStroke('#FFFFFF', '#E2E8F0');
+
+  // Header
+  doc.fillColor('#0F172A')
+    .fontSize(20)
+    .font('Helvetica-Bold')
+    .text('Executive Insights & Recommendations', 50, 55);
 
   doc.fillColor('#64748B')
-    .fontSize(11)
+    .fontSize(10)
     .font('Helvetica')
-    .text(`• Total Spend: ${formatCurrency(summary.spend,currency)}`, 50, 100)
-    .text(`• Total Reach: ${formatNum(summary.reach)}`, 50, 120)
-    .text(`• Total Impressions: ${formatNum(summary.impressions)}`, 50, 140)
-    .text(`• Leads Generated: ${formatNum(summary.conversions)}`, 50, 160)
-    .text(`• Cost per Lead: ${formatCurrency(summary.cpa, currency)}`, 50, 180);
+    .text('A quick overview of campaign performance, cost efficiency and next actions.', 50, 82, {
+      width: 460,
+    });
 
-  doc.moveDown(2);
+  doc.moveTo(50, 105).lineTo(545, 105).stroke('#2563EB');
 
-  doc.fillColor('#1E293B')
-    .fontSize(14)
+  // Insight cards
+  const insightCards = [
+    {
+      title: 'Total Spend',
+      value: formatCurrency(summary.spend, currency),
+      desc: 'Total advertising budget used in the selected reporting period.',
+      color: '#2563EB',
+      bg: '#EFF6FF',
+    },
+    {
+      title: 'Lead Volume',
+      value: formatNum(summary.conversions),
+      desc: 'Total leads/results generated from active campaigns.',
+      color: '#10B981',
+      bg: '#ECFDF5',
+    },
+    {
+      title: 'Cost per Lead',
+      value: formatCurrency(summary.cpa, currency),
+      desc: 'Average cost required to generate one lead/result.',
+      color: '#F59E0B',
+      bg: '#FFF7ED',
+    },
+  ];
+
+  insightCards.forEach((card, i) => {
+    const x = 50 + i * 165;
+    const y = 130;
+
+    doc.roundedRect(x, y, 150, 95, 12).fill(card.bg);
+    doc.rect(x, y, 4, 95).fill(card.color);
+
+    doc.fillColor('#64748B')
+      .fontSize(8)
+      .font('Helvetica-Bold')
+      .text(card.title.toUpperCase(), x + 14, y + 12, { width: 125 });
+
+    doc.fillColor('#0F172A')
+      .fontSize(16)
+      .font('Helvetica-Bold')
+      .text(card.value, x + 14, y + 32, { width: 125 });
+
+    doc.fillColor('#64748B')
+      .fontSize(7)
+      .font('Helvetica')
+      .text(card.desc, x + 14, y + 58, { width: 120 });
+  });
+
+  // Observations section
+  doc.fillColor('#0F172A')
+    .fontSize(15)
     .font('Helvetica-Bold')
-    .text('Recommendations', 50, 230);
+    .text('Key Observations', 50, 265);
 
-  doc.fillColor('#64748B')
-    .fontSize(11)
-    .text('• Increase budget on high-performing campaigns', 50, 260)
-    .text('• Pause low ROI campaigns', 50, 280)
-    .text('• Focus on campaigns with lowest cost per lead', 50, 300)
-    .text('• Optimize creatives for better CTR', 50, 320);
+  const observations = [
+    `Campaigns generated ${formatNum(summary.conversions)} leads/results with an average cost per lead of ${formatCurrency(summary.cpa, currency)}.`,
+    `The report reached ${formatNum(summary.reach)} people and delivered ${formatNum(summary.impressions)} impressions.`,
+    `Current CTR is ${formatPct(summary.ctr)}, so creative and audience optimization can improve click engagement.`,
+  ];
+
+  observations.forEach((text, i) => {
+    const y = 300 + i * 45;
+
+    doc.roundedRect(50, y, 495, 34, 8).fill('#F8FAFC');
+
+    doc.fillColor('#2563EB')
+      .fontSize(10)
+      .font('Helvetica-Bold')
+      .text(`${i + 1}`, 65, y + 10);
+
+    doc.fillColor('#334155')
+      .fontSize(9)
+      .font('Helvetica')
+      .text(text, 90, y + 9, { width: 430 });
+  });
+
+  // Recommendations section
+  doc.fillColor('#0F172A')
+    .fontSize(15)
+    .font('Helvetica-Bold')
+    .text('Recommended Next Actions', 50, 460);
+
+  const recommendations = [
+    'Increase budget on campaigns with strong lead volume and lower cost per lead.',
+    'Review campaigns with high spend but low conversions and reduce unnecessary budget leakage.',
+    'Test new ad creatives and audience segments to improve CTR and engagement quality.',
+    'Use platform-wise performance to decide where the next marketing budget should be allocated.',
+  ];
+
+  recommendations.forEach((text, i) => {
+    const y = 495 + i * 38;
+
+    doc.circle(62, y + 8, 5).fill('#10B981');
+
+    doc.fillColor('#334155')
+      .fontSize(9)
+      .font('Helvetica')
+      .text(text, 80, y, { width: 440 });
+  });
 };
 
 
