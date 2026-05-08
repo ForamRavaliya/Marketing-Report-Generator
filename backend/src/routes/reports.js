@@ -205,7 +205,7 @@ const drawPieChart = (doc, data, options, currency = 'INR') => {
   doc.fillColor('#1E293B')
     .fontSize(16)
     .font('Helvetica-Bold')
-    .text(title, x, y);
+    .text(title, x - 40, y - radius - 45);
 
   const total = data.reduce((sum, d) => sum + Number(d.spend || 0), 0);
 
@@ -258,7 +258,8 @@ const drawPieChart = (doc, data, options, currency = 'INR') => {
 //Insights FXN
 const drawInsights = (doc, summary, currency = 'INR') => {
   doc.addPage();
-
+doc.roundedRect(30, 30, 535, 720, 14)
+  .fillAndStroke('#FFFFFF', '#E2E8F0');
   doc.fillColor('#1E293B')
     .fontSize(18)
     .font('Helvetica-Bold')
@@ -508,6 +509,8 @@ metrics.forEach((m, i) => {
     // Monthly trends table
     if (trends.length > 0) {
       doc.addPage();
+      doc.roundedRect(35, 35, 525, 240, 12)
+        .fillAndStroke('#FFFFFF', '#E2E8F0');
       doc.fillColor(DARK).fontSize(18).font('Helvetica-Bold').text('Monthly Performance Trends', 50, 50);
       doc.moveTo(50, 72).lineTo(545, 72).stroke(PRIMARY);
 
@@ -559,7 +562,8 @@ metrics.forEach((m, i) => {
         doc.addPage();
 
         const campY = 50;
-
+        doc.roundedRect(35, 35, 525, 320, 12)
+          .fillAndStroke('#FFFFFF', '#E2E8F0');
       doc.fillColor(DARK).fontSize(18).font('Helvetica-Bold').text('Top Campaigns', 50, campY);
       doc.moveTo(50, campY + 22).lineTo(545, campY + 22).stroke(PRIMARY);
 
@@ -632,9 +636,9 @@ if (platforms.length > 0) {
     doc.addPage();
 
     drawPieChart(doc, platforms, {
-      x: 170,
-      y: 180,
-      radius: 80,
+      x: 160,
+      y: 210,
+      radius: 70,
       title: 'Platform Spend Distribution',
     }, currency);
 
@@ -661,7 +665,24 @@ if (platforms.length > 0) {
         doc.page.height - 30,
         { align: 'center', width: doc.page.width - 100 }
       );
+const range = doc.bufferedPageRange();
 
+for (let i = 0; i < range.count; i++) {
+  doc.switchToPage(i);
+
+  doc.fillColor('#94A3B8')
+    .fontSize(8)
+    .font('Helvetica')
+    .text(
+      `${agency?.name || 'Agency'} • Confidential Report • Page ${i + 1}`,
+      50,
+      doc.page.height - 30,
+      {
+        align: 'center',
+        width: doc.page.width - 100,
+      }
+    );
+}
     doc.end();
 
     writeStream.on('finish', async () => {
