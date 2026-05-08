@@ -620,17 +620,17 @@ if (campaigns.length > 0 || trends.length > 0) {
     }, currency);
   }
 
-  if (platforms.length > 0) {
-      drawBarChart(doc, platforms, {
-        x: 50,
-        y: 680,
-        width: 500,
-        title: 'Platform-wise Leads',
-        labelKey: 'platform',
-        valueKey: 'conversions',
-        color: '#10B981',
-      }, currency);
-    }
+if (campaigns.length > 0) {
+  drawBarChart(doc, campaigns, {
+    x: 50,
+    y: 340,
+    width: 500,
+    title: 'Top Campaigns by Spend',
+    labelKey: 'name',
+    valueKey: 'spend',
+    color: SECONDARY,
+  }, currency);
+}
 
 if (platforms.length > 0) {
 
@@ -658,23 +658,33 @@ if (platforms.length > 0) {
 
     // Simple footer only on current page
 
+
+
 const range = doc.bufferedPageRange();
 
 for (let i = 0; i < range.count; i++) {
+
   doc.switchToPage(i);
 
-  doc.fillColor('#94A3B8')
-    .fontSize(8)
+  const page = doc.page;
+
+  doc.save();
+
+  doc.fontSize(8)
+    .fillColor('#94A3B8')
     .font('Helvetica')
     .text(
       `${agency?.name || 'Agency'} • Confidential Report • Page ${i + 1}`,
       50,
-      doc.page.height - 30,
+      page.height - 40,
       {
+        width: page.width - 100,
         align: 'center',
-        width: doc.page.width - 100,
+        lineBreak: false,
       }
     );
+
+  doc.restore();
 }
     doc.end();
 
