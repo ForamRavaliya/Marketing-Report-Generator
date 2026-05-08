@@ -53,6 +53,8 @@ export const getPlatforms = (clientId, params) =>
 // Reports
 export const generateReport = (data) => api.post('/reports/generate', data).then(r => r.data);
 export const getReportHistory = (clientId) => api.get(`/reports/history/${clientId}`).then(r => r.data);
+export const deleteReport = (reportId) =>
+  api.delete(`/reports/${reportId}`).then(r => r.data);
 
 // Dashboard
 export const getDashboardOverview = () => api.get('/dashboard/overview').then(r => r.data);

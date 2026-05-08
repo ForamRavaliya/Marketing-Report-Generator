@@ -8,11 +8,11 @@ const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
 const CURRENCY_SYMBOLS = {
-  INR: '₹',
+  INR: 'INR',
   USD: '$',
   EUR: '€',
   GBP: '£',
-  AED: 'د.إ',
+  AED: 'AED',
   SGD: 'S$',
 };
 const formatNum = (n, decimals = 0) => {
@@ -460,6 +460,35 @@ if (campaigns.length > 0) {
   }
 });
 
+// Delete generated report
+router.delete('/:reportId', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+
+    const reportResult = await db.query(
+      `SELECT * FROM generated_reports
+       WHERE id = $1 AND agency_id = $2`,
+      [reportId, req.user.agency_id]
+    );
+
+    const report = reportResult.rows[0];
+
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    await db.query(
+      `DELETE FROM generated_reports
+       WHERE id = $1 AND agency_id = $2`,
+      [reportId, req.user.agency_id]
+    );
+
+    res.json({ message: 'Report deleted successfully' });
+  } catch (error) {
+    console.error('Delete report error:', error);
+    res.status(500).json({ error: 'Failed to delete report' });
+  }
+});
 // Get report history
 router.get('/history/:clientId', async (req, res) => {
   try {
