@@ -24,7 +24,14 @@ const CURRENCY_RATES = {
   AED: 0.044,
   SGD: 0.016,
 };
+const formatNum = (n, decimals = 0) => {
+  if (n === null || n === undefined) return '0';
 
+  return parseFloat(n || 0).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
 const formatCurrency = (n, currency = 'INR') => {
   const symbol = CURRENCY_SYMBOLS[currency] || 'INR';
   const rate = CURRENCY_RATES[currency] || 1;
