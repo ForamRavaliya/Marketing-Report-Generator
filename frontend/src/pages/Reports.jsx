@@ -11,6 +11,19 @@ const CURRENCIES = [
   { code: 'AED', symbol: 'د.إ' },
   { code: 'SGD', symbol: 'S$' },
 ];
+const CURRENCY_RATES = {
+  INR: 1,
+  USD: 0.012,
+  EUR: 0.011,
+  GBP: 0.0095,
+  AED: 0.044,
+  SGD: 0.016,
+};
+
+const convertCurrency = (amount, currencyCode) => {
+  const rate = CURRENCY_RATES[currencyCode] || 1;
+  return Number(amount || 0) * rate;
+};
 const BACKEND_URL = 'https://marketing-report-generator-p9wj.onrender.com';
 const getPdfUrl = (pathOrUrl) => {
   if (!pathOrUrl) return '#';
@@ -312,11 +325,23 @@ const handleDeleteReport = async (reportId) => {
               {[
                 {
                   label: 'Spend',
-                  value: `${getCurrencySymbol(form.currency)} ${Number(summary.spend || 0).toLocaleString('en-IN')}`,
+                  value: `${getCurrencySymbol(form.currency)} ${convertCurrency(
+                    summary.spend,
+                    form.currency
+                  ).toLocaleString('en-IN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`,
                 },
-            { label: 'Reach', value: Number(summary.reach || 0).toLocaleString('en-IN') },
-                { label: 'Impressions', value: Number(summary.impressions || 0).toLocaleString('en-IN') },
-                { label: 'Leads', value: Number(summary.conversions || 0).toLocaleString('en-IN') },
+                {
+                  label: 'Reach',
+                  value: Number(summary.reach || 0).toLocaleString('en-IN'),
+                },
+            {
+              label: 'Impressions',
+              value: Number(summary.impressions || 0).toLocaleString('en-IN'),
+            },
+            { label: 'Leads', value: Number(summary.conversions || 0).toLocaleString('en-IN') },
               ].map((item, i) => (
                 <div
                   key={i}

@@ -15,22 +15,28 @@ const CURRENCY_SYMBOLS = {
   AED: 'AED',
   SGD: 'S$',
 };
-const formatNum = (n, decimals = 0) => {
-  if (n === null || n === undefined) return '0';
-  return parseFloat(n).toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+
+const CURRENCY_RATES = {
+  INR: 1,
+  USD: 0.012,
+  EUR: 0.011,
+  GBP: 0.0095,
+  AED: 0.044,
+  SGD: 0.016,
 };
 
 const formatCurrency = (n, currency = 'INR') => {
-  const symbol = CURRENCY_SYMBOLS[currency] || '₹';
+  const symbol = CURRENCY_SYMBOLS[currency] || 'INR';
+  const rate = CURRENCY_RATES[currency] || 1;
+  const convertedValue = parseFloat(n || 0) * rate;
 
-  return `${symbol} ${parseFloat(n || 0).toLocaleString('en-IN', {
+  return `${symbol} ${convertedValue.toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 };
+
+
 const formatPct = (n) => `${formatNum(n, 2)}%`;
 
 //Bar Chart
