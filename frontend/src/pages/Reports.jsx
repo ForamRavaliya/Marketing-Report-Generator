@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { FileBarChart2, Download, ExternalLink, Clock } from 'lucide-react';
-import { getClients, generateReport, getReportHistory, getSummary } from '../utils/api';
+import { getClients, generateReport, getReportHistory, getSummary, deleteReport } from '../utils/api';
 const PLATFORMS = ['all', 'meta', 'google', 'linkedin', 'twitter', 'tiktok'];
 const CURRENCIES = [
   { code: 'INR', symbol: '₹' },
@@ -90,6 +90,7 @@ useEffect(() => {
         currency: form.currency,
       });
 
+
       const url = getPdfUrl(result.url);
       setGeneratedUrl(url);
 
@@ -104,7 +105,24 @@ useEffect(() => {
       setGenerating(false);
     }
   };
+const handleDeleteReport = async (reportId) => {
+  const confirmDelete = window.confirm('Are you sure you want to delete this report?');
 
+  if (!confirmDelete) return;
+
+  try {
+    await deleteReport(reportId);
+
+    toast.success('Report deleted successfully');
+
+    if (form.clientId) {
+      const updatedHistory = await getReportHistory(form.clientId);
+      setHistory(updatedHistory);
+    }
+  } catch (err) {
+    toast.error(err.response?.data?.error || 'Failed to delete report');
+  }
+};
   const client = clients.find((c) => String(c.id) === String(form.clientId));
 
   return (
@@ -271,6 +289,7 @@ useEffect(() => {
                   </a>
 
                   <a
+
                     href={generatedUrl}
                     target="_blank"
                     rel="noreferrer"
@@ -282,6 +301,7 @@ useEffect(() => {
                 </div>
               </div>
             )}
+
         {summary && (
           <div style={{ marginTop: 20 }}>
             <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14 }}>
@@ -468,17 +488,27 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  {r.file_path && (
-                    <a
-                      href={getPdfUrl(r.file_path)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-ghost btn-sm"
-                      style={{ color: 'var(--primary)' }}
-                    >
-                      <Download size={12} />
-                    </a>
-                  )}
+                 {r.file_path && (
+                     <a
+                       href={getPdfUrl(r.file_path)}
+                       target="_blank"
+                       rel="noreferrer"
+                       className="btn btn-ghost btn-sm"
+                       style={{ color: 'var(--primary)' }}
+                     >
+                       <Download size={12} />
+                     </a>
+                   )}
+
+                   <button
+                     type="button"
+                     onClick={() => handleDeleteReport(r.id)}
+                     className="btn btn-ghost btn-sm"
+                     style={{ color: '#DC2626' }}
+                     title="Delete report"
+                   >
+                     Delete
+                   </button>
                 </div>
               ))
             )}
