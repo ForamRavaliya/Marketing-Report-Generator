@@ -35,6 +35,8 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/agency', require('./routes/agency'));
 app.use('/api/ad-accounts', require('./routes/adAccounts'));
 
+const { startAutoSyncJob } = require('./jobs/autoSyncJob');
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -56,6 +58,8 @@ app.listen(PORT, async () => {
     const { pool } = require('./db');
     await pool.query('SELECT 1');
     console.log(`✅ PostgreSQL connected`);
+    startAutoSyncJob();
+    console.log('⏱ Auto sync job started');
   } catch (err) {
     console.error(`\n❌ PostgreSQL connection FAILED: ${err.message}`);
     console.error(`   Fix your backend/.env file:`);

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount} from '../utils/api';
+import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount,updateAdAccountFrequency,} from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend ,} from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
@@ -149,6 +149,23 @@ const handleDeleteAdAccount = async (accountId) => {
     toast.success('Ad account removed');
   } catch {
     toast.error('Failed to remove account');
+  }
+};
+const handleUpdateFrequency = async (accountId, syncFrequency) => {
+  try {
+    await updateAdAccountFrequency(accountId, syncFrequency);
+
+    setAdAccounts(prev =>
+      prev.map(acc =>
+        acc.id === accountId
+          ? { ...acc, sync_frequency: syncFrequency }
+          : acc
+      )
+    );
+
+    toast.success('Sync frequency updated');
+  } catch {
+    toast.error('Failed to update sync frequency');
   }
 };
   return (
@@ -566,6 +583,30 @@ const handleDeleteAdAccount = async (accountId) => {
                      >
                        Remove
                      </button>
+                   </div>
+                   <div style={{ marginTop: 10 }}>
+                     <label
+                       style={{
+                         display: 'block',
+                         fontSize: 11,
+                         fontWeight: 700,
+                         color: 'var(--text3)',
+                         marginBottom: 4,
+                       }}
+                     >
+                       Auto Sync
+                     </label>
+
+                     <select
+                       className="form-select"
+                       style={{ fontSize: 12, padding: '6px 8px', width: 130 }}
+                       value={acc.sync_frequency || 'manual'}
+                       onChange={(e) => handleUpdateFrequency(acc.id, e.target.value)}
+                     >
+                       <option value="manual">Manual</option>
+                       <option value="daily">Daily</option>
+                       <option value="weekly">Weekly</option>
+                     </select>
                    </div>
                 </div>
               </div>
