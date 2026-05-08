@@ -7,7 +7,14 @@ const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
-
+const CURRENCY_SYMBOLS = {
+  INR: '₹',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  AED: 'د.إ',
+  SGD: 'S$',
+};
 const formatNum = (n, decimals = 0) => {
   if (n === null || n === undefined) return '0';
   return parseFloat(n).toLocaleString('en-US', {
@@ -16,15 +23,18 @@ const formatNum = (n, decimals = 0) => {
   });
 };
 
-const formatCurrency = (n) =>
-  `Rs. ${parseFloat(n || 0).toLocaleString('en-IN', {
+const formatCurrency = (n, currency = 'INR') => {
+  const symbol = CURRENCY_SYMBOLS[currency] || '₹';
+
+  return `${symbol} ${parseFloat(n || 0).toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+};
 const formatPct = (n) => `${formatNum(n, 2)}%`;
 
 //Bar Chart
-const drawBarChart = (doc, data, options) => {
+const drawBarChart = (doc, data, options, currency = 'INR') => {
   const { x, y, width, title, labelKey, valueKey, color } = options;
 
   doc.fillColor('#1E293B')
@@ -59,7 +69,7 @@ const drawBarChart = (doc, data, options) => {
       .fontSize(8)
       .font('Helvetica-Bold')
       .text(
-        formatCurrency(value),
+        formatCurrency(value,currency),
         x + labelW + chartW + 10,
         rowY + 4,
         {
@@ -72,7 +82,7 @@ const drawBarChart = (doc, data, options) => {
 };
 
 //Insights FXN
-const drawInsights = (doc, summary) => {
+const drawInsights = (doc, summary, currency = 'INR') => {
   doc.addPage();
 
   doc.fillColor('#1E293B')
@@ -85,11 +95,11 @@ const drawInsights = (doc, summary) => {
   doc.fillColor('#64748B')
     .fontSize(11)
     .font('Helvetica')
-    .text(`• Total Spend: ${formatCurrency(summary.spend)}`, 50, 100)
+    .text(`• Total Spend: ${formatCurrency(summary.spend,currency)}`, 50, 100)
     .text(`• Total Reach: ${formatNum(summary.reach)}`, 50, 120)
     .text(`• Total Impressions: ${formatNum(summary.impressions)}`, 50, 140)
     .text(`• Leads Generated: ${formatNum(summary.conversions)}`, 50, 160)
-    .text(`• Cost per Lead: ${formatCurrency(summary.cpa)}`, 50, 180);
+    .text(`• Cost per Lead: ${formatCurrency(summary.cpa, currency)}`, 50, 180);
 
   doc.moveDown(2);
 
@@ -111,9 +121,15 @@ const drawInsights = (doc, summary) => {
 router.post('/generate', async (req, res) => {
   try {
     const {
-      clientId, title, dateStart, dateEnd, platform,
+      clientId,
+      title,
+      dateStart,
+      dateEnd,
+      platform,
       includeComparison = true,
-      customTitle, agencyBranding = true,
+      customTitle,
+      agencyBranding = true,
+      currency = 'INR',
     } = req.body;
 
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
@@ -266,14 +282,14 @@ router.post('/generate', async (req, res) => {
    };
 
     const metrics = [
-      { label: 'Total Spend', value: formatCurrency(safeSummary.spend) },
+      { label: 'Total Spend', value: formatCurrency(safeSummary.spend,currency) },
       { label: 'Reach', value: formatNum(safeSummary.reach) },
       { label: 'Impressions', value: formatNum(safeSummary.impressions) },
       { label: 'Clicks', value: formatNum(safeSummary.clicks) },
       { label: 'Leads / Results', value: formatNum(safeSummary.conversions) },
       { label: 'CTR', value: formatPct(safeSummary.ctr) },
-      { label: 'CPC', value: formatCurrency(safeSummary.cpc) },
-      { label: 'Cost / Lead', value: formatCurrency(safeSummary.cpa) },
+      { label: 'CPC', value: formatCurrency(safeSummary.cpc,currency) },
+      { label: 'Cost / Lead', value: formatCurrency(safeSummary.cpa,currency) },
     ];
 
     const cols = 4;
@@ -328,7 +344,7 @@ metrics.forEach((m, i) => {
         doc.rect(50, tY, 495, 20).fill(bg);
         const vals = [
           row.month,
-          formatCurrency(row.spend),
+          formatCurrency(row.spend,currency),
           formatNum(row.clicks),
           formatNum(row.conversions),
           `${formatNum(row.roas, 2)}x`,
@@ -375,7 +391,7 @@ metrics.forEach((m, i) => {
         const vals = [
           (row.name || 'Unknown').substring(0, 28),
           (row.platform || 'Other').toUpperCase(),
-          formatCurrency(row.spend),
+          formatCurrency(row.spend,currency),
           formatNum(row.clicks),
           formatNum(row.conversions),
         ];
@@ -401,9 +417,9 @@ if (campaigns.length > 0) {
     labelKey: 'name',
     valueKey: 'spend',
     color: PRIMARY,
-  });
+  }, currency);
 }
- drawInsights(doc, safeSummary);
+ drawInsights(doc, safeSummary, currency);
 
     // Simple footer only on current page
     doc.fillColor(GRAY)

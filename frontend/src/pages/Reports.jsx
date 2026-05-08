@@ -3,24 +3,40 @@ import toast from 'react-hot-toast';
 import { FileBarChart2, Download, ExternalLink, Clock } from 'lucide-react';
 import { getClients, generateReport, getReportHistory, getSummary } from '../utils/api';
 const PLATFORMS = ['all', 'meta', 'google', 'linkedin', 'twitter', 'tiktok'];
+const CURRENCIES = [
+  { code: 'INR', symbol: '₹' },
+  { code: 'USD', symbol: '$' },
+  { code: 'EUR', symbol: '€' },
+  { code: 'GBP', symbol: '£' },
+  { code: 'AED', symbol: 'د.إ' },
+  { code: 'SGD', symbol: 'S$' },
+];
 const BACKEND_URL = 'https://marketing-report-generator-p9wj.onrender.com';
-
 const getPdfUrl = (pathOrUrl) => {
   if (!pathOrUrl) return '#';
   if (pathOrUrl.startsWith('http')) return pathOrUrl;
   return `${BACKEND_URL}${pathOrUrl}`;
 };
 
+const getCurrencySymbol = (currencyCode) => {
+  const found = CURRENCIES.find((c) => c.code === currencyCode);
+  return found ? found.symbol : '₹';
+};
+
+
 export default function Reports() {
-  const [clients, setClients] = useState([]);
-  const [form, setForm] = useState({
-    clientId: '',
-    dateStart: '',
-    dateEnd: '',
-    platform: 'all',
-    customTitle: '',
-    includeComparison: true,
-  });
+    const [clients, setClients] = useState([]);
+ const [form, setForm] = useState({
+   clientId: '',
+   dateStart: '',
+   dateEnd: '',
+   platform: 'all',
+   customTitle: '',
+   includeComparison: true,
+   currency: 'INR',
+ });
+
+
   const [generating, setGenerating] = useState(false);
   const [history, setHistory] = useState([]);
   const [generatedUrl, setGeneratedUrl] = useState(null);
@@ -71,6 +87,7 @@ useEffect(() => {
         customTitle: form.customTitle || undefined,
         includeComparison: form.includeComparison,
         agencyBranding: true,
+        currency: form.currency,
       });
 
       const url = getPdfUrl(result.url);
@@ -102,19 +119,38 @@ useEffect(() => {
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 20 }}>
             Report Configuration
           </div>
+        <div className="form-group">
+          <label className="form-label">Client *</label>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div className="form-group">
-              <label className="form-label">Client *</label>
-              <select className="form-select" value={form.clientId} onChange={set('clientId')}>
-                <option value="">Select client...</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <select
+            className="form-select"
+            value={form.clientId}
+            onChange={set('clientId')}
+          >
+            <option value="">Select client...</option>
+
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+         <div className="form-group">
+           <label className="form-label">Currency</label>
+
+           <select
+             className="form-select"
+             value={form.currency}
+             onChange={set('currency')}
+           >
+             {CURRENCIES.map((c) => (
+               <option key={c.code} value={c.code}>
+                 {c.code} ({c.symbol})
+               </option>
+             ))}
+           </select>
+         </div>
 
             <div className="form-group">
               <label className="form-label">Custom Report Title</label>
@@ -254,8 +290,11 @@ useEffect(() => {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               {[
-                { label: 'Spend', value: `Rs. ${Number(summary.spend || 0).toLocaleString('en-IN')}` },
-                { label: 'Reach', value: Number(summary.reach || 0).toLocaleString('en-IN') },
+                {
+                  label: 'Spend',
+                  value: `${getCurrencySymbol(form.currency)} ${Number(summary.spend || 0).toLocaleString('en-IN')}`,
+                },
+            { label: 'Reach', value: Number(summary.reach || 0).toLocaleString('en-IN') },
                 { label: 'Impressions', value: Number(summary.impressions || 0).toLocaleString('en-IN') },
                 { label: 'Leads', value: Number(summary.conversions || 0).toLocaleString('en-IN') },
               ].map((item, i) => (
@@ -446,6 +485,6 @@ useEffect(() => {
           </div>
         </div>
       </div>
-    </div>
+
   );
 }
