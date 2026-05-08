@@ -375,10 +375,16 @@ metrics.forEach((m, i) => {
     }
 
     // Campaign breakdown
-    if (campaigns.length > 0) {
+  /*  if (campaigns.length > 0) {
       if (doc.y > 600) doc.addPage();
       const campY = doc.y + 30 > 650 ? 50 : doc.y + 30;
       if (campY === 50) doc.addPage();
+      */
+      if (campaigns.length > 0) {
+
+        doc.addPage();
+
+        const campY = 50;
 
       doc.fillColor(DARK).fontSize(18).font('Helvetica-Bold').text('Top Campaigns', 50, campY);
       doc.moveTo(50, campY + 22).lineTo(545, campY + 22).stroke(PRIMARY);
