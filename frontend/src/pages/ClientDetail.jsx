@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms } from '../utils/api';
+import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount} from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend ,} from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -10,7 +10,7 @@ const COLORS = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626', '#0891B2'
 const PLATFORMS = ['all', 'meta', 'google', 'linkedin', 'twitter', 'tiktok', 'other'];
 
 const fmt = (n, d = 0) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
-const fmtCur = (n) => `$${fmt(n, 2)}`;
+const fmtCur = (n) => `INR ${fmt(n, 2)}`;
 const fmtPct = (n) => `${fmt(n, 2)}%`;
 
 const Tooltip_ = ({ active, payload, label, prefix = '', suffix = '' }) => {
@@ -39,7 +39,13 @@ export default function ClientDetail() {
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
+const [adAccounts, setAdAccounts] = useState([]);
 
+const [adForm, setAdForm] = useState({
+  platform: 'meta',
+  adAccountId: '',
+  accessToken: '',
+});
   const load = useCallback(() => {
     setLoading(true);
     const params = { platform: platform !== 'all' ? platform : undefined };
@@ -52,6 +58,7 @@ export default function ClientDetail() {
       getPlatforms(id, params),
     ]).then(([c, s, t, cmp, camp, plat]) => {
       setClient(c); setSummary(s);
+
       // Aggregate trends by month
       const byMonth = {};
       t.forEach(row => {
@@ -62,7 +69,13 @@ export default function ClientDetail() {
         byMonth[row.month].impressions += parseFloat(row.impressions || 0);
       });
       setTrends(Object.values(byMonth).sort((a, b) => a.month.localeCompare(b.month)));
-      setComparison(cmp); setCampaigns(camp); setPlatforms(plat);
+      setComparison(cmp);
+      setCampaigns(camp);
+      setPlatforms(plat);
+
+      getAdAccounts(id)
+        .then(setAdAccounts)
+        .catch(() => {});
     }).catch(() => toast.error('Failed to load data'))
       .finally(() => setLoading(false));
   }, [id, platform]);
@@ -78,8 +91,60 @@ export default function ClientDetail() {
     </div>
   );
 
-  const TABS = ['overview', 'trends', 'campaigns', 'platforms'];
+  const TABS = ['overview', 'trends', 'campaigns', 'platforms', 'integrations'];
+// Hanlers
+const handleAddAdAccount = async () => {
+  try {
+    if (!adForm.adAccountId.trim()) {
+      return toast.error('Ad account ID required');
+    }
 
+    const created = await createAdAccount({
+      clientId: id,
+      platform: adForm.platform,
+      adAccountId: adForm.adAccountId,
+      accessToken: adForm.accessToken,
+    });
+
+    setAdAccounts(prev => [created, ...prev]);
+
+    setAdForm({
+      platform: 'meta',
+      adAccountId: '',
+      accessToken: '',
+    });
+
+    toast.success('Ad account connected');
+  } catch {
+    toast.error('Failed to connect account');
+  }
+};
+
+const handleSyncAdAccount = async (accountId) => {
+  try {
+    await syncAdAccount(accountId);
+
+    toast.success('Ad account synced successfully');
+
+    const updated = await getAdAccounts(id);
+    setAdAccounts(updated);
+
+    load();
+  } catch {
+    toast.error('Failed to sync ad account');
+  }
+};
+const handleDeleteAdAccount = async (accountId) => {
+  try {
+    await deleteAdAccount(accountId);
+
+    setAdAccounts(prev => prev.filter(a => a.id !== accountId));
+
+    toast.success('Ad account removed');
+  } catch {
+    toast.error('Failed to remove account');
+  }
+};
   return (
     <div className="fade-in">
       {/* Header */}
@@ -316,6 +381,7 @@ export default function ClientDetail() {
                     </PieChart>
                   </ResponsiveContainer>
                 )}
+
               </div>
               <div className="card card-pad">
                 <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Platform Breakdown</div>
@@ -334,13 +400,177 @@ export default function ClientDetail() {
                         <td style={{ fontWeight: 700 }}>{fmt(p.roas, 2)}x</td>
                       </tr>
                     ))}
+
+
                   </tbody>
                 </table>
               </div>
             </div>
           )}
-        </>
+
+  {/* Integrations Tab */}
+  {activeTab === 'integrations' && (
+    <div className="grid grid-2" style={{ gap: 20 }}>
+
+      {/* Connect Form */}
+      <div className="card card-pad">
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 18 }}>
+          Connect Ad Account
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          <div>
+            <label className="form-label">Platform</label>
+            <select
+              className="form-select"
+              value={adForm.platform}
+              onChange={(e) =>
+                setAdForm({ ...adForm, platform: e.target.value })
+              }
+            >
+              <option value="meta">Meta Ads</option>
+              <option value="google">Google Ads</option>
+              <option value="linkedin">LinkedIn Ads</option>
+              <option value="tiktok">TikTok Ads</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="form-label">Ad Account ID</label>
+            <input
+              className="form-input"
+              placeholder="act_123456789"
+              value={adForm.adAccountId}
+              onChange={(e) =>
+                setAdForm({ ...adForm, adAccountId: e.target.value })
+              }
+            />
+          </div>
+
+          <div>
+            <label className="form-label">Access Token (optional for now)</label>
+            <textarea
+              className="form-input"
+              rows={4}
+              placeholder="Paste Meta or Google access token"
+              value={adForm.accessToken}
+              onChange={(e) =>
+                setAdForm({ ...adForm, accessToken: e.target.value })
+              }
+            />
+          </div>
+
+          <button
+            className="btn btn-primary"
+            onClick={handleAddAdAccount}
+          >
+            Connect Account
+          </button>
+        </div>
+      </div>
+
+      {/* Connected Accounts */}
+      <div className="card card-pad">
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 18 }}>
+          Connected Accounts
+        </div>
+
+        {adAccounts.length === 0 ? (
+          <div style={{ color: 'var(--text3)' }}>
+            No ad accounts connected yet.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {adAccounts.map((acc) => (
+              <div
+                key={acc.id}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: 14,
+                  background: 'var(--bg2)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 14,
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {acc.platform} Ads
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--text3)',
+                        marginTop: 4,
+                      }}
+                    >
+                      {acc.ad_account_id}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 11,
+                        marginTop: 8,
+                        color: '#10B981',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ● {acc.status === 'synced' ? 'Synced' : 'Connected'}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 11,
+                        marginTop: 4,
+                        color: 'var(--text3)',
+                      }}
+                    >
+                      Last synced:{' '}
+                      {acc.last_synced_at
+                        ? new Date(acc.last_synced_at).toLocaleString()
+                        : 'Not synced yet'}
+                    </div>
+                  </div>
+                   <div style={{ display: 'flex', gap: 8 }}>
+                     <button
+                       className="btn btn-secondary btn-sm"
+                       onClick={() => handleSyncAdAccount(acc.id)}
+                     >
+                       Sync
+                     </button>
+
+                     <button
+                       className="btn btn-ghost btn-sm"
+                       style={{ color: '#DC2626' }}
+                       onClick={() => handleDeleteAdAccount(acc.id)}
+                     >
+                       Remove
+                     </button>
+                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+        </div>
       )}
-    </div>
-  );
-}
+            </>
+          )}
+        </div>
+      );
+    }
