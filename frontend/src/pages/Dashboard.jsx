@@ -5,8 +5,11 @@ import { useAuth } from '../context/AuthContext';
 import { Users, TrendingUp, BarChart3, ArrowRight } from 'lucide-react';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
-const fmtCur = (n) => `$${parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-
+const fmtCur = (n) =>
+  `INR ${parseFloat(n || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -26,12 +29,104 @@ export default function Dashboard() {
   return (
     <div className="fade-in">
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>
-          {greeting}, {user?.fullName?.split(' ')[0]} 👋
-        </div>
-        <div style={{ color: 'var(--text2)', fontSize: 14, marginTop: 2 }}>
-          Here's what's happening across your clients
+      <div
+        style={{
+          marginBottom: 28,
+          padding: '28px 32px',
+          borderRadius: 22,
+          background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)',
+          color: '#fff',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            right: -40,
+            top: -40,
+            width: 180,
+            height: 180,
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.08)',
+          }}
+        />
+
+        <div
+          style={{
+            position: 'absolute',
+            right: 80,
+            bottom: -50,
+            width: 120,
+            height: 120,
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.06)',
+          }}
+        />
+
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <div style={{ fontSize: 30, fontWeight: 800, marginBottom: 6 }}>
+            {greeting}, {user?.fullName?.split(' ')[0]} 👋
+          </div>
+
+          <div
+            style={{
+              fontSize: 15,
+              opacity: 0.9,
+              maxWidth: 600,
+              lineHeight: 1.6,
+            }}
+          >
+            Monitor campaign performance, generate professional reports and track marketing growth across all your clients from one dashboard.
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 14,
+              marginTop: 22,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div
+              style={{
+                padding: '10px 16px',
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(6px)',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              📊 Real-time Performance Tracking
+            </div>
+
+            <div
+              style={{
+                padding: '10px 16px',
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(6px)',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              📄 Professional PDF Reports
+            </div>
+
+            <div
+              style={{
+                padding: '10px 16px',
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(6px)',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              🚀 Multi-platform Analytics
+            </div>
+          </div>
         </div>
       </div>
 
@@ -57,6 +152,136 @@ export default function Dashboard() {
       </div>
      {/* KPI Metrics */}
      <div
+       className="card card-pad"
+       style={{
+         marginBottom: 24,
+         background: 'linear-gradient(135deg, rgba(37,99,235,0.08), rgba(124,58,237,0.08))',
+         border: '1px solid rgba(99,102,241,0.15)',
+         overflow: 'hidden',
+         position: 'relative',
+       }}
+     >
+       <div
+         style={{
+           position: 'absolute',
+           right: -30,
+           top: -30,
+           width: 140,
+           height: 140,
+           borderRadius: '50%',
+           background: 'rgba(99,102,241,0.08)',
+         }}
+       />
+
+       <div
+         style={{
+           display: 'flex',
+           justifyContent: 'space-between',
+           alignItems: 'center',
+           flexWrap: 'wrap',
+           gap: 18,
+           position: 'relative',
+           zIndex: 2,
+         }}
+       >
+         <div>
+           <div
+             style={{
+               fontSize: 12,
+               fontWeight: 700,
+               textTransform: 'uppercase',
+               color: 'var(--text3)',
+               marginBottom: 6,
+             }}
+           >
+             PERFORMANCE OVERVIEW
+           </div>
+
+           <div
+             style={{
+               fontSize: 28,
+               fontWeight: 800,
+               color: 'var(--text)',
+               marginBottom: 6,
+             }}
+           >
+             {loading ? '—' : fmtCur(data?.totalSpend || 0)}
+           </div>
+
+           <div
+             style={{
+               fontSize: 13,
+               color: 'var(--text2)',
+               maxWidth: 500,
+               lineHeight: 1.6,
+             }}
+           >
+             Total advertising spend tracked across all connected clients and marketing platforms.
+           </div>
+         </div>
+
+         <div
+           style={{
+             display: 'flex',
+             gap: 16,
+             flexWrap: 'wrap',
+           }}
+         >
+           {[
+             {
+               label: 'Total Leads',
+               value: fmt(data?.totalConversions || 0),
+               color: '#10B981',
+             },
+             {
+               label: 'Total Clicks',
+               value: fmt(data?.totalClicks || 0),
+               color: '#2563EB',
+             },
+             {
+               label: 'Impressions',
+               value: fmt(data?.totalImpressions || 0),
+               color: '#7C3AED',
+             },
+           ].map((item) => (
+             <div
+               key={item.label}
+               style={{
+                 minWidth: 120,
+                 padding: '14px 18px',
+                 borderRadius: 16,
+                 background: 'rgba(255,255,255,0.7)',
+                 border: '1px solid var(--border)',
+                 backdropFilter: 'blur(8px)',
+               }}
+             >
+               <div
+                 style={{
+                   fontSize: 11,
+                   fontWeight: 700,
+                   textTransform: 'uppercase',
+                   color: 'var(--text3)',
+                   marginBottom: 6,
+                 }}
+               >
+                 {item.label}
+               </div>
+
+               <div
+                 style={{
+                   fontSize: 22,
+                   fontWeight: 800,
+                   color: item.color,
+                 }}
+               >
+                 {loading ? '—' : item.value}
+               </div>
+             </div>
+           ))}
+         </div>
+       </div>
+     </div>
+     <div
        style={{
          display: 'grid',
          gridTemplateColumns: 'repeat(5, 1fr)',
@@ -65,12 +290,12 @@ export default function Dashboard() {
        }}
      >
        {[
-         { label: 'CTR', value: `${parseFloat(data?.ctr || 0).toFixed(2)}%` },
-         { label: 'CPC', value: `$${parseFloat(data?.cpc || 0).toFixed(2)}` },
-         { label: 'CPL', value: `$${parseFloat(data?.cpl || 0).toFixed(2)}` },
-         { label: 'Conversion Rate', value: `${parseFloat(data?.conversionRate || 0).toFixed(2)}%` },
-         { label: 'ROAS', value: `${parseFloat(data?.roas || 0).toFixed(2)}x` },
-       ].map(({ label, value }) => (
+          { label: 'CTR', value: `${parseFloat(data?.ctr || 0).toFixed(2)}%` },
+          { label: 'CPC', value: `INR ${parseFloat(data?.cpc || 0).toFixed(2)}` },
+          { label: 'CPL', value: `INR ${parseFloat(data?.cpl || 0).toFixed(2)}` },
+          { label: 'Conversion Rate', value: `${parseFloat(data?.conversionRate || 0).toFixed(2)}%` },
+          { label: 'ROAS', value: `${parseFloat(data?.roas || 0).toFixed(2)}x` },
+        ].map(({ label, value }) => (
          <div key={label} className="card card-pad" style={{ textAlign: 'center' }}>
            <div style={{
              fontSize: 10,
