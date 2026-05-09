@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount,updateAdAccountFrequency,} from '../utils/api';
+import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount,updateAdAccountFrequency,getSyncLogs,} from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend ,} from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
@@ -40,6 +40,7 @@ export default function ClientDetail() {
   const [platform, setPlatform] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
 const [adAccounts, setAdAccounts] = useState([]);
+const [syncLogs, setSyncLogs] = useState([]);
 
 const [adForm, setAdForm] = useState({
   platform: 'meta',
@@ -76,6 +77,9 @@ const [adForm, setAdForm] = useState({
       getAdAccounts(id)
         .then(setAdAccounts)
         .catch(() => {});
+        getSyncLogs(id)
+          .then(setSyncLogs)
+          .catch(() => {});
     }).catch(() => toast.error('Failed to load data'))
       .finally(() => setLoading(false));
   }, [id, platform]);
@@ -136,6 +140,8 @@ const handleSyncAdAccount = async (accountId) => {
 
     const updated = await getAdAccounts(id);
     setAdAccounts(updated);
+    const logs = await getSyncLogs(id);
+    setSyncLogs(logs);
 
     load();
   } catch {
@@ -619,7 +625,50 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
           </div>
         )}
       </div>
-        </div>
+ {/* Recent Sync Activity */}
+        <div className="card card-pad" style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 18 }}>
+                    Recent Sync Activity
+                  </div>
+
+                  {syncLogs.length === 0 ? (
+                    <div style={{ color: 'var(--text3)' }}>
+                      No sync activity yet.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {syncLogs.map((log) => (
+                        <div
+                          key={log.id}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '12px 14px',
+                            border: '1px solid var(--border)',
+                            borderRadius: 12,
+                            background: 'var(--bg2)',
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>
+                              {log.platform?.toUpperCase()} sync {log.status}
+                            </div>
+
+                            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
+                              {log.rows_synced} campaign(s) • {log.mode}
+                            </div>
+                          </div>
+
+                          <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                            {new Date(log.created_at).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                  </div>
       )}
             </>
           )}
