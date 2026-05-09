@@ -132,9 +132,13 @@ const handleDeleteReport = async (reportId) => {
       const updatedHistory = await getReportHistory(form.clientId);
       setHistory(updatedHistory);
     }
-  } catch (err) {
-    toast.error(err.response?.data?.error || 'Failed to delete report');
-  }
+  } catch (error) {
+      const msg =
+        error.response?.data?.error ||
+        'Failed to generate report';
+
+      toast.error(msg);
+    }
 };
   const client = clients.find((c) => String(c.id) === String(form.clientId));
 
