@@ -44,14 +44,61 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { name, industry, website, contactEmail, notes } = req.body;
-    if (!name) return res.status(400).json({ error: 'Client name required' });
+
+    if (!name) {
+      return res.status(400).json({ error: 'Client name required' });
+    }
+
+    // Get current subscription
+    const subscriptionResult = await db.query(
+      `SELECT plan_name
+       FROM subscriptions
+       WHERE agency_id = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [req.user.agency_id]
+    );
+
+    const planName = subscriptionResult.rows[0]?.plan_name || 'free';
+
+    // Count active clients
+    const countResult = await db.query(
+      `SELECT COUNT(*)::int AS total
+       FROM clients
+       WHERE agency_id = $1 AND is_active = TRUE`,
+      [req.user.agency_id]
+    );
+
+    const totalClients = countResult.rows[0].total;
+
+    const limits = {
+      free: 2,
+      pro: 15,
+      agency: Infinity,
+    };
+
+    if (totalClients >= limits[planName]) {
+      return res.status(403).json({
+        error:
+          planName === 'free'
+            ? 'Free plan allows up to 2 clients. Please upgrade to Pro.'
+            : 'Pro plan allows up to 15 clients. Please upgrade to Agency.',
+        plan: planName,
+        limit: limits[planName],
+      });
+    }
 
     const result = await db.query(
-      'INSERT INTO clients (agency_id, name, industry, website, contact_email, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      `INSERT INTO clients
+       (agency_id, name, industry, website, contact_email, notes)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING *`,
       [req.user.agency_id, name, industry, website, contactEmail, notes]
     );
+
     res.status(201).json(result.rows[0]);
   } catch (error) {
+    console.error('Create client error:', error);
     res.status(500).json({ error: 'Failed to create client' });
   }
 });

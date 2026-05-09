@@ -34,9 +34,13 @@ export default function Clients() {
       setShowModal(false);
       setForm({ name: '', industry: '', website: '', contactEmail: '', notes: '' });
       load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to create client');
-    } finally { setSaving(false); }
+    } catch (error) {
+        const msg =
+          error.response?.data?.error ||
+          'Failed to create client';
+
+        toast.error(msg);
+      }finally { setSaving(false); }
   };
 
   const handleDelete = async (id, name) => {
@@ -58,7 +62,22 @@ export default function Clients() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <div className="page-title">Clients</div>
-          <div className="page-subtitle">{clients.length} client{clients.length !== 1 ? 's' : ''} in your agency</div>
+         <div className="page-subtitle">
+           {clients.length} client{clients.length !== 1 ? 's' : ''} in your agency
+         </div>
+
+         {clients.length >= 2 && (
+           <div
+             style={{
+               marginTop: 8,
+               fontSize: 12,
+               color: '#D97706',
+               fontWeight: 600,
+             }}
+           >
+             Free plan limit is 2 clients. Upgrade to Pro for more clients.
+           </div>
+         )}
         </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={15} /> Add Client

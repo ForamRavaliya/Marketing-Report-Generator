@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState , useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { getSubscription } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import {
    LayoutDashboard, Users, Upload, FileBarChart2,
-    Settings, LogOut, Menu, X, BarChart3, ChevronRight, CreditCard
+    Settings, LogOut, Menu, BarChart3, ChevronRight, CreditCard
 } from 'lucide-react';
 
 
@@ -20,9 +21,14 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [subscription, setSubscription] = useState(null);
 
   const handleLogout = () => { logout(); navigate('/login'); };
-
+useEffect(() => {
+  getSubscription()
+    .then(setSubscription)
+    .catch(() => {});
+}, []);
   const Sidebar = ({ mobile = false }) => (
     <aside style={{
       width: mobile ? '100%' : 240,
@@ -36,7 +42,7 @@ export default function Layout() {
       <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {user?.logoUrl ? (
-            <img src={`http://localhost:5000${user.logoUrl}`} alt="logo"
+            <img src={`https://marketing-report-generator-p9wj.onrender.com${user.logoUrl}`} alt="logo"
               style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6 }} />
           ) : (
             <div style={{ width: 30, height: 30, background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -92,6 +98,31 @@ export default function Layout() {
             </div>
             <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.role}
+            </div>
+            <div
+              style={{
+                marginTop: 6,
+                display: 'inline-block',
+                padding: '3px 8px',
+                borderRadius: 999,
+                background:
+                  subscription?.plan_name === 'agency'
+                    ? 'rgba(168,85,247,.18)'
+                    : subscription?.plan_name === 'pro'
+                    ? 'rgba(37,99,235,.18)'
+                    : 'rgba(255,255,255,.08)',
+                color:
+                  subscription?.plan_name === 'agency'
+                    ? '#C084FC'
+                    : subscription?.plan_name === 'pro'
+                    ? '#60A5FA'
+                    : 'rgba(255,255,255,.65)',
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+              }}
+            >
+              {subscription?.plan_name || 'free'} plan
             </div>
           </div>
         </div>
