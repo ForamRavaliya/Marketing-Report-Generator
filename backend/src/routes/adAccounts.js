@@ -51,21 +51,7 @@ router.get('/client/:clientId', async (req, res) => {
        ORDER BY created_at DESC`,
       [req.params.clientId, req.user.agency_id]
     );
-await db.query(
-  `INSERT INTO sync_logs
-   (ad_account_id, client_id, agency_id, platform, mode, rows_synced, status, message)
-   VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-  [
-    account.id,
-    account.client_id,
-    account.agency_id,
-    account.platform,
-    account.access_token ? 'live-api' : 'demo',
-    syncedRows.length,
-    'success',
-    'Ad data synced successfully',
-  ]
-);
+
 
     res.json(result.rows);
   } catch (error) {
@@ -162,6 +148,21 @@ router.post('/:id/sync', async (req, res) => {
       [req.params.id, req.user.agency_id]
     );
 
+await db.query(
+  `INSERT INTO sync_logs
+   (ad_account_id, client_id, agency_id, platform, mode, rows_synced, status, message)
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+  [
+    account.id,
+    account.client_id,
+    account.agency_id,
+    account.platform,
+    account.access_token ? 'live-api' : 'demo',
+    syncedRows.length,
+    'success',
+    'Ad data synced successfully',
+  ]
+);
     res.json({
       message: 'Ad data synced successfully',
       platform: account.platform,

@@ -128,9 +128,11 @@ const handleAddAdAccount = async () => {
 
 const handleSyncAdAccount = async (accountId) => {
   try {
-    await syncAdAccount(accountId);
+    const res = await syncAdAccount(accountId);
 
-    toast.success('Ad account synced successfully');
+    toast.success(
+      `${res.rowsSynced} campaign(s) synced (${res.mode})`
+    );
 
     const updated = await getAdAccounts(id);
     setAdAccounts(updated);
@@ -568,46 +570,49 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                         : 'Not synced yet'}
                     </div>
                   </div>
-                   <div style={{ display: 'flex', gap: 8 }}>
-                     <button
-                       className="btn btn-secondary btn-sm"
-                       onClick={() => handleSyncAdAccount(acc.id)}
-                     >
-                       Sync
-                     </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleSyncAdAccount(acc.id)}
+                      >
+                        Sync
+                      </button>
 
-                     <button
-                       className="btn btn-ghost btn-sm"
-                       style={{ color: '#DC2626' }}
-                       onClick={() => handleDeleteAdAccount(acc.id)}
-                     >
-                       Remove
-                     </button>
-                   </div>
-                   <div style={{ marginTop: 10 }}>
-                     <label
-                       style={{
-                         display: 'block',
-                         fontSize: 11,
-                         fontWeight: 700,
-                         color: 'var(--text3)',
-                         marginBottom: 4,
-                       }}
-                     >
-                       Auto Sync
-                     </label>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: '#DC2626' }}
+                        onClick={() => handleDeleteAdAccount(acc.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
 
-                     <select
-                       className="form-select"
-                       style={{ fontSize: 12, padding: '6px 8px', width: 130 }}
-                       value={acc.sync_frequency || 'manual'}
-                       onChange={(e) => handleUpdateFrequency(acc.id, e.target.value)}
-                     >
-                       <option value="manual">Manual</option>
-                       <option value="daily">Daily</option>
-                       <option value="weekly">Weekly</option>
-                     </select>
-                   </div>
+                    <div>
+                      <label
+                        style={{
+                          display: 'block',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: 'var(--text3)',
+                          marginBottom: 4,
+                        }}
+                      >
+                        Auto Sync
+                      </label>
+
+                      <select
+                        className="form-select"
+                        style={{ fontSize: 12, padding: '6px 8px', width: 130 }}
+                        value={acc.sync_frequency || 'manual'}
+                        onChange={(e) => handleUpdateFrequency(acc.id, e.target.value)}
+                      >
+                        <option value="manual">Manual</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
