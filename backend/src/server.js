@@ -34,6 +34,7 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/agency', require('./routes/agency'));
 app.use('/api/ad-accounts', require('./routes/adAccounts'));
+app.use('/api/subscription', require('./routes/subscription'));
 
 const { startAutoSyncJob } = require('./jobs/autoSyncJob');
 

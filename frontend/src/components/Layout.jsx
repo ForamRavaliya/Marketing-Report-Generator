@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  LayoutDashboard, Users, Upload, FileBarChart2,
-  Settings, LogOut, Menu, X, BarChart3, ChevronRight
+   LayoutDashboard, Users, Upload, FileBarChart2,
+    Settings, LogOut, Menu, X, BarChart3, ChevronRight, CreditCard
 } from 'lucide-react';
+
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/clients', icon: Users, label: 'Clients' },
   { to: '/upload', icon: Upload, label: 'Upload Data' },
   { to: '/reports', icon: FileBarChart2, label: 'Reports' },
+  { to: '/subscription', icon: CreditCard, label: 'Subscription' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

@@ -13,6 +13,7 @@ import ClientDetail from './pages/ClientDetail';
 import UploadData from './pages/UploadData';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Subscription from './pages/Subscription';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -52,7 +53,9 @@ function App() {
             <Route path="clients/:id" element={<ClientDetail />} />
             <Route path="upload" element={<UploadData />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="subscription" element={<Subscription />} />
             <Route path="settings" element={<Settings />} />
+
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

@@ -42,6 +42,8 @@ export const deleteAdAccount = (id) =>
 
 export const syncAdAccount = (id) =>
     api.post(`/ad-accounts/${id}/sync`).then(r => r.data);
+
+
 // Uploads
 export const uploadFile = (formData, onProgress) =>
   api.post('/uploads', formData, {
@@ -70,6 +72,15 @@ export const generateReport = (data) => api.post('/reports/generate', data).then
 export const getReportHistory = (clientId) => api.get(`/reports/history/${clientId}`).then(r => r.data);
 export const deleteReport = (reportId) =>
   api.delete(`/reports/${reportId}`).then(r => r.data);
+
+
+ // Subscription
+    export const getSubscription = () =>
+      api.get('/subscription').then(r => r.data);
+
+    export const updateSubscriptionPlan = (planName) =>
+      api.put('/subscription/plan', { planName }).then(r => r.data);
+
 
 // Dashboard
 export const getDashboardOverview = () => api.get('/dashboard/overview').then(r => r.data);
