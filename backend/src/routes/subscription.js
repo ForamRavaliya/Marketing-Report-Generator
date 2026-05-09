@@ -43,6 +43,11 @@ router.put('/plan', async (req, res) => {
     if (!['free', 'pro', 'agency'].includes(planName)) {
       return res.status(400).json({ error: 'Invalid plan' });
     }
+    if (['pro', 'agency'].includes(planName)) {
+      return res.status(403).json({
+        error: 'Paid plans require payment verification',
+      });
+    }
 
     const result = await db.query(
       `UPDATE subscriptions
