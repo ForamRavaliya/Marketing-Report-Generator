@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount,updateAdAccountFrequency,getSyncLogs,} from '../utils/api';
+import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount,updateAdAccountFrequency,getSyncLogs,
+                                                                                                                                                                             getSubscription,} from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend ,} from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
@@ -41,6 +42,7 @@ export default function ClientDetail() {
   const [activeTab, setActiveTab] = useState('overview');
 const [adAccounts, setAdAccounts] = useState([]);
 const [syncLogs, setSyncLogs] = useState([]);
+const [subscription, setSubscription] = useState(null);
 
 const [adForm, setAdForm] = useState({
   platform: 'meta',
@@ -57,8 +59,10 @@ const [adForm, setAdForm] = useState({
       getComparison(id, params),
       getCampaigns(id, params),
       getPlatforms(id, params),
-    ]).then(([c, s, t, cmp, camp, plat]) => {
+      getSubscription(),
+    ]).then(([c, s, t, cmp, camp, plat, sub]) => {
       setClient(c); setSummary(s);
+
 
       // Aggregate trends by month
       const byMonth = {};
@@ -73,6 +77,7 @@ const [adForm, setAdForm] = useState({
       setComparison(cmp);
       setCampaigns(camp);
       setPlatforms(plat);
+      setSubscription(sub);
 
       getAdAccounts(id)
         .then(setAdAccounts)
@@ -607,16 +612,35 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                         Auto Sync
                       </label>
 
-                      <select
-                        className="form-select"
-                        style={{ fontSize: 12, padding: '6px 8px', width: 130 }}
-                        value={acc.sync_frequency || 'manual'}
-                        onChange={(e) => handleUpdateFrequency(acc.id, e.target.value)}
-                      >
-                        <option value="manual">Manual</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                      </select>
+                     <select
+                       className="form-select"
+                       style={{ fontSize: 12, padding: '6px 8px', width: 130 }}
+                       value={acc.sync_frequency || 'manual'}
+                       disabled={subscription?.plan_name === 'free'}
+                       onChange={(e) => handleUpdateFrequency(acc.id, e.target.value)}
+                     >
+                       <option value="manual">Manual</option>
+
+                       {subscription?.plan_name !== 'free' && (
+                         <>
+                           <option value="daily">Daily</option>
+                           <option value="weekly">Weekly</option>
+                         </>
+                       )}
+                     </select>
+
+                     {subscription?.plan_name === 'free' && (
+                       <div
+                         style={{
+                           marginTop: 6,
+                           fontSize: 10,
+                           color: '#D97706',
+                           fontWeight: 600,
+                         }}
+                       >
+                         Upgrade to Pro for Auto Sync
+                       </div>
+                     )}
                     </div>
                   </div>
                 </div>

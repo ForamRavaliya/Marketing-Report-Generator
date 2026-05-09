@@ -396,6 +396,45 @@ router.post('/generate', async (req, res) => {
     } = req.body;
 
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
+// Subscription plan check
+const subscriptionResult = await db.query(
+  `SELECT plan_name
+   FROM subscriptions
+   WHERE agency_id = $1
+   ORDER BY created_at DESC
+   LIMIT 1`,
+  [req.user.agency_id]
+);
+
+const planName = subscriptionResult.rows[0]?.plan_name || 'free';
+const canUseAgencyBranding = planName !== 'free';
+
+// Total generated reports
+const reportsCountResult = await db.query(
+  `SELECT COUNT(*)::int AS total
+   FROM generated_reports
+   WHERE agency_id = $1`,
+  [req.user.agency_id]
+);
+
+const totalReports = reportsCountResult.rows[0].total;
+
+const reportLimits = {
+  free: 5,
+  pro: 50,
+  agency: Infinity,
+};
+
+if (totalReports >= reportLimits[planName]) {
+  return res.status(403).json({
+    error:
+      planName === 'free'
+        ? 'Free plan allows only 5 reports. Upgrade to Pro.'
+        : 'Pro plan allows only 50 reports. Upgrade to Agency.',
+    plan: planName,
+    limit: reportLimits[planName],
+  });
+}
 
     // Fetch all data
     const [clientResult, agencyResult] = await Promise.all([
@@ -476,12 +515,18 @@ router.post('/generate', async (req, res) => {
    const doc = new PDFDocument({
      size: 'A4',
      margin: 50,
+     bufferPages: true,
    });
     const writeStream = fs.createWriteStream(filePath);
     doc.pipe(writeStream);
 
-    const PRIMARY = agency?.primary_color || '#2563EB';
-    const SECONDARY = agency?.secondary_color || '#7C3AED';
+    const PRIMARY = canUseAgencyBranding
+      ? agency?.primary_color || '#2563EB'
+      : '#2563EB';
+
+    const SECONDARY = canUseAgencyBranding
+      ? agency?.secondary_color || '#7C3AED'
+      : '#7C3AED';
     const DARK = '#1E293B';
     const GRAY = '#64748B';
     const LIGHT = '#F1F5F9';
@@ -504,7 +549,7 @@ router.post('/generate', async (req, res) => {
 
     doc.fillColor(WHITE);
 
-    if (agencyBranding && agency?.logo_url) {
+    if (agencyBranding && canUseAgencyBranding && agency?.logo_url) {
       const logoPath = path.join(__dirname, '../..', agency.logo_url);
       if (fs.existsSync(logoPath)) {
         doc.image(logoPath, 50, 20, { height: 40 });
@@ -738,6 +783,32 @@ doc.addPage();
   }
 }
  drawInsights(doc, safeSummary, currency);
+ // Free plan watermark
+ if (planName === 'free') {
+   const range = doc.bufferedPageRange();
+
+   for (let i = range.start; i < range.start + range.count; i++) {
+     doc.switchToPage(i);
+
+     doc.save();
+
+     doc.fillColor('#94A3B8')
+       .fontSize(9)
+       .font('Helvetica')
+       .opacity(0.65)
+       .text(
+         'Generated with Marketing Report Generator — Upgrade to remove branding',
+         50,
+         805,
+         {
+           width: 500,
+           align: 'center',
+         }
+       );
+
+     doc.restore();
+   }
+ }
 
     // Simple footer only on current page
 
