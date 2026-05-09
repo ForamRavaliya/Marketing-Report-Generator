@@ -81,6 +81,12 @@ export const deleteReport = (reportId) =>
     export const updateSubscriptionPlan = (planName) =>
       api.put('/subscription/plan', { planName }).then(r => r.data);
 
+// Payments
+export const createPaymentOrder = (data) =>
+  api.post('/payments/create-order', data).then(r => r.data);
+
+export const verifyPayment = (data) =>
+  api.post('/payments/verify', data).then(r => r.data);
 
 // Dashboard
 export const getDashboardOverview = () => api.get('/dashboard/overview').then(r => r.data);

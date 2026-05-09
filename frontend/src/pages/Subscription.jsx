@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { getSubscription, updateSubscriptionPlan } from '../utils/api';
+import {
+  getSubscription,
+  updateSubscriptionPlan,
+  createPaymentOrder,
+  verifyPayment,
+} from '../utils/api';
 
 const plans = [
   {
@@ -23,9 +28,25 @@ const plans = [
   },
 ];
 
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export default function Subscription() {
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [processingPlan, setProcessingPlan] = useState(null);
 
   const loadSubscription = async () => {
     try {
@@ -44,11 +65,68 @@ export default function Subscription() {
 
   const handleUpgrade = async (planName) => {
     try {
-      const updated = await updateSubscriptionPlan(planName);
-      setSubscription(updated);
-      toast.success(`Plan updated to ${planName}`);
-    } catch {
-      toast.error('Failed to update plan');
+      setProcessingPlan(planName);
+
+      if (planName === 'free') {
+        const updated = await updateSubscriptionPlan('free');
+        setSubscription(updated);
+        toast.success('Plan changed to Free');
+        return;
+      }
+
+      const scriptLoaded = await loadRazorpayScript();
+
+      if (!scriptLoaded) {
+        toast.error('Payment gateway failed to load');
+        return;
+      }
+
+      const orderData = await createPaymentOrder({
+        planName,
+        billingCycle: 'monthly',
+      });
+
+      const options = {
+        key: orderData.key,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: 'Marketing Report Generator',
+        description: `${planName.toUpperCase()} Plan Subscription`,
+        order_id: orderData.order.id,
+
+        handler: async function (response) {
+          try {
+            await verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              planName,
+              billingCycle: 'monthly',
+            });
+
+            await loadSubscription();
+            toast.success(`Successfully upgraded to ${planName}`);
+          } catch {
+            toast.error('Payment verification failed');
+          }
+        },
+
+        theme: {
+          color: '#2563EB',
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+
+      razorpay.on('payment.failed', function () {
+        toast.error('Payment failed or cancelled');
+      });
+
+      razorpay.open();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to start payment');
+    } finally {
+      setProcessingPlan(null);
     }
   };
 
@@ -67,6 +145,7 @@ export default function Subscription() {
         <div className="grid grid-3" style={{ gap: 20 }}>
           {plans.map((plan) => {
             const active = subscription?.plan_name === plan.id;
+            const processing = processingPlan === plan.id;
 
             return (
               <div
@@ -114,10 +193,16 @@ export default function Subscription() {
                 <button
                   className={active ? 'btn btn-secondary' : 'btn btn-primary'}
                   style={{ width: '100%' }}
-                  disabled={active}
+                  disabled={active || processing}
                   onClick={() => handleUpgrade(plan.id)}
                 >
-                  {active ? 'Current Plan' : `Choose ${plan.name}`}
+                  {active
+                    ? 'Current Plan'
+                    : processing
+                    ? 'Processing...'
+                    : plan.id === 'free'
+                    ? 'Switch to Free'
+                    : `Pay & Choose ${plan.name}`}
                 </button>
               </div>
             );
