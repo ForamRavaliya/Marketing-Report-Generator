@@ -60,6 +60,25 @@ router.get('/client/:clientId', async (req, res) => {
   }
 });
 
+// Get sync logs by client
+router.get('/client/:clientId/logs', async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id, ad_account_id, platform, mode, rows_synced, status, message, created_at
+       FROM sync_logs
+       WHERE client_id = $1 AND agency_id = $2
+       ORDER BY created_at DESC
+       LIMIT 10`,
+      [req.params.clientId, req.user.agency_id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Fetch sync logs error:', error);
+    res.status(500).json({ error: 'Failed to fetch sync logs' });
+  }
+});
+
 // Sync ad account data
 router.post('/:id/sync', async (req, res) => {
   try {
