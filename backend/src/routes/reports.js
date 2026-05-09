@@ -799,7 +799,7 @@ doc.addPage();
        .text(
          'Generated with Marketing Report Generator — Upgrade to remove branding',
          50,
-         805,
+         742,
          {
            width: 500,
            align: 'center',
