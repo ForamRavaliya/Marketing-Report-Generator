@@ -47,6 +47,8 @@ export default function Subscription() {
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
   const [processingPlan, setProcessingPlan] = useState(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(null);
+  const [billingCycle, setBillingCycle] = useState('monthly');
 
   const loadSubscription = async () => {
     try {
@@ -83,7 +85,7 @@ export default function Subscription() {
 
       const orderData = await createPaymentOrder({
         planName,
-        billingCycle: 'monthly',
+        billingCycle,
       });
 
       const options = {
@@ -101,11 +103,18 @@ export default function Subscription() {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
               planName,
-              billingCycle: 'monthly',
+             billingCycle,
             });
 
-            await loadSubscription();
-            toast.success(`Successfully upgraded to ${planName}`);
+           await loadSubscription();
+
+           setPaymentSuccess({
+             planName,
+             paymentId: response.razorpay_payment_id,
+             orderId: response.razorpay_order_id,
+           });
+
+           toast.success(`Successfully upgraded to ${planName}`);
           } catch {
             toast.error('Payment verification failed');
           }
@@ -130,6 +139,20 @@ export default function Subscription() {
     }
   };
 
+const getPlanPrice = (planId) => {
+  if (planId === 'free') return 'INR 0';
+
+  if (planId === 'pro') {
+    return billingCycle === 'yearly' ? 'INR 4,999/yr' : 'INR 499/mo';
+  }
+
+  if (planId === 'agency') {
+    return billingCycle === 'yearly' ? 'INR 9,999/yr' : 'INR 999/mo';
+  }
+
+  return '';
+};
+
   return (
     <div className="fade-in">
       <div style={{ marginBottom: 26 }}>
@@ -137,7 +160,135 @@ export default function Subscription() {
         <div className="page-subtitle">
           Manage your current plan and upgrade features.
         </div>
+        {subscription && (
+          <div
+            className="card card-pad"
+            style={{
+              marginTop: 18,
+              background: 'linear-gradient(135deg,#EEF2FF,#F8FAFC)',
+              border: '1px solid #C7D2FE',
+            }}
+          >
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
+              Current Subscription
+            </div>
+
+            <div style={{ fontSize: 20, fontWeight: 900, textTransform: 'capitalize' }}>
+              {subscription.plan_name} Plan
+            </div>
+
+            <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text2)' }}>
+              Status: <strong>{subscription.status}</strong>
+            </div>
+
+            <div style={{ marginTop: 4, fontSize: 13, color: 'var(--text2)' }}>
+              Next billing date:{' '}
+              <strong>
+                {subscription.expires_at
+                  ? new Date(subscription.expires_at).toLocaleDateString()
+                  : 'Not applicable'}
+              </strong>
+            </div>
+          </div>
+        )}
       </div>
+
+{paymentSuccess && (
+  <div
+    className="card card-pad"
+    style={{
+      marginBottom: 22,
+      border: '1px solid #A7F3D0',
+      background: 'linear-gradient(135deg,#ECFDF5,#F8FAFC)',
+    }}
+  >
+    <div
+      style={{
+        fontWeight: 900,
+        fontSize: 18,
+        color: '#059669',
+        marginBottom: 6,
+      }}
+    >
+      Payment Successful
+    </div>
+
+    <div
+      style={{
+        color: 'var(--text2)',
+        fontSize: 13,
+        marginBottom: 12,
+      }}
+    >
+      Your {paymentSuccess.planName.toUpperCase()} plan has been activated.
+    </div>
+
+    <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+      Payment ID: {paymentSuccess.paymentId}
+    </div>
+
+    <div
+      style={{
+        fontSize: 12,
+        color: 'var(--text3)',
+        marginTop: 4,
+      }}
+    >
+      Order ID: {paymentSuccess.orderId}
+    </div>
+  </div>
+)}
+<div
+  style={{
+    display: 'flex',
+    gap: 8,
+    marginBottom: 22,
+    background: 'var(--bg3)',
+    padding: 5,
+    borderRadius: 12,
+    width: 'fit-content',
+  }}
+>
+  {['monthly', 'yearly'].map((cycle) => (
+    <button
+      key={cycle}
+      type="button"
+      onClick={() => setBillingCycle(cycle)}
+      style={{
+        padding: '8px 18px',
+        borderRadius: 9,
+        border: 'none',
+        cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: 800,
+        textTransform: 'capitalize',
+        background: billingCycle === cycle ? 'var(--bg2)' : 'transparent',
+        color: billingCycle === cycle ? 'var(--text)' : 'var(--text2)',
+        boxShadow: billingCycle === cycle ? 'var(--shadow)' : 'none',
+      }}
+    >
+      <>
+        {cycle}
+
+        {cycle === 'yearly' && (
+          <span
+            style={{
+              marginLeft: 6,
+              fontSize: 10,
+              background: '#DCFCE7',
+              color: '#166534',
+              padding: '2px 6px',
+              borderRadius: 999,
+              fontWeight: 800,
+            }}
+          >
+            SAVE 15%
+          </span>
+        )}
+      </>
+    </button>
+  ))}
+</div>
 
       {loading ? (
         <div className="card card-pad">Loading subscription...</div>
@@ -179,7 +330,7 @@ export default function Subscription() {
                 </div>
 
                 <div style={{ fontSize: 28, fontWeight: 900, marginBottom: 18 }}>
-                  {plan.price}
+                 {getPlanPrice(plan.id)}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>

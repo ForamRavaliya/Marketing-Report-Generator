@@ -88,8 +88,13 @@ export const createPaymentOrder = (data) =>
 export const verifyPayment = (data) =>
   api.post('/payments/verify', data).then(r => r.data);
 
+export const getBillingHistory = () =>
+  api.get('/payments/history').then(r => r.data);
 // Dashboard
 export const getDashboardOverview = () => api.get('/dashboard/overview').then(r => r.data);
+
+export const generateReceipt = (paymentId) =>
+  api.get(`/payments/receipt/${paymentId}`).then(r => r.data);
 
 // Agency
 export const getAgency = () => api.get('/agency').then(r => r.data);

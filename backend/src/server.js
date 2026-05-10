@@ -19,6 +19,8 @@ app.use(cors({
     credentials: true
   }));
 app.options('*', cors());
+// Razorpay webhook needs raw body, so keep this before express.json
+app.use('/api/webhooks', require('./routes/webhooks'));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/data', express.static(path.join(__dirname, '../data')));
@@ -37,8 +39,9 @@ app.use('/api/ad-accounts', require('./routes/adAccounts'));
 app.use('/api/subscription', require('./routes/subscription'));
 app.use('/api/payments', require('./routes/payments'));
 
-const { startAutoSyncJob } = require('./jobs/autoSyncJob');
 
+const { startAutoSyncJob } = require('./jobs/autoSyncJob');
+const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiryJob');
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -62,6 +65,9 @@ app.listen(PORT, async () => {
     console.log(`✅ PostgreSQL connected`);
     startAutoSyncJob();
     console.log('⏱ Auto sync job started');
+
+    startSubscriptionExpiryJob();
+    console.log('⏱ Subscription expiry job started');
   } catch (err) {
     console.error(`\n❌ PostgreSQL connection FAILED: ${err.message}`);
     console.error(`   Fix your backend/.env file:`);

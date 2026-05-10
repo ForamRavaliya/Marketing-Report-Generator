@@ -14,6 +14,7 @@ import UploadData from './pages/UploadData';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Subscription from './pages/Subscription';
+import Billing from './pages/Billing';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -54,6 +55,7 @@ function App() {
             <Route path="upload" element={<UploadData />} />
             <Route path="reports" element={<Reports />} />
             <Route path="subscription" element={<Subscription />} />
+            <Route path="billing" element={<Billing />} />
             <Route path="settings" element={<Settings />} />
 
           </Route>
