@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount,updateAdAccountFrequency,getSyncLogs,
-                                                                                                                                                                             getSubscription,} from '../utils/api';
+    getSubscription, generateAIInsights, getAIInsights,} from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend ,} from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
@@ -43,6 +43,8 @@ export default function ClientDetail() {
 const [adAccounts, setAdAccounts] = useState([]);
 const [syncLogs, setSyncLogs] = useState([]);
 const [subscription, setSubscription] = useState(null);
+const [aiInsight, setAiInsight] = useState(null);
+const [aiLoading, setAiLoading] = useState(false);
 
 const [adForm, setAdForm] = useState({
   platform: 'meta',
@@ -60,8 +62,9 @@ const [adForm, setAdForm] = useState({
       getCampaigns(id, params),
       getPlatforms(id, params),
       getSubscription(),
-    ]).then(([c, s, t, cmp, camp, plat, sub]) => {
-      setClient(c); setSummary(s);
+      getAIInsights(id),
+    ]).then(([c, s, t, cmp, camp, plat, sub, ai]) => {
+      setClient(c); setSummary(s); setAiInsight(ai);
 
 
       // Aggregate trends by month
@@ -106,6 +109,7 @@ const [adForm, setAdForm] = useState({
     'campaigns',
     'platforms',
     'integrations',
+    'ai insights',
   ];
 // Hanlers
 const handleAddAdAccount = async () => {
@@ -443,6 +447,175 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
               </div>
             </div>
           )}
+{/* AI Insights Tab */}
+{activeTab === 'ai insights' && (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+    <div className="card card-pad">
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 18,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 18 }}>
+            AI Marketing Insights
+          </div>
+
+          <div
+            style={{
+              fontSize: 13,
+              color: 'var(--text3)',
+              marginTop: 4,
+            }}
+          >
+            AI-powered campaign analysis and recommendations
+          </div>
+        </div>
+
+        <button
+          className="btn btn-primary"
+          disabled={aiLoading}
+          onClick={async () => {
+            try {
+              setAiLoading(true);
+
+              const result = await generateAIInsights(id);
+
+              setAiInsight(result);
+
+              toast.success('AI insights generated');
+            } catch {
+              toast.error('Failed to generate AI insights');
+            } finally {
+              setAiLoading(false);
+            }
+          }}
+        >
+          {aiLoading ? 'Generating...' : 'Generate Insights'}
+        </button>
+      </div>
+
+      {!aiInsight ? (
+        <div
+          style={{
+            padding: 40,
+            textAlign: 'center',
+            color: 'var(--text3)',
+          }}
+        >
+          No AI insights generated yet.
+        </div>
+      ) : (
+        <>
+          <div
+            style={{
+              padding: 18,
+              borderRadius: 14,
+              background: 'linear-gradient(135deg,#EEF2FF,#F8FAFC)',
+              border: '1px solid #C7D2FE',
+              marginBottom: 20,
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 15,
+                marginBottom: 10,
+              }}
+            >
+              Performance Summary
+            </div>
+
+            <div
+              style={{
+                fontSize: 14,
+                color: 'var(--text2)',
+                lineHeight: 1.7,
+              }}
+            >
+              {aiInsight.summary}
+            </div>
+          </div>
+
+          <div>
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 15,
+                marginBottom: 14,
+              }}
+            >
+              AI Recommendations
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
+              }}
+            >
+              {(Array.isArray(aiInsight.recommendations)
+                ? aiInsight.recommendations
+                : JSON.parse(aiInsight.recommendations || '[]')
+              ).map((rec, index) => (
+                <div
+                  key={index}
+                  style={{
+                    padding: 16,
+                    borderRadius: 12,
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg2)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 12,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div
+                      style={{
+                        minWidth: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        background: '#DBEAFE',
+                        color: '#2563EB',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 12,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {index + 1}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: 'var(--text2)',
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {rec}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  </div>
+)}
+
 
   {/* Integrations Tab */}
   {activeTab === 'integrations' && (

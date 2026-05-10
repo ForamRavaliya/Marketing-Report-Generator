@@ -33,6 +33,7 @@ app.use('/api/campaigns', require('./routes/campaigns'));
 app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api/performance', require('./routes/performance'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/ai-insights', require('./routes/aiInsights'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/agency', require('./routes/agency'));
 app.use('/api/ad-accounts', require('./routes/adAccounts'));
