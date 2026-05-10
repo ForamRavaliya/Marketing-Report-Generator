@@ -67,6 +67,13 @@ export const getCampaigns = (clientId, params) =>
 export const getPlatforms = (clientId, params) =>
   api.get(`/performance/platforms/${clientId}`, { params }).then(r => r.data);
 
+// AI Insights
+export const generateAIInsights = (clientId) =>
+  api.post(`/ai-insights/generate/${clientId}`).then(r => r.data);
+
+export const getAIInsights = (clientId) =>
+  api.get(`/ai-insights/${clientId}`).then(r => r.data);
+
 // Reports
 export const generateReport = (data) => api.post('/reports/generate', data).then(r => r.data);
 export const getReportHistory = (clientId) => api.get(`/reports/history/${clientId}`).then(r => r.data);
