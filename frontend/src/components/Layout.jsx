@@ -4,7 +4,7 @@ import { getSubscription } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import {
    LayoutDashboard, Users, Upload, FileBarChart2,
-    Settings, LogOut, Menu, BarChart3, ChevronRight, CreditCard
+    Settings, LogOut, Menu, BarChart3, ChevronRight, CreditCard, Receipt
 } from 'lucide-react';
 
 
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/upload', icon: Upload, label: 'Upload Data' },
   { to: '/reports', icon: FileBarChart2, label: 'Reports' },
   { to: '/subscription', icon: CreditCard, label: 'Subscription' },
+  { to: '/billing', icon: Receipt, label: 'Billing' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
