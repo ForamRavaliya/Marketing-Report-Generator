@@ -483,7 +483,8 @@ if (totalReports >= reportLimits[planName]) {
         `SELECT TO_CHAR(report_month, 'Mon YYYY') as month, SUM(spend) as spend,
           SUM(clicks) as clicks, SUM(conversions) as conversions,
           CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas
-         FROM performance_data pd ${whereClause} GROUP BY report_month ORDER BY report_month`,
+         FROM performance_data pd ${whereClause} GROUP BY TO_CHAR(report_month, 'Mon YYYY')
+                                                 ORDER BY MIN(report_month)`,
         params
       ),
       db.query(
