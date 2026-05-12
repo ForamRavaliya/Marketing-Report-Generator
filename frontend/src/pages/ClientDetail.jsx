@@ -541,6 +541,19 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
             </div>
           </div>
 
+<div
+  style={{
+    fontSize: 11,
+    color: 'var(--text3)',
+    marginBottom: 16,
+  }}
+>
+  Generated on:{' '}
+  {aiInsight.created_at
+    ? new Date(aiInsight.created_at).toLocaleString()
+    : 'Recently'}
+</div>
+
           <div>
             <div
               style={{
