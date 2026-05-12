@@ -1,16 +1,14 @@
 const express = require('express');
 const router = express.Router();
 
-const OpenAI = require('openai');
+
 
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+
 
 // Generate AI insights
 router.post('/generate/:clientId', async (req, res) => {
@@ -92,21 +90,52 @@ Respond ONLY in JSON format:
 }
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      response_format: { type: 'json_object' },
-    });
+    const mockRecommendations = [];
 
-    const aiResponse = JSON.parse(
-      completion.choices[0].message.content
-    );
+    if (Number(roas) < 2) {
+      mockRecommendations.push(
+        'ROAS is below target. Consider improving audience targeting and ad creatives.'
+      );
+    }
 
+    if (Number(ctr) < 2) {
+      mockRecommendations.push(
+        'CTR is relatively low. Test stronger CTA headlines and engaging creatives.'
+      );
+    }
+
+    if (Number(cpa) > 1000) {
+      mockRecommendations.push(
+        'CPA is high. Optimize campaigns with better conversion-focused landing pages.'
+      );
+    }
+
+    if (mockRecommendations.length === 0) {
+      mockRecommendations.push(
+        'Campaign performance looks healthy. Consider scaling high-performing campaigns.'
+      );
+
+      mockRecommendations.push(
+        'Meta campaigns are showing stable engagement and conversion quality.'
+      );
+
+      mockRecommendations.push(
+        'Try allocating additional budget toward top-performing audiences.'
+      );
+    }
+
+    const aiResponse = {
+      summary: `
+    Campaign generated ${metrics.clicks || 0} clicks and ${
+        metrics.conversions || 0
+      } conversions with a ROAS of ${roas}x.
+
+    Overall performance is ${
+        Number(roas) >= 2 ? 'strong' : 'moderate'
+      } based on current campaign metrics.
+      `,
+      recommendations: mockRecommendations,
+    };
     const saved = await db.query(
       `INSERT INTO ai_insights
        (

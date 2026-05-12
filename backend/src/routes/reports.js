@@ -455,7 +455,7 @@ if (totalReports >= reportLimits[planName]) {
     if (dateEnd) { whereClause += ` AND pd.report_month <= $${idx++}`; params.push(new Date(dateEnd)); }
     if (platform && platform !== 'all') { whereClause += ` AND pd.platform = $${idx++}`; params.push(platform); }
 
-    const [summaryResult, trendsResult, platformsResult, campaignsResult] = await Promise.all([
+    const [summaryResult, trendsResult, platformsResult, campaignsResult, aiInsightResult] = await Promise.all([
      db.query(
        `SELECT
          SUM(COALESCE(spend, 0)) as spend,
@@ -498,12 +498,21 @@ if (totalReports >= reportLimits[planName]) {
          GROUP BY c.name, pd.platform ORDER BY SUM(pd.spend) DESC LIMIT 10`,
         params
       ),
+      db.query(
+        `SELECT summary, recommendations, created_at
+         FROM ai_insights
+         WHERE client_id = $1 AND agency_id = $2
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [clientId, req.user.agency_id]
+      ),
     ]);
 
     const summary = summaryResult.rows[0];
     const trends = trendsResult.rows;
     const platforms = platformsResult.rows;
     const campaigns = campaignsResult.rows;
+    const aiInsight = aiInsightResult.rows[0] || null;
 
     // Create PDF
     const outputDir = path.join(__dirname, '../../data/reports');
@@ -782,6 +791,71 @@ doc.addPage();
     });
   }
 }
+
+if (aiInsight) {
+  doc.addPage();
+
+  doc.roundedRect(30, 30, 535, 720, 14)
+    .fillAndStroke('#FFFFFF', '#E2E8F0');
+
+  doc.fillColor('#0F172A')
+    .fontSize(20)
+    .font('Helvetica-Bold')
+    .text('AI Marketing Insights', 50, 55);
+
+  doc.fillColor('#64748B')
+    .fontSize(10)
+    .font('Helvetica')
+    .text(
+      `Generated on ${new Date(aiInsight.created_at).toLocaleString()}`,
+      50,
+      82
+    );
+
+  doc.moveTo(50, 108).lineTo(545, 108).stroke(PRIMARY);
+
+  doc.fillColor('#0F172A')
+    .fontSize(15)
+    .font('Helvetica-Bold')
+    .text('Performance Summary', 50, 135);
+
+  doc.fillColor('#334155')
+    .fontSize(10)
+    .font('Helvetica')
+    .text(aiInsight.summary || 'No summary available.', 50, 165, {
+      width: 490,
+      lineGap: 4,
+    });
+
+  doc.fillColor('#0F172A')
+    .fontSize(15)
+    .font('Helvetica-Bold')
+    .text('AI Recommendations', 50, 270);
+
+  const recommendations = Array.isArray(aiInsight.recommendations)
+    ? aiInsight.recommendations
+    : JSON.parse(aiInsight.recommendations || '[]');
+
+  recommendations.slice(0, 5).forEach((rec, i) => {
+    const y = 310 + i * 58;
+
+    doc.roundedRect(50, y, 495, 42, 8).fill('#F8FAFC');
+
+    doc.fillColor('#2563EB')
+      .fontSize(10)
+      .font('Helvetica-Bold')
+      .text(`${i + 1}`, 65, y + 13);
+
+    doc.fillColor('#334155')
+      .fontSize(9)
+      .font('Helvetica')
+      .text(rec, 90, y + 10, {
+        width: 430,
+        lineGap: 3,
+      });
+  });
+}
+
  drawInsights(doc, safeSummary, currency);
  // Free plan watermark
  if (planName === 'free') {
