@@ -574,7 +574,7 @@ const drawFooter = (pageNo) => {
     .text(
       'Generated with Marketing Report Generator',
       50,
-      735,
+      755,
       {
         width: 500,
         align: 'center',
@@ -582,12 +582,12 @@ const drawFooter = (pageNo) => {
       }
     );
 
-  doc.roundedRect(515, 731, 26, 18, 5).fill(THEME.royal);
+  doc.roundedRect(515, 751, 26, 18, 5).fill(THEME.royal);
 
   doc.fillColor('#FFFFFF')
     .fontSize(8)
     .font('Helvetica-Bold')
-    .text(String(pageNo), 515, 736, {
+    .text(String(pageNo), 515, 756, {
       width: 26,
       align: 'center',
       lineBreak: false,
@@ -861,7 +861,7 @@ if (trends.length > 0) {
 }
 
 if (campaigns.length > 0) {
-  drawCard(35, 335, 525, 405, THEME.card, THEME.border);
+  drawCard(35, 335, 525, 365, THEME.card, THEME.border);
   drawSectionTitle('Top Campaigns Breakdown', 55, 355, THEME.violet);
 
   const cHeaders = ['Campaign', 'Platform', 'Spend', 'Clicks', 'Conv.'];
@@ -903,7 +903,7 @@ if (campaigns.length > 0) {
       cX += cWidths[i];
     });
 
-    cY += 27;
+    cY += 24;
   });
 }
 drawFooter(2);
@@ -987,28 +987,28 @@ doc.fillColor('#CBD5E1')
   .text('Platform-wise spend distribution and leads performance', 50, 62);
 
 if (platforms.length > 0) {
-  drawCard(35, 120, 525, 270, THEME.card, THEME.border);
+  drawCard(35, 120, 525, 240, THEME.card, THEME.border);
 
   drawPieChart(
     doc,
     platforms,
     {
-      x: 180,
-      y: 255,
-      radius: 70,
+      x: 175,
+      y: 245,
+      radius: 55,
       title: 'Platform Spend Distribution',
     },
     currency
   );
 
-  drawCard(35, 415, 525, 250, THEME.softGreen, '#A7F3D0');
+  drawCard(35, 415, 525, 230, THEME.softGreen, '#A7F3D0');
 
   drawNumberBarChart(
     doc,
     platforms,
     {
       x: 55,
-      y: 455,
+      y: 430,
       width: 480,
       title: 'Platform-wise Leads',
       labelKey: 'platform',
@@ -1159,10 +1159,11 @@ doc.fillColor(THEME.text)
   .text('Recommended Actions', 330, 452);
 
 let recommendations = [
-  'Increase budget on campaigns with strong lead volume and lower cost per lead.',
-  'Review campaigns with high spend but low conversions.',
-  'Test new ad creatives and audience segments to improve CTR.',
-  'Use platform-wise performance to decide budget allocation.',
+  'CTR is relatively low. Test stronger CTA headlines and engaging creatives.',
+  'Improve landing page speed and mobile responsiveness.',
+  'Retarget previous website visitors for better conversion efficiency.',
+  'Test new ad creatives and audience segments.',
+  'Optimize ad spend on high-performing campaigns.',
 ];
 
 if (aiInsight?.recommendations) {
@@ -1175,8 +1176,8 @@ if (aiInsight?.recommendations) {
   } catch (e) {}
 }
 
-recommendations.slice(0, 4).forEach((text, i) => {
-  const y = 490 + i * 45;
+recommendations.slice(0, 5).forEach((text, i) => {
+  const y = 488 + i * 45;
 
   doc.circle(335, y + 5, 5).fill(THEME.emerald);
 
