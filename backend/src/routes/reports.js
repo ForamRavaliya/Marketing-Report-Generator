@@ -850,51 +850,47 @@ if (trends.length > 0) {
   });
 }
 
+// Top campaign mini strip
 if (campaigns.length > 0) {
-  drawCard(35, 335, 525, 345, THEME.card, THEME.border);
-  drawSectionTitle('Top Campaigns Breakdown', 55, 355, THEME.violet);
+  const top = campaigns[0];
 
-  const cHeaders = ['Campaign', 'Platform', 'Spend', 'Clicks', 'Conv.'];
-  const cWidths = [200, 75, 95, 60, 55];
+  const stripX = 50;
+  const stripY = 625;
+  const stripW = 495;
+  const stripH = 58;
 
-  let cY = 395;
-  let cX = 55;
+  doc.roundedRect(stripX, stripY, stripW, stripH, 14)
+    .fill(THEME.navy);
 
-  doc.roundedRect(55, cY, 485, 24, 7).fill(THEME.violet);
-
-  cHeaders.forEach((h, i) => {
-    doc.fillColor('#FFFFFF')
-      .fontSize(8)
-      .font('Helvetica-Bold')
-      .text(h, cX + 8, cY + 8, { width: cWidths[i] - 10 });
-    cX += cWidths[i];
-  });
-
-  cY += 28;
-
-  campaigns.slice(0, 10).forEach((row, idx) => {
-    const bg = idx % 2 === 0 ? '#F8FAFC' : '#F5F3FF';
-    doc.roundedRect(55, cY, 485, 25, 5).fill(bg);
-
-    const vals = [
-      (row.name || 'Unknown').substring(0, 30),
-      (row.platform || 'Other').toUpperCase(),
-      formatCurrency(row.spend, currency),
-      formatNum(row.clicks),
-      formatNum(row.conversions),
-    ];
-
-    cX = 55;
-    vals.forEach((v, i) => {
-      doc.fillColor(THEME.text)
-        .fontSize(7.5)
-        .font('Helvetica')
-        .text(v, cX + 8, cY + 8, { width: cWidths[i] - 10 });
-      cX += cWidths[i];
+  doc.fillColor('#93C5FD')
+    .fontSize(8)
+    .font('Helvetica-Bold')
+    .text('TOP PERFORMING CAMPAIGN', stripX + 20, stripY + 12, {
+      width: 220,
+      lineBreak: false,
     });
 
-    cY += 22;
-  });
+  doc.fillColor('#FFFFFF')
+    .fontSize(12)
+    .font('Helvetica-Bold')
+    .text((top.name || 'Unknown Campaign').substring(0, 34), stripX + 20, stripY + 30, {
+      width: 230,
+      lineBreak: false,
+    });
+
+  doc.fillColor('#DBEAFE')
+    .fontSize(8)
+    .font('Helvetica')
+    .text(
+      `${formatCurrency(top.spend, currency)} Spend  |  ${formatNum(top.clicks)} Clicks  |  ${formatNum(top.conversions)} Leads`,
+      stripX + 275,
+      stripY + 25,
+      {
+        width: 190,
+        align: 'right',
+        lineBreak: false,
+      }
+    );
 }
 drawFooter(2);
 // ===============================
