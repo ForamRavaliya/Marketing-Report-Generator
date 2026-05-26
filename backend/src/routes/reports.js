@@ -62,8 +62,8 @@ const drawBarChart = (doc, data, options, currency = 'INR') => {
   const valueW = 90;
   const chartW = width - labelW - valueW - 20;
 
-  const barHeight = 28;
-  const gap = 14;
+  const barHeight = 24;
+  const gap = 12;
 
   data.slice(0, 6).forEach((d, i) => {
     const label = String(d[labelKey] || 'Unknown').substring(0, 30);
@@ -246,12 +246,12 @@ const drawPieChart = (doc, data, options, currency = 'INR') => {
   const total = data.reduce((sum, d) => sum + Number(d.spend || 0), 0);
 
   const colors = [
-    '#2563EB',
-    '#7C3AED',
+    '#3B82F6',
+    '#8B5CF6',
+    '#06B6D4',
     '#10B981',
     '#F59E0B',
-    '#EF4444',
-    '#06B6D4',
+    '#F43F5E',
   ];
 
   let startAngle = 0;
@@ -476,7 +476,7 @@ const THEME = {
   emerald: '#10B981',
   amber: '#F59E0B',
   rose: '#F43F5E',
-  bg: '#EEF2FF',
+  bg: '#F1F5F9',
   card: '#FFFFFF',
   softBlue: '#EFF6FF',
   softPurple: '#F5F3FF',
@@ -560,7 +560,7 @@ const drawKpiCard = (x, y, w, h, item, color, bg) => {
   doc.fillColor(item.growth?.startsWith('-') ? THEME.rose : THEME.emerald)
     .fontSize(7)
     .font('Helvetica-Bold')
-    .text(`${item.growth || '+0%'} vs last month`, x + 16, y + 60, {
+    .text(`${item.growth || '+0%'} vs last month`, x + 16, y + 54, {
       width: w - 25,
     });
 };
@@ -574,7 +574,7 @@ const drawFooter = (pageNo) => {
     .text(
       'Generated with Marketing Report Generator',
       50,
-      755,
+      770,
       {
         width: 500,
         align: 'center',
@@ -582,12 +582,12 @@ const drawFooter = (pageNo) => {
       }
     );
 
-  doc.roundedRect(515, 751, 26, 18, 5).fill(THEME.royal);
+  doc.roundedRect(515, 766, 26, 18, 5).fill(THEME.royal);
 
   doc.fillColor('#FFFFFF')
     .fontSize(8)
     .font('Helvetica-Bold')
-    .text(String(pageNo), 515, 756, {
+    .text(String(pageNo), 515, 771, {
       width: 26,
       align: 'center',
       lineBreak: false,
@@ -604,7 +604,7 @@ doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
 
 // Header background
 doc.rect(0, 0, pageW, 235).fill(THEME.navy);
-doc.rect(0, 155, pageW, 80).fill(THEME.royal);
+doc.rect(0, 165, pageW, 55).fill(THEME.royal);
 
 doc.circle(520, 40, 110)
   .fillOpacity(0.16)
@@ -639,23 +639,13 @@ doc.fillColor('#FFFFFF')
 doc.fillColor('#DBEAFE')
   .fontSize(14)
   .font('Helvetica')
-  .text(client.name, 50, 142);
+  .text(client.name, 50, 148);
 
 doc.fillColor('#BFDBFE')
   .fontSize(10)
-  .text(dateLabel, 50, 166);
+  .text(dateLabel, 50, 178);
 
-doc.roundedRect(405, 138, 135, 42, 10).fill('#FFFFFF');
 
-doc.fillColor(THEME.navy)
-  .fontSize(8)
-  .font('Helvetica-Bold')
-  .text('REPORT STATUS', 422, 148);
-
-doc.fillColor(THEME.emerald)
-  .fontSize(13)
-  .font('Helvetica-Bold')
-  .text('COMPLETED', 422, 162);
 
 // Executive strip
 doc.roundedRect(50, 260, 495, 78, 16).fillAndStroke('#FFFFFF', THEME.border);
@@ -748,11 +738,11 @@ const metrics = [
 ];
 
 const cardW = 155;
-const cardH = 78;
+const cardH = 66;
 const gapX = 15;
-const gapY = 16;
+const gapY = 12;
 const startX = 50;
-const startY = 410;
+const startY = 385;
 
 metrics.forEach((m, i) => {
   const col = i % 3;
@@ -767,17 +757,17 @@ metrics.forEach((m, i) => {
 if (campaigns.length > 0) {
   const top = campaigns[0];
 
-  doc.roundedRect(50, 675, 495, 48, 14).fillAndStroke(THEME.navy, THEME.navy);
+  doc.roundedRect(50, 620, 495, 42, 14).fillAndStroke(THEME.navy, THEME.navy);
 
   doc.fillColor('#93C5FD')
     .fontSize(8)
     .font('Helvetica-Bold')
-    .text('TOP PERFORMING CAMPAIGN', 70, 688);
+    .text('TOP PERFORMING CAMPAIGN', 70, 630);
 
   doc.fillColor('#FFFFFF')
     .fontSize(12)
     .font('Helvetica-Bold')
-    .text((top.name || 'Unknown Campaign').substring(0, 42), 70, 702, {
+    .text((top.name || 'Unknown Campaign').substring(0, 42), 70, 662, {
       width: 280,
     });
 
@@ -787,7 +777,7 @@ if (campaigns.length > 0) {
     .text(
       `${formatCurrency(top.spend, currency)} Spend  |  ${formatNum(top.clicks)} Clicks  |  ${formatNum(top.conversions)} Leads`,
       350,
-      695,
+      655,
       {
         width: 170,
         align: 'right',
@@ -861,7 +851,7 @@ if (trends.length > 0) {
 }
 
 if (campaigns.length > 0) {
-  drawCard(35, 335, 525, 365, THEME.card, THEME.border);
+  drawCard(35, 335, 525, 345, THEME.card, THEME.border);
   drawSectionTitle('Top Campaigns Breakdown', 55, 355, THEME.violet);
 
   const cHeaders = ['Campaign', 'Platform', 'Spend', 'Clicks', 'Conv.'];
@@ -903,7 +893,7 @@ if (campaigns.length > 0) {
       cX += cWidths[i];
     });
 
-    cY += 24;
+    cY += 22;
   });
 }
 drawFooter(2);
@@ -995,7 +985,7 @@ if (platforms.length > 0) {
     {
       x: 175,
       y: 245,
-      radius: 55,
+      radius: 65,
       title: 'Platform Spend Distribution',
     },
     currency
@@ -1177,7 +1167,7 @@ if (aiInsight?.recommendations) {
 }
 
 recommendations.slice(0, 5).forEach((text, i) => {
-  const y = 488 + i * 45;
+  const y = 485 + i * 38;
 
   doc.circle(335, y + 5, 5).fill(THEME.emerald);
 
