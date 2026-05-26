@@ -551,355 +551,697 @@ if (totalReports >= reportLimits[planName]) {
     };  */
 
     // Cover page
-doc.rect(0, 0, doc.page.width, 240).fill(PRIMARY);
+// ===============================
+// PREMIUM REPORT DESIGN START
+// ===============================
 
-doc.circle(520, 40, 120)
-  .fillOpacity(0.08)
-  .fill('#ffffff');
+const THEME = {
+  navy: '#0F172A',
+  dark: '#111827',
+  royal: '#2563EB',
+  violet: '#7C3AED',
+  cyan: '#06B6D4',
+  emerald: '#10B981',
+  amber: '#F59E0B',
+  rose: '#F43F5E',
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  softBlue: '#EFF6FF',
+  softPurple: '#F5F3FF',
+  softGreen: '#ECFDF5',
+  softAmber: '#FFFBEB',
+  softRose: '#FFF1F2',
+  text: '#1E293B',
+  muted: '#64748B',
+  border: '#E2E8F0',
+};
 
-doc.circle(470, 140, 70)
-  .fillOpacity(0.06)
-  .fill('#ffffff');
+const pageW = doc.page.width;
+const pageH = doc.page.height;
 
-doc.circle(120, 60, 90)
-  .fillOpacity(0.04)
-  .fill('#ffffff');
+const safeSummary = {
+  spend: summary?.spend || 0,
+  reach: summary?.reach || 0,
+  impressions: summary?.impressions || 0,
+  clicks: summary?.clicks || 0,
+  conversions: summary?.conversions || 0,
+  ctr: summary?.ctr || 0,
+  cpc: summary?.cpc || 0,
+  cpa: summary?.cpa || 0,
+  roas: summary?.roas || 0,
+};
 
-doc.fillOpacity(1);
-   doc.rect(0, 170, doc.page.width, 70).fill(SECONDARY);
+const reportTitle = customTitle || title || 'Marketing Performance Report';
 
-   doc.circle(500, 60, 90).fillOpacity(0.15).fill('#FFFFFF').fillOpacity(1);
-   doc.circle(455, 120, 45).fillOpacity(0.12).fill('#FFFFFF').fillOpacity(1);
+const dateLabel =
+  dateStart && dateEnd
+    ? `${new Date(dateStart).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })} - ${new Date(dateEnd).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })}`
+    : `Generated ${new Date().toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })}`;
 
-    doc.fillColor(WHITE);
-
-    if (agencyBranding && canUseAgencyBranding && agency?.logo_url) {
-      const logoPath = path.join(__dirname, '../..', agency.logo_url);
-      if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, 50, 20, { height: 40 });
-      }
-    }
-
-    doc.fillColor(WHITE).fontSize(28).font('Helvetica-Bold')
-      .text(customTitle || title || `Performance Report`, 50, 80, { width: 500 });
-
-    doc.fontSize(16).font('Helvetica')
-      .text(client.name, 50, 120);
-
-    const dateLabel = dateStart && dateEnd
-      ? `${new Date(dateStart).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} — ${new Date(dateEnd).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
-      : `Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
-
-    doc.fontSize(12).text(dateLabel, 50, 148);
-
-    // Prepared by
-    doc.rect(0, 240, doc.page.width, 32).fill('#0F172A');
-    doc.fillColor(WHITE).fontSize(10)
-      .text(`Prepared by ${agency?.name || 'Your Agency'}`, 50, 251);
-
-    doc.moveDown(3);
-
-    // Summary section
-    doc.fillColor(DARK).fontSize(18).font('Helvetica-Bold').text('Performance Summary', 50, 305);
-    doc.moveTo(50, 328).lineTo(545, 328).stroke(PRIMARY);
-    doc.moveDown(0.5);
-
-    // Safe summary values
-   const safeSummary = {
-     spend: summary?.spend || 0,
-     reach: summary?.reach || 0,
-     impressions: summary?.impressions || 0,
-     clicks: summary?.clicks || 0,
-     conversions: summary?.conversions || 0,
-     ctr: summary?.ctr || 0,
-     cpc: summary?.cpc || 0,
-     cpa: summary?.cpa || 0,
-     roas: summary?.roas || 0,
-   };
-
-    const metrics = [
-      {  label: 'Total Spend', value: formatCurrency(safeSummary.spend,currency) },
-      {  label: 'Reach', value: formatNum(safeSummary.reach) },
-      {  label: 'Impressions', value: formatNum(safeSummary.impressions) },
-      { label: 'Clicks', value: formatNum(safeSummary.clicks) },
-      { label: 'Leads / Results', value: formatNum(safeSummary.conversions) },
-      { label: 'CTR', value: formatPct(safeSummary.ctr) },
-      {  label: 'CPC', value: formatCurrency(safeSummary.cpc,currency) },
-      {  label: 'Cost / Lead', value: formatCurrency(safeSummary.cpa,currency) },
-      { label: 'ROAS', value: `${formatNum(safeSummary.roas, 2)}x`,},
-    ];
-
-    const cols = 3;
-    const cardW = 155;
-    const cardH = 72;
-    const startX = 50;
-    const startY = 350;
-    const gap = 10;
-
-const growth = ['+12%', '+8%', '+21%', '+5%', '+14%', '+3%', '-2%', '+9%'];
-
-metrics.forEach((m, i) => {
-  const col = i % cols;
-  const row = Math.floor(i / cols);
-  const x = startX + col * (cardW + gap);
-  const y = startY + row * (cardH + gap);
-
-  const cardColors = ['#EFF6FF', '#F5F3FF', '#ECFDF5', '#FFF7ED'];
-  const accentColors = [PRIMARY, SECONDARY, '#10B981', '#F59E0B'];
-
- // Fake soft shadow
- doc.roundedRect(x + 2, y + 3, cardW, cardH, 10)
-   .fill('#CBD5E1');
-
- // Main KPI card
- doc.roundedRect(x, y, cardW, cardH, 10)
-   .fill(cardColors[i % cardColors.length]);
-
- // Left accent line
- doc.rect(x, y, 4, cardH)
-   .fill(accentColors[i % accentColors.length]);
-
-
-
- // Small colored circle icon
- doc.circle(x + 16, y + 16, 5)
-   .fill(accentColors[i % accentColors.length]);
-
- doc.fillColor('#64748B')
-   .fontSize(7)
-   .font('Helvetica-Bold')
-   .text(m.label.toUpperCase(), x + 28, y + 11, {
-     width: cardW - 35,
-   });
-
-  doc.fillColor('#0F172A')
-    .fontSize(14)
+const drawSectionTitle = (title, x, y, color = THEME.royal) => {
+  doc.fillColor(THEME.text)
+    .fontSize(17)
     .font('Helvetica-Bold')
-    .text(m.value, x + 12, y + 30, {
-      width: cardW - 18,
+    .text(title, x, y);
+
+  doc.roundedRect(x, y + 24, 55, 4, 2).fill(color);
+};
+
+const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
+  doc.roundedRect(x + 2, y + 3, w, h, 12).fill('#CBD5E1');
+  doc.roundedRect(x, y, w, h, 12).fillAndStroke(bg, border);
+};
+
+const drawKpiCard = (x, y, w, h, item, color, bg) => {
+  drawCard(x, y, w, h, bg, '#DDE6F3');
+
+  doc.circle(x + 18, y + 20, 6).fill(color);
+
+  doc.fillColor(THEME.muted)
+    .fontSize(7)
+    .font('Helvetica-Bold')
+    .text(item.label.toUpperCase(), x + 32, y + 14, {
+      width: w - 42,
+    });
+
+  doc.fillColor(THEME.text)
+    .fontSize(15)
+    .font('Helvetica-Bold')
+    .text(item.value, x + 16, y + 36, {
+      width: w - 25,
       height: 22,
       ellipsis: true,
     });
 
-    doc.fillColor(growth[i]?.startsWith('-') ? '#DC2626' : '#10B981')
-      .fontSize(7)
-      .font('Helvetica-Bold')
-      .text(`${growth[i] || '+0%'} vs last month`, x + 12, y + 52, {
-        width: cardW - 18,
-      });
+  doc.fillColor(item.growth?.startsWith('-') ? THEME.rose : THEME.emerald)
+    .fontSize(7)
+    .font('Helvetica-Bold')
+    .text(`${item.growth || '+0%'} vs last month`, x + 16, y + 60, {
+      width: w - 25,
+    });
+};
+
+// ===============================
+// PAGE 1 - COVER + DASHBOARD
+// ===============================
+
+doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
+
+// Header background
+doc.rect(0, 0, pageW, 235).fill(THEME.navy);
+doc.rect(0, 155, pageW, 80).fill(THEME.royal);
+
+doc.circle(520, 40, 110)
+  .fillOpacity(0.16)
+  .fill(THEME.cyan)
+  .fillOpacity(1);
+
+doc.circle(455, 135, 72)
+  .fillOpacity(0.18)
+  .fill(THEME.violet)
+  .fillOpacity(1);
+
+doc.circle(95, 55, 85)
+  .fillOpacity(0.08)
+  .fill('#FFFFFF')
+  .fillOpacity(1);
+
+// Agency name
+doc.fillColor('#FFFFFF')
+  .fontSize(9)
+  .font('Helvetica-Bold')
+  .text((agency?.name || 'Your Agency').toUpperCase(), 50, 42);
+
+// Title
+doc.fillColor('#FFFFFF')
+  .fontSize(30)
+  .font('Helvetica-Bold')
+  .text(reportTitle, 50, 75, {
+    width: 430,
+    lineGap: 3,
+  });
+
+doc.fillColor('#DBEAFE')
+  .fontSize(14)
+  .font('Helvetica')
+  .text(client.name, 50, 142);
+
+doc.fillColor('#BFDBFE')
+  .fontSize(10)
+  .text(dateLabel, 50, 166);
+
+doc.roundedRect(405, 138, 135, 42, 10).fill('#FFFFFF');
+
+doc.fillColor(THEME.navy)
+  .fontSize(8)
+  .font('Helvetica-Bold')
+  .text('REPORT STATUS', 422, 148);
+
+doc.fillColor(THEME.emerald)
+  .fontSize(13)
+  .font('Helvetica-Bold')
+  .text('COMPLETED', 422, 162);
+
+// Executive strip
+doc.roundedRect(50, 260, 495, 78, 16).fillAndStroke('#FFFFFF', THEME.border);
+
+doc.fillColor(THEME.text)
+  .fontSize(15)
+  .font('Helvetica-Bold')
+  .text('Executive Snapshot', 70, 278);
+
+doc.fillColor(THEME.muted)
+  .fontSize(9)
+  .font('Helvetica')
+  .text(
+    `This report summarizes ${client.name}'s marketing performance, campaign spend, audience reach, engagement, conversions and recommended actions.`,
+    70,
+    302,
+    {
+      width: 440,
+      lineGap: 3,
+    }
+  );
+
+// KPI cards
+drawSectionTitle('Performance Dashboard', 50, 365, THEME.violet);
+
+const metrics = [
+  {
+    label: 'Total Spend',
+    value: formatCurrency(safeSummary.spend, currency),
+    growth: '+12%',
+    color: THEME.royal,
+    bg: THEME.softBlue,
+  },
+  {
+    label: 'Reach',
+    value: formatNum(safeSummary.reach),
+    growth: '+8%',
+    color: THEME.violet,
+    bg: THEME.softPurple,
+  },
+  {
+    label: 'Impressions',
+    value: formatNum(safeSummary.impressions),
+    growth: '+21%',
+    color: THEME.cyan,
+    bg: '#ECFEFF',
+  },
+  {
+    label: 'Clicks',
+    value: formatNum(safeSummary.clicks),
+    growth: '+5%',
+    color: THEME.amber,
+    bg: THEME.softAmber,
+  },
+  {
+    label: 'Leads / Results',
+    value: formatNum(safeSummary.conversions),
+    growth: '+14%',
+    color: THEME.emerald,
+    bg: THEME.softGreen,
+  },
+  {
+    label: 'CTR',
+    value: formatPct(safeSummary.ctr),
+    growth: '+3%',
+    color: THEME.violet,
+    bg: THEME.softPurple,
+  },
+  {
+    label: 'CPC',
+    value: formatCurrency(safeSummary.cpc, currency),
+    growth: '-2%',
+    color: THEME.rose,
+    bg: THEME.softRose,
+  },
+  {
+    label: 'Cost / Lead',
+    value: formatCurrency(safeSummary.cpa, currency),
+    growth: '+9%',
+    color: THEME.amber,
+    bg: THEME.softAmber,
+  },
+  {
+    label: 'ROAS',
+    value: `${formatNum(safeSummary.roas, 2)}x`,
+    growth: '+0%',
+    color: THEME.royal,
+    bg: THEME.softBlue,
+  },
+];
+
+const cardW = 155;
+const cardH = 78;
+const gapX = 15;
+const gapY = 16;
+const startX = 50;
+const startY = 410;
+
+metrics.forEach((m, i) => {
+  const col = i % 3;
+  const row = Math.floor(i / 3);
+  const x = startX + col * (cardW + gapX);
+  const y = startY + row * (cardH + gapY);
+
+  drawKpiCard(x, y, cardW, cardH, m, m.color, m.bg);
 });
 
-    // Monthly trends table
-    if (trends.length > 0) {
-      doc.addPage();
-      doc.roundedRect(35, 35, 525, 240, 12)
-        .fillAndStroke('#FFFFFF', '#E2E8F0');
-      doc.fillColor(DARK).fontSize(18).font('Helvetica-Bold').text('Monthly Performance Trends', 50, 50);
-      doc.moveTo(50, 72).lineTo(545, 72).stroke(PRIMARY);
+// Top campaign mini strip
+if (campaigns.length > 0) {
+  const top = campaigns[0];
 
-      const headers = ['Month', 'Spend', 'Clicks', 'Conversions', 'ROAS'];
-      const colWidths = [120, 100, 100, 100, 75];
-      let tY = 85;
+  doc.roundedRect(50, 705, 495, 54, 14).fillAndStroke(THEME.navy, THEME.navy);
 
-      // Header row
-      doc.rect(50, tY, 495, 20).fill(PRIMARY);
-      doc.fillColor(DARK);
-      let tX = 50;
-      headers.forEach((h, i) => {
-        doc.fillColor(WHITE).fontSize(9).font('Helvetica-Bold')
-          .text(h, tX + 5, tY + 6, { width: colWidths[i] - 10 });
-        tX += colWidths[i];
-      });
-      tY += 22;
+  doc.fillColor('#93C5FD')
+    .fontSize(8)
+    .font('Helvetica-Bold')
+    .text('TOP PERFORMING CAMPAIGN', 70, 720);
 
-      trends.forEach((row, idx) => {
-        const bg = idx % 2 === 0 ? WHITE : LIGHT;
-        doc.rect(50, tY, 495, 20).fill(bg);
-        const vals = [
-          row.month,
-          formatCurrency(row.spend,currency),
-          formatNum(row.clicks),
-          formatNum(row.conversions),
-          `${formatNum(row.roas, 2)}x`,
-        ];
-        tX = 50;
-        vals.forEach((v, i) => {
-          doc.fillColor(DARK).fontSize(9).font('Helvetica')
-            .text(v, tX + 5, tY + 5, { width: colWidths[i] - 10 });
-          tX += colWidths[i];
-        });
-        tY += 20;
+  doc.fillColor('#FFFFFF')
+    .fontSize(12)
+    .font('Helvetica-Bold')
+    .text((top.name || 'Unknown Campaign').substring(0, 42), 70, 736, {
+      width: 280,
+    });
 
-        if (tY > 750) { doc.addPage(); tY = 50; }
-      });
-    }
+  doc.fillColor('#DBEAFE')
+    .fontSize(9)
+    .font('Helvetica')
+    .text(
+      `${formatCurrency(top.spend, currency)} Spend  |  ${formatNum(top.clicks)} Clicks  |  ${formatNum(top.conversions)} Leads`,
+      350,
+      728,
+      {
+        width: 170,
+        align: 'right',
+      }
+    );
+}
 
-    // Campaign breakdown
-  /*  if (campaigns.length > 0) {
-      if (doc.y > 600) doc.addPage();
-      const campY = doc.y + 30 > 650 ? 50 : doc.y + 30;
-      if (campY === 50) doc.addPage();
-      */
-      if (campaigns.length > 0) {
+// ===============================
+// PAGE 2 - TABLES
+// ===============================
 
-        const campY = 320;
-        doc.roundedRect(35, 300, 525, 380, 12)
-          .fillAndStroke('#FFFFFF', '#E2E8F0');
-      doc.fillColor(DARK).fontSize(18).font('Helvetica-Bold').text('Top Campaigns', 50, campY);
-      doc.moveTo(50, campY + 22).lineTo(545, campY + 22).stroke(PRIMARY);
+doc.addPage();
+doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
 
-      const cHeaders = ['Campaign', 'Platform', 'Spend', 'Clicks', 'Conv.'];
-      const cWidths = [180, 80, 90, 80, 65];
-      let cY = campY + 35;
+doc.rect(0, 0, pageW, 95).fill(THEME.navy);
 
-      doc.rect(50, cY, 495, 22).fill(PRIMARY);
-       // ✅ VERY IMPORTANT: RESET TEXT COLOR
-      doc.fillColor('#ffffff');   // white text on blue header
-      let cX = 50;
-      cHeaders.forEach((h, i) => {
-        doc.fillColor(WHITE).fontSize(9).font('Helvetica-Bold')
-          .text(h, cX + 5, cY + 6, { width: cWidths[i] - 10 });
-        cX += cWidths[i];
-      });
-      cY += 22;
+doc.fillColor('#FFFFFF')
+  .fontSize(22)
+  .font('Helvetica-Bold')
+  .text('Performance Details', 50, 34);
 
-      campaigns.forEach((row, idx) => {
-        const bg = idx % 2 === 0 ? WHITE : LIGHT;
-        doc.rect(50, cY, 495, 20).fill(bg);
-        const vals = [
-          (row.name || 'Unknown').substring(0, 28),
-          (row.platform || 'Other').toUpperCase(),
-          formatCurrency(row.spend,currency),
-          formatNum(row.clicks),
-          formatNum(row.conversions),
-        ];
-        cX = 50;
-        vals.forEach((v, i) => {
-          doc.fillColor(DARK).fontSize(8).font('Helvetica')
-            .text(v, cX + 5, cY + 5, { width: cWidths[i] - 10 });
-          cX += cWidths[i];
-        });
-        cY += 20;
-      });
-    }
+doc.fillColor('#CBD5E1')
+  .fontSize(9)
+  .font('Helvetica')
+  .text(`${client.name} | ${dateLabel}`, 50, 62);
 
-// 📊 Chart Page
-if (campaigns.length > 0 || trends.length > 0) {
-  doc.addPage();
+if (trends.length > 0) {
+  drawCard(35, 120, 525, 185, THEME.card, THEME.border);
+  drawSectionTitle('Monthly Performance Trends', 55, 140, THEME.royal);
 
-  if (trends.length > 0) {
-  doc.roundedRect(35, 35, 525, 250, 14)
-     .fillAndStroke('#FFFFFF', '#E2E8F0');
-    drawLineChart(doc, trends, {
-      x: 50,
-      y: 50,
-      width: 500,
-      height: 180,
+  const headers = ['Month', 'Spend', 'Clicks', 'Conversions', 'ROAS'];
+  const colWidths = [115, 120, 80, 110, 70];
+  let tY = 178;
+  let tX = 55;
+
+  doc.roundedRect(55, tY, 485, 24, 7).fill(THEME.royal);
+
+  headers.forEach((h, i) => {
+    doc.fillColor('#FFFFFF')
+      .fontSize(8)
+      .font('Helvetica-Bold')
+      .text(h, tX + 8, tY + 8, { width: colWidths[i] - 10 });
+    tX += colWidths[i];
+  });
+
+  tY += 28;
+
+  trends.slice(0, 6).forEach((row, idx) => {
+    const bg = idx % 2 === 0 ? '#F8FAFC' : '#EEF2FF';
+    doc.roundedRect(55, tY, 485, 24, 5).fill(bg);
+
+    const vals = [
+      row.month,
+      formatCurrency(row.spend, currency),
+      formatNum(row.clicks),
+      formatNum(row.conversions),
+      `${formatNum(row.roas, 2)}x`,
+    ];
+
+    tX = 55;
+    vals.forEach((v, i) => {
+      doc.fillColor(THEME.text)
+        .fontSize(8)
+        .font('Helvetica')
+        .text(v, tX + 8, tY + 8, { width: colWidths[i] - 10 });
+      tX += colWidths[i];
+    });
+
+    tY += 26;
+  });
+}
+
+if (campaigns.length > 0) {
+  drawCard(35, 335, 525, 405, THEME.card, THEME.border);
+  drawSectionTitle('Top Campaigns Breakdown', 55, 355, THEME.violet);
+
+  const cHeaders = ['Campaign', 'Platform', 'Spend', 'Clicks', 'Conv.'];
+  const cWidths = [200, 75, 95, 60, 55];
+
+  let cY = 395;
+  let cX = 55;
+
+  doc.roundedRect(55, cY, 485, 24, 7).fill(THEME.violet);
+
+  cHeaders.forEach((h, i) => {
+    doc.fillColor('#FFFFFF')
+      .fontSize(8)
+      .font('Helvetica-Bold')
+      .text(h, cX + 8, cY + 8, { width: cWidths[i] - 10 });
+    cX += cWidths[i];
+  });
+
+  cY += 28;
+
+  campaigns.slice(0, 10).forEach((row, idx) => {
+    const bg = idx % 2 === 0 ? '#F8FAFC' : '#F5F3FF';
+    doc.roundedRect(55, cY, 485, 25, 5).fill(bg);
+
+    const vals = [
+      (row.name || 'Unknown').substring(0, 30),
+      (row.platform || 'Other').toUpperCase(),
+      formatCurrency(row.spend, currency),
+      formatNum(row.clicks),
+      formatNum(row.conversions),
+    ];
+
+    cX = 55;
+    vals.forEach((v, i) => {
+      doc.fillColor(THEME.text)
+        .fontSize(7.5)
+        .font('Helvetica')
+        .text(v, cX + 8, cY + 8, { width: cWidths[i] - 10 });
+      cX += cWidths[i];
+    });
+
+    cY += 27;
+  });
+}
+
+// ===============================
+// PAGE 3 - CHARTS
+// ===============================
+
+doc.addPage();
+doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
+
+doc.rect(0, 0, pageW, 95).fill(THEME.navy);
+
+doc.fillColor('#FFFFFF')
+  .fontSize(22)
+  .font('Helvetica-Bold')
+  .text('Charts & Platform Analytics', 50, 34);
+
+doc.fillColor('#CBD5E1')
+  .fontSize(9)
+  .font('Helvetica')
+  .text('Visual analysis of spend, campaigns and platform performance', 50, 62);
+
+if (trends.length > 0) {
+  drawCard(35, 120, 525, 210, THEME.card, THEME.border);
+
+  drawLineChart(
+    doc,
+    trends,
+    {
+      x: 55,
+      y: 145,
+      width: 480,
+      height: 150,
       title: 'Monthly Spend Trend',
       labelKey: 'month',
       valueKey: 'spend',
-      color: PRIMARY,
-    }, currency);
-  }
+      color: THEME.royal,
+    },
+    currency
+  );
+}
 
 if (campaigns.length > 0) {
-doc.roundedRect(35, 305, 525, 300, 14)
-   .fillAndStroke('#FFFFFF', '#E2E8F0');
-  drawBarChart(doc, campaigns, {
-    x: 50,
-    y: 340,
-    width: 500,
-    title: 'Top Campaigns by Spend',
-    labelKey: 'name',
-    valueKey: 'spend',
-    color: SECONDARY,
-  }, currency);
+  drawCard(35, 355, 525, 220, THEME.card, THEME.border);
+
+  drawBarChart(
+    doc,
+    campaigns,
+    {
+      x: 55,
+      y: 380,
+      width: 480,
+      title: 'Top Campaigns by Spend',
+      labelKey: 'name',
+      valueKey: 'spend',
+      color: THEME.violet,
+    },
+    currency
+  );
 }
 
 if (platforms.length > 0) {
-doc.addPage();
-    drawPieChart(doc, platforms, {
-      x: 160,
-      y: 180,
-      radius: 70,
-      title: 'Platform Spend Distribution',
-    }, currency);
+  drawCard(35, 600, 250, 130, THEME.softBlue, '#BFDBFE');
 
-    drawNumberBarChart(doc, platforms, {
-      x: 50,
-      y: 360,
-      width: 500,
-      title: 'Platform-wise Leads',
-      labelKey: 'platform',
-      valueKey: 'conversions',
-      color: '#10B981',
-    });
-  }
-}
-
-if (aiInsight) {
-  doc.addPage();
-
-  doc.roundedRect(30, 30, 535, 720, 14)
-    .fillAndStroke('#FFFFFF', '#E2E8F0');
-
-  doc.fillColor('#0F172A')
-    .fontSize(20)
+  doc.fillColor(THEME.text)
+    .fontSize(13)
     .font('Helvetica-Bold')
-    .text('AI Marketing Insights', 50, 55);
+    .text('Platform Spend Share', 55, 620);
 
-  doc.fillColor('#64748B')
-    .fontSize(10)
-    .font('Helvetica')
-    .text(
-      `Generated on ${new Date(aiInsight.created_at).toLocaleString()}`,
-      50,
-      82
-    );
+  platforms.slice(0, 4).forEach((p, i) => {
+    const y = 650 + i * 18;
+    const totalSpend = platforms.reduce((s, item) => s + Number(item.spend || 0), 0);
+    const percent =
+      totalSpend > 0 ? ((Number(p.spend || 0) / totalSpend) * 100).toFixed(1) : 0;
 
-  doc.moveTo(50, 108).lineTo(545, 108).stroke(PRIMARY);
+    doc.circle(60, y + 4, 4).fill([THEME.royal, THEME.violet, THEME.emerald, THEME.amber][i % 4]);
 
-  doc.fillColor('#0F172A')
-    .fontSize(15)
-    .font('Helvetica-Bold')
-    .text('Performance Summary', 50, 135);
-
-  doc.fillColor('#334155')
-    .fontSize(10)
-    .font('Helvetica')
-    .text(aiInsight.summary || 'No summary available.', 50, 165, {
-      width: 490,
-      lineGap: 4,
-    });
-
-  doc.fillColor('#0F172A')
-    .fontSize(15)
-    .font('Helvetica-Bold')
-    .text('AI Recommendations', 50, 270);
-
-  const recommendations = Array.isArray(aiInsight.recommendations)
-    ? aiInsight.recommendations
-    : JSON.parse(aiInsight.recommendations || '[]');
-
-  recommendations.slice(0, 5).forEach((rec, i) => {
-    const y = 310 + i * 58;
-
-    doc.roundedRect(50, y, 495, 42, 8).fill('#F8FAFC');
-
-    doc.fillColor('#2563EB')
-      .fontSize(10)
-      .font('Helvetica-Bold')
-      .text(`${i + 1}`, 65, y + 13);
-
-    doc.fillColor('#334155')
-      .fontSize(9)
+    doc.fillColor(THEME.text)
+      .fontSize(8)
       .font('Helvetica')
-      .text(rec, 90, y + 10, {
-        width: 430,
-        lineGap: 3,
+      .text(`${String(p.platform || 'Other').toUpperCase()} - ${percent}%`, 72, y, {
+        width: 180,
       });
   });
+
+  drawCard(310, 600, 250, 130, THEME.softGreen, '#A7F3D0');
+
+  doc.fillColor(THEME.text)
+    .fontSize(13)
+    .font('Helvetica-Bold')
+    .text('Platform-wise Leads', 330, 620);
+
+  platforms.slice(0, 4).forEach((p, i) => {
+    const y = 650 + i * 18;
+
+    doc.circle(335, y + 4, 4).fill(THEME.emerald);
+
+    doc.fillColor(THEME.text)
+      .fontSize(8)
+      .font('Helvetica')
+      .text(
+        `${String(p.platform || 'Other').toUpperCase()} - ${formatNum(p.conversions)} Leads`,
+        347,
+        y,
+        { width: 180 }
+      );
+  });
 }
+
+// ===============================
+// PAGE 4 - AI INSIGHTS + RECOMMENDATIONS
+// ===============================
+
+doc.addPage();
+doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
+
+doc.rect(0, 0, pageW, 95).fill(THEME.navy);
+
+doc.fillColor('#FFFFFF')
+  .fontSize(22)
+  .font('Helvetica-Bold')
+  .text('Insights & Recommendations', 50, 34);
+
+doc.fillColor('#CBD5E1')
+  .fontSize(9)
+  .font('Helvetica')
+  .text('Business-oriented observations and next actions', 50, 62);
+
+// Insight stat cards
+const insightCards = [
+  {
+    title: 'Total Spend',
+    value: formatCurrency(safeSummary.spend, currency),
+    desc: 'Total advertising budget used in the selected period.',
+    bg: THEME.softBlue,
+    color: THEME.royal,
+  },
+  {
+    title: 'Lead Volume',
+    value: formatNum(safeSummary.conversions),
+    desc: 'Total leads/results generated from active campaigns.',
+    bg: THEME.softGreen,
+    color: THEME.emerald,
+  },
+  {
+    title: 'Cost per Lead',
+    value: formatCurrency(safeSummary.cpa, currency),
+    desc: 'Average cost required to generate one lead/result.',
+    bg: THEME.softAmber,
+    color: THEME.amber,
+  },
+];
+
+insightCards.forEach((card, i) => {
+  const x = 35 + i * 175;
+  const y = 125;
+
+  drawCard(x, y, 160, 105, card.bg, THEME.border);
+
+  doc.circle(x + 20, y + 22, 6).fill(card.color);
+
+  doc.fillColor(THEME.muted)
+    .fontSize(8)
+    .font('Helvetica-Bold')
+    .text(card.title.toUpperCase(), x + 35, y + 17);
+
+  doc.fillColor(THEME.text)
+    .fontSize(16)
+    .font('Helvetica-Bold')
+    .text(card.value, x + 18, y + 45, { width: 130 });
+
+  doc.fillColor(THEME.muted)
+    .fontSize(7.5)
+    .font('Helvetica')
+    .text(card.desc, x + 18, y + 72, {
+      width: 125,
+      lineGap: 2,
+    });
+});
+
+// AI Summary
+drawCard(35, 260, 525, 145, THEME.card, THEME.border);
+
+doc.fillColor(THEME.text)
+  .fontSize(16)
+  .font('Helvetica-Bold')
+  .text('AI Marketing Summary', 55, 282);
+
+doc.fillColor(THEME.muted)
+  .fontSize(9)
+  .font('Helvetica')
+  .text(
+    aiInsight?.summary ||
+      `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results with ${formatPct(
+        safeSummary.ctr
+      )} CTR and ${formatNum(safeSummary.roas, 2)}x ROAS.`,
+    55,
+    315,
+    {
+      width: 485,
+      lineGap: 4,
+    }
+  );
+
+// Observations
+drawCard(35, 430, 250, 260, THEME.card, THEME.border);
+
+doc.fillColor(THEME.text)
+  .fontSize(15)
+  .font('Helvetica-Bold')
+  .text('Key Observations', 55, 452);
+
+const observations = [
+  `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results.`,
+  `Total reach was ${formatNum(safeSummary.reach)} with ${formatNum(
+    safeSummary.impressions
+  )} impressions.`,
+  `CTR is ${formatPct(safeSummary.ctr)}, so creative optimization can improve engagement.`,
+];
+
+observations.forEach((text, i) => {
+  const y = 490 + i * 52;
+
+  doc.circle(60, y + 5, 7).fill(THEME.royal);
+
+  doc.fillColor('#FFFFFF')
+    .fontSize(7)
+    .font('Helvetica-Bold')
+    .text(String(i + 1), 57, y + 1);
+
+  doc.fillColor(THEME.text)
+    .fontSize(8.5)
+    .font('Helvetica')
+    .text(text, 78, y, {
+      width: 180,
+      lineGap: 3,
+    });
+});
+
+// Recommendations
+drawCard(310, 430, 250, 260, THEME.card, THEME.border);
+
+doc.fillColor(THEME.text)
+  .fontSize(15)
+  .font('Helvetica-Bold')
+  .text('Recommended Actions', 330, 452);
+
+let recommendations = [
+  'Increase budget on campaigns with strong lead volume and lower cost per lead.',
+  'Review campaigns with high spend but low conversions.',
+  'Test new ad creatives and audience segments to improve CTR.',
+  'Use platform-wise performance to decide budget allocation.',
+];
+
+if (aiInsight?.recommendations) {
+  try {
+    const parsed = Array.isArray(aiInsight.recommendations)
+      ? aiInsight.recommendations
+      : JSON.parse(aiInsight.recommendations || '[]');
+
+    if (parsed.length > 0) recommendations = parsed;
+  } catch (e) {}
+}
+
+recommendations.slice(0, 4).forEach((text, i) => {
+  const y = 490 + i * 45;
+
+  doc.circle(335, y + 5, 5).fill(THEME.emerald);
+
+  doc.fillColor(THEME.text)
+    .fontSize(8.2)
+    .font('Helvetica')
+    .text(text, 350, y, {
+      width: 180,
+      lineGap: 3,
+    });
+});
+
+// ===============================
+// PREMIUM REPORT DESIGN END
+// ===============================
 
  drawInsights(doc, safeSummary, currency);
  // Free plan watermark
