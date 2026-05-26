@@ -629,257 +629,349 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
   </div>
 )}
 
+{/* Integrations Tab */}
+{activeTab === 'integrations' && (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-  {/* Integrations Tab */}
-  {activeTab === 'integrations' && (
-    <div className="grid grid-2" style={{ gap: 20 }}>
-
-      {/* Connect Form */}
-      <div className="card card-pad">
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 18 }}>
-          Connect Ad Account
+    {/* Header */}
+    <div
+      className="card card-pad"
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>
+          Platform Integrations
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          <div>
-            <label className="form-label">Platform</label>
-            <select
-              className="form-select"
-              value={adForm.platform}
-              onChange={(e) =>
-                setAdForm({ ...adForm, platform: e.target.value })
-              }
-            >
-              <option value="meta">Meta Ads</option>
-              <option value="google">Google Ads</option>
-              <option value="linkedin">LinkedIn Ads</option>
-              <option value="tiktok">TikTok Ads</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label">Ad Account ID</label>
-            <input
-              className="form-input"
-              placeholder="act_123456789"
-              value={adForm.adAccountId}
-              onChange={(e) =>
-                setAdForm({ ...adForm, adAccountId: e.target.value })
-              }
-            />
-          </div>
-
-          <div>
-            <label className="form-label">Access Token (optional for now)</label>
-            <textarea
-              className="form-input"
-              rows={4}
-              placeholder="Paste Meta or Google access token"
-              value={adForm.accessToken}
-              onChange={(e) =>
-                setAdForm({ ...adForm, accessToken: e.target.value })
-              }
-            />
-          </div>
-
-          <button
-            className="btn btn-primary"
-            onClick={handleAddAdAccount}
-          >
-            Connect Account
-          </button>
+        <div
+          style={{
+            fontSize: 13,
+            color: 'var(--text3)',
+            marginTop: 4,
+          }}
+        >
+          Connect and sync advertising platforms with live campaign data
         </div>
       </div>
 
-      {/* Connected Accounts */}
-      <div className="card card-pad">
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 18 }}>
-          Connected Accounts
-        </div>
+      <div
+        style={{
+          padding: '8px 14px',
+          borderRadius: 999,
+          background: '#DCFCE7',
+          color: '#15803D',
+          fontWeight: 700,
+          fontSize: 12,
+        }}
+      >
+        ● Live Data Ready
+      </div>
+    </div>
 
-        {adAccounts.length === 0 ? (
-          <div style={{ color: 'var(--text3)' }}>
-            No ad accounts connected yet.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {adAccounts.map((acc) => (
-              <div
-                key={acc.id}
-                style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 12,
-                  padding: 14,
-                  background: 'var(--bg2)',
-                }}
-              >
+    {/* Platform Cards */}
+    <div className="grid grid-3" style={{ gap: 20 }}>
+
+      {[
+        {
+          key: 'meta',
+          name: 'Meta Ads',
+          color: '#1877F2',
+          desc: 'Facebook & Instagram campaigns',
+        },
+        {
+          key: 'google',
+          name: 'Google Ads',
+          color: '#34A853',
+          desc: 'Search, Display & YouTube ads',
+        },
+        {
+          key: 'linkedin',
+          name: 'LinkedIn Ads',
+          color: '#0A66C2',
+          desc: 'B2B and professional audience campaigns',
+        },
+      ].map((platform) => {
+        const connected = adAccounts.find(
+          a => a.platform === platform.key
+        );
+
+        return (
+          <div
+            key={platform.key}
+            className="card card-pad"
+            style={{
+              border: connected
+                ? `1px solid ${platform.color}30`
+                : '1px solid var(--border)',
+              background: connected
+                ? `${platform.color}08`
+                : 'var(--bg2)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                marginBottom: 18,
+              }}
+            >
+              <div>
                 <div
                   style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 16,
+                    background: `${platform.color}20`,
+                    color: platform.color,
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    gap: 10,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 20,
+                    fontWeight: 900,
+                    marginBottom: 14,
                   }}
                 >
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 14,
-                        textTransform: 'capitalize',
-                      }}
-                    >
-                      {acc.platform} Ads
-                    </div>
+                  {platform.name.charAt(0)}
+                </div>
 
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: 'var(--text3)',
-                        marginTop: 4,
-                      }}
-                    >
-                      {acc.ad_account_id}
-                    </div>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>
+                  {platform.name}
+                </div>
 
-                    <div
-                      style={{
-                        fontSize: 11,
-                        marginTop: 8,
-                        color: '#10B981',
-                        fontWeight: 600,
-                      }}
-                    >
-                      ● {acc.status === 'synced' ? 'Synced' : 'Connected'}
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 11,
-                        marginTop: 4,
-                        color: 'var(--text3)',
-                      }}
-                    >
-                      Last synced:{' '}
-                      {acc.last_synced_at
-                        ? new Date(acc.last_synced_at).toLocaleString()
-                        : 'Not synced yet'}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handleSyncAdAccount(acc.id)}
-                      >
-                        Sync
-                      </button>
-
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        style={{ color: '#DC2626' }}
-                        onClick={() => handleDeleteAdAccount(acc.id)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-
-                    <div>
-                      <label
-                        style={{
-                          display: 'block',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: 'var(--text3)',
-                          marginBottom: 4,
-                        }}
-                      >
-                        Auto Sync
-                      </label>
-
-                     <select
-                       className="form-select"
-                       style={{ fontSize: 12, padding: '6px 8px', width: 130 }}
-                       value={acc.sync_frequency || 'manual'}
-                       disabled={subscription?.plan_name === 'free'}
-                       onChange={(e) => handleUpdateFrequency(acc.id, e.target.value)}
-                     >
-                       <option value="manual">Manual</option>
-
-                       {subscription?.plan_name !== 'free' && (
-                         <>
-                           <option value="daily">Daily</option>
-                           <option value="weekly">Weekly</option>
-                         </>
-                       )}
-                     </select>
-
-                     {subscription?.plan_name === 'free' && (
-                       <div
-                         style={{
-                           marginTop: 6,
-                           fontSize: 10,
-                           color: '#D97706',
-                           fontWeight: 600,
-                         }}
-                       >
-                         Upgrade to Pro for Auto Sync
-                       </div>
-                     )}
-                    </div>
-                  </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--text3)',
+                    marginTop: 6,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {platform.desc}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
- {/* Recent Sync Activity */}
-        <div className="card card-pad" style={{ gridColumn: '1 / -1' }}>
-                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 18 }}>
-                    Recent Sync Activity
+
+              <div
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: connected
+                    ? '#DCFCE7'
+                    : 'var(--bg3)',
+                  color: connected
+                    ? '#15803D'
+                    : 'var(--text3)',
+                }}
+              >
+                {connected ? 'Connected' : 'Available'}
+              </div>
+            </div>
+
+            {connected ? (
+              <>
+                <div
+                  style={{
+                    padding: 14,
+                    borderRadius: 14,
+                    background: 'var(--bg)',
+                    border: '1px solid var(--border)',
+                    marginBottom: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: 10,
+                      fontSize: 13,
+                    }}
+                  >
+                    <span style={{ color: 'var(--text3)' }}>
+                      Account
+                    </span>
+
+                    <span style={{ fontWeight: 700 }}>
+                      {connected.ad_account_id}
+                    </span>
                   </div>
 
-                  {syncLogs.length === 0 ? (
-                    <div style={{ color: 'var(--text3)' }}>
-                      No sync activity yet.
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {syncLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '12px 14px',
-                            border: '1px solid var(--border)',
-                            borderRadius: 12,
-                            background: 'var(--bg2)',
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 13 }}>
-                              {log.platform?.toUpperCase()} sync {log.status}
-                            </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: 13,
+                    }}
+                  >
+                    <span style={{ color: 'var(--text3)' }}>
+                      Last Sync
+                    </span>
 
-                            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
-                              {log.rows_synced} campaign(s) • {log.mode}
-                            </div>
-                          </div>
-
-                          <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                            {new Date(log.created_at).toLocaleString()}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    <span style={{ fontWeight: 700 }}>
+                      {connected.last_synced_at
+                        ? new Date(
+                            connected.last_synced_at
+                          ).toLocaleString()
+                        : 'Not synced'}
+                    </span>
+                  </div>
                 </div>
-                  </div>
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    className="btn btn-primary"
+                    style={{ flex: 1 }}
+                    onClick={() =>
+                      handleSyncAdAccount(connected.id)
+                    }
+                  >
+                    Sync Now
+                  </button>
+
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: '#DC2626' }}
+                    onClick={() =>
+                      handleDeleteAdAccount(connected.id)
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setAdForm({
+                    ...adForm,
+                    platform: platform.key,
+                    adAccountId: `act_${Date.now()}`,
+                  });
+
+                  handleAddAdAccount();
+                }}
+                style={{
+                  width: '100%',
+                  background: platform.color,
+                  borderColor: platform.color,
+                }}
+              >
+                Connect {platform.name}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+
+    {/* Sync Logs */}
+    <div className="card card-pad">
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 18,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 18 }}>
+            Recent Sync Activity
+          </div>
+
+          <div
+            style={{
+              fontSize: 13,
+              color: 'var(--text3)',
+              marginTop: 4,
+            }}
+          >
+            Latest platform synchronization logs
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: '6px 12px',
+            borderRadius: 999,
+            background: '#DBEAFE',
+            color: '#2563EB',
+            fontWeight: 700,
+            fontSize: 11,
+          }}
+        >
+          LIVE LOGS
+        </div>
+      </div>
+
+      {syncLogs.length === 0 ? (
+        <div
+          style={{
+            padding: 40,
+            textAlign: 'center',
+            color: 'var(--text3)',
+          }}
+        >
+          No sync activity yet
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {syncLogs.map((log) => (
+            <div
+              key={log.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '14px 16px',
+                borderRadius: 14,
+                border: '1px solid var(--border)',
+                background: 'var(--bg2)',
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 14,
+                  }}
+                >
+                  {log.platform?.toUpperCase()} sync {log.status}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--text3)',
+                    marginTop: 4,
+                  }}
+                >
+                  {log.rows_synced} campaign(s) synced
+                </div>
+              </div>
+
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text3)',
+                }}
+              >
+                {new Date(log.created_at).toLocaleString()}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
+    </div>
+  </div>
+)}
+
             </>
           )}
         </div>
