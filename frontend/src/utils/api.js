@@ -103,6 +103,19 @@ export const getDashboardOverview = () => api.get('/dashboard/overview').then(r 
 export const generateReceipt = (paymentId) =>
   api.get(`/payments/receipt/${paymentId}`).then(r => r.data);
 
+// Integrations
+export const getIntegrations = () =>
+  api.get('/integrations').then(r => r.data);
+
+export const demoConnectIntegration = (data) =>
+  api.post('/integrations/demo-connect', data).then(r => r.data);
+
+export const syncIntegration = (id) =>
+  api.post(`/integrations/${id}/sync`).then(r => r.data);
+
+export const getIntegrationLogs = () =>
+  api.get('/integrations/logs').then(r => r.data);
+
 // Agency
 export const getAgency = () => api.get('/agency').then(r => r.data);
 export const updateAgency = (formData) =>

@@ -37,8 +37,10 @@ app.use('/api/ai-insights', require('./routes/aiInsights'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/agency', require('./routes/agency'));
 app.use('/api/ad-accounts', require('./routes/adAccounts'));
+app.use('/api/integrations', require('./routes/integrations'));
 app.use('/api/subscription', require('./routes/subscription'));
 app.use('/api/payments', require('./routes/payments'));
+
 
 
 const { startAutoSyncJob } = require('./jobs/autoSyncJob');
