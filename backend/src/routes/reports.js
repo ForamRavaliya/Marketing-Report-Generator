@@ -954,7 +954,28 @@ doc.fillColor('#CBD5E1')
   .text('Platform-wise spend distribution and leads performance', 50, 62);
 
 // Top campaign mini strip
+if (platforms.length > 0) {
+  drawCard(35, 120, 525, 240, THEME.card, THEME.border);
 
+  drawPieChart(doc, platforms, {
+    x: 175,
+    y: 245,
+    radius: 65,
+    title: 'Platform Spend Distribution',
+  }, currency);
+
+  drawCard(35, 415, 525, 230, THEME.softGreen, '#A7F3D0');
+
+  drawNumberBarChart(doc, platforms, {
+    x: 55,
+    y: 430,
+    width: 480,
+    title: 'Platform-wise Leads',
+    labelKey: 'platform',
+    valueKey: 'conversions',
+    color: THEME.emerald,
+  });
+}
 
 drawFooter(4);
 
