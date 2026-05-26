@@ -754,33 +754,55 @@ metrics.forEach((m, i) => {
 });
 
 // Top campaign mini strip
+// Top campaign mini strip
 if (campaigns.length > 0) {
   const top = campaigns[0];
 
-  doc.roundedRect(50, 620, 495, 42, 14).fillAndStroke(THEME.navy, THEME.navy);
+  const stripX = 50;
+  const stripY = 620;
+  const stripW = 495;
+  const stripH = 58;
+
+  doc.roundedRect(stripX, stripY, stripW, stripH, 14)
+    .fill(THEME.navy);
 
   doc.fillColor('#93C5FD')
     .fontSize(8)
     .font('Helvetica-Bold')
-    .text('TOP PERFORMING CAMPAIGN', 70, 630);
+    .text(
+      'TOP PERFORMING CAMPAIGN',
+      stripX + 20,
+      stripY + 12,
+      {
+        lineBreak: false,
+      }
+    );
 
   doc.fillColor('#FFFFFF')
-    .fontSize(12)
+    .fontSize(13)
     .font('Helvetica-Bold')
-    .text((top.name || 'Unknown Campaign').substring(0, 42), 70, 662, {
-      width: 280,
-    });
+    .text(
+      (top.name || 'Unknown Campaign').substring(0, 30),
+      stripX + 20,
+      stripY + 30,
+      {
+        width: 240,
+        lineBreak: false,
+        ellipsis: true,
+      }
+    );
 
   doc.fillColor('#DBEAFE')
-    .fontSize(9)
+    .fontSize(8)
     .font('Helvetica')
     .text(
       `${formatCurrency(top.spend, currency)} Spend  |  ${formatNum(top.clicks)} Clicks  |  ${formatNum(top.conversions)} Leads`,
-      350,
-      655,
+      stripX + 260,
+      stripY + 28,
       {
-        width: 170,
+        width: 210,
         align: 'right',
+        lineBreak: false,
       }
     );
 }
@@ -851,47 +873,6 @@ if (trends.length > 0) {
 }
 
 // Top campaign mini strip
-if (campaigns.length > 0) {
-  const top = campaigns[0];
-
-  const stripX = 50;
-  const stripY = 625;
-  const stripW = 495;
-  const stripH = 58;
-
-  doc.roundedRect(stripX, stripY, stripW, stripH, 14)
-    .fill(THEME.navy);
-
-  doc.fillColor('#93C5FD')
-    .fontSize(8)
-    .font('Helvetica-Bold')
-    .text('TOP PERFORMING CAMPAIGN', stripX + 20, stripY + 12, {
-      width: 220,
-      lineBreak: false,
-    });
-
-  doc.fillColor('#FFFFFF')
-    .fontSize(12)
-    .font('Helvetica-Bold')
-    .text((top.name || 'Unknown Campaign').substring(0, 34), stripX + 20, stripY + 30, {
-      width: 230,
-      lineBreak: false,
-    });
-
-  doc.fillColor('#DBEAFE')
-    .fontSize(8)
-    .font('Helvetica')
-    .text(
-      `${formatCurrency(top.spend, currency)} Spend  |  ${formatNum(top.clicks)} Clicks  |  ${formatNum(top.conversions)} Leads`,
-      stripX + 275,
-      stripY + 25,
-      {
-        width: 190,
-        align: 'right',
-        lineBreak: false,
-      }
-    );
-}
 drawFooter(2);
 // ===============================
 // PAGE 3 - CHARTS
@@ -972,37 +953,8 @@ doc.fillColor('#CBD5E1')
   .font('Helvetica')
   .text('Platform-wise spend distribution and leads performance', 50, 62);
 
-if (platforms.length > 0) {
-  drawCard(35, 120, 525, 240, THEME.card, THEME.border);
+// Top campaign mini strip
 
-  drawPieChart(
-    doc,
-    platforms,
-    {
-      x: 175,
-      y: 245,
-      radius: 65,
-      title: 'Platform Spend Distribution',
-    },
-    currency
-  );
-
-  drawCard(35, 415, 525, 230, THEME.softGreen, '#A7F3D0');
-
-  drawNumberBarChart(
-    doc,
-    platforms,
-    {
-      x: 55,
-      y: 430,
-      width: 480,
-      title: 'Platform-wise Leads',
-      labelKey: 'platform',
-      valueKey: 'conversions',
-      color: THEME.emerald,
-    }
-  );
-}
 
 drawFooter(4);
 
