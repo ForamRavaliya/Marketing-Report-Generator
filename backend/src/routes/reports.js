@@ -993,17 +993,18 @@ doc.fillColor('#CBD5E1')
   .font('Helvetica')
   .text('Visual analysis of spend, campaigns and platform performance', 50, 62);
 
+// Top row: line chart + bar chart side by side
 if (trends.length > 0) {
-  drawCard(35, 120, 525, 210, THEME.card, THEME.border);
+  drawCard(35, 120, 250, 300, THEME.card, THEME.border);
 
   drawLineChart(
     doc,
     trends,
     {
-      x: 55,
+      x: 52,
       y: 145,
-      width: 480,
-      height: 150,
+      width: 215,
+      height: 210,
       title: 'Monthly Spend Trend',
       labelKey: 'month',
       valueKey: 'spend',
@@ -1014,15 +1015,15 @@ if (trends.length > 0) {
 }
 
 if (campaigns.length > 0) {
-  drawCard(35, 355, 525, 270, THEME.card, THEME.border);
+  drawCard(310, 120, 250, 300, THEME.card, THEME.border);
 
   drawBarChart(
     doc,
     campaigns,
     {
-      x: 55,
-      y: 380,
-      width: 480,
+      x: 327,
+      y: 145,
+      width: 215,
       title: 'Top Campaigns by Spend',
       labelKey: 'name',
       valueKey: 'spend',
@@ -1032,21 +1033,29 @@ if (campaigns.length > 0) {
   );
 }
 
+// Bottom row: platform cards
 if (platforms.length > 0) {
-  drawCard(35, 600, 250, 120, THEME.softBlue, '#BFDBFE');
+  drawCard(35, 455, 250, 210, THEME.softBlue, '#BFDBFE');
 
   doc.fillColor(THEME.text)
-    .fontSize(13)
+    .fontSize(14)
     .font('Helvetica-Bold')
-    .text('Platform Spend Share', 55, 620);
+    .text('Platform Spend Share', 55, 480);
+
+  const totalSpend = platforms.reduce(
+    (s, item) => s + Number(item.spend || 0),
+    0
+  );
 
   platforms.slice(0, 4).forEach((p, i) => {
-    const y = 690 + i * 18;
-    const totalSpend = platforms.reduce((s, item) => s + Number(item.spend || 0), 0);
+    const y = 520 + i * 32;
     const percent =
-      totalSpend > 0 ? ((Number(p.spend || 0) / totalSpend) * 100).toFixed(1) : 0;
+      totalSpend > 0
+        ? Number(((Number(p.spend || 0) / totalSpend) * 100).toFixed(1))
+        : 0;
 
-    doc.circle(60, y + 4, 4).fill([THEME.royal, THEME.violet, THEME.emerald, THEME.amber][i % 4]);
+    doc.circle(60, y + 4, 4)
+      .fill([THEME.royal, THEME.violet, THEME.emerald, THEME.amber][i % 4]);
 
     doc.fillColor(THEME.text)
       .fontSize(8)
@@ -1054,17 +1063,25 @@ if (platforms.length > 0) {
       .text(`${String(p.platform || 'Other').toUpperCase()} - ${percent}%`, 72, y, {
         width: 180,
       });
+
+    doc.roundedRect(72, y + 14, 150, 7, 4).fill('#DBEAFE');
+
+    doc.roundedRect(72, y + 14, (150 * percent) / 100, 7, 4)
+      .fill(THEME.royal);
   });
 
-  drawCard(310, 600, 250, 120, THEME.softGreen, '#A7F3D0');
+  drawCard(310, 455, 250, 210, THEME.softGreen, '#A7F3D0');
 
   doc.fillColor(THEME.text)
-    .fontSize(13)
+    .fontSize(14)
     .font('Helvetica-Bold')
-    .text('Platform-wise Leads', 330, 620);
+    .text('Platform-wise Leads', 330, 480);
+
+  const maxConv = Math.max(...platforms.map((a) => Number(a.conversions || 0)), 1);
 
   platforms.slice(0, 4).forEach((p, i) => {
-    const y = 650 + i * 18;
+    const y = 520 + i * 32;
+    const conv = Number(p.conversions || 0);
 
     doc.circle(335, y + 4, 4).fill(THEME.emerald);
 
@@ -1072,11 +1089,16 @@ if (platforms.length > 0) {
       .fontSize(8)
       .font('Helvetica')
       .text(
-        `${String(p.platform || 'Other').toUpperCase()} - ${formatNum(p.conversions)} Leads`,
+        `${String(p.platform || 'Other').toUpperCase()} - ${formatNum(conv)} Leads`,
         347,
         y,
         { width: 180 }
       );
+
+    doc.roundedRect(347, y + 14, 150, 7, 4).fill('#D1FAE5');
+
+    doc.roundedRect(347, y + 14, (150 * conv) / maxConv, 7, 4)
+      .fill(THEME.emerald);
   });
 }
 
@@ -1261,23 +1283,17 @@ recommendations.slice(0, 4).forEach((text, i) => {
    for (let i = range.start; i < range.start + range.count; i++) {
      doc.switchToPage(i);
 
-     doc.save();
-
-     doc.fillColor('#94A3B8')
-       .fontSize(9)
-       .font('Helvetica')
-       .opacity(0.65)
+     doc.fontSize(8)
+       .fillColor('#94A3B8')
        .text(
-         'Generated with Marketing Report Generator — Upgrade to remove branding',
+         `Page ${i + 1}`,
          50,
-         748,
+         792,
          {
-           width: 500,
            align: 'center',
+           width: 500,
          }
        );
-
-     doc.restore();
    }
  }
 
