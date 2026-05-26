@@ -76,8 +76,13 @@ const drawBarChart = (doc, data, options, currency = 'INR') => {
       .font('Helvetica-Bold')
       .text(label, x, rowY + 4, { width: labelW - 10 });
 
-    doc.roundedRect(x + labelW, rowY, barWidth, barHeight, 3).fill(color);
+    doc.roundedRect(x + labelW, rowY, barWidth, barHeight, 6)
+      .fill(color);
 
+    doc.roundedRect(x + labelW, rowY, barWidth * 0.45, barHeight, 6)
+      .fillOpacity(0.15)
+      .fill('#FFFFFF')
+      .fillOpacity(1);
     doc.fillColor('#1E293B')
       .fontSize(8)
       .font('Helvetica-Bold')
@@ -167,7 +172,7 @@ const drawLineChart = (doc, data, options, currency = 'INR') => {
     return { x: px, y: py, label: d[labelKey], value: Number(d[valueKey] || 0) };
   });
 
-  doc.strokeColor(color).lineWidth(2);
+  doc.strokeColor(color).lineWidth(4);
 
   points.forEach((p, i) => {
     if (i === 0) {
@@ -180,7 +185,12 @@ const drawLineChart = (doc, data, options, currency = 'INR') => {
   doc.stroke();
 
   points.forEach((p) => {
-    doc.circle(p.x, p.y, 3).fill(color);
+    doc.circle(p.x, p.y, 5).fill(color);
+
+    doc.circle(p.x, p.y, 9)
+      .strokeColor('#BFDBFE')
+      .lineWidth(2)
+      .stroke();
 
     doc.fillColor('#64748B')
       .fontSize(7)
@@ -564,7 +574,7 @@ const THEME = {
   emerald: '#10B981',
   amber: '#F59E0B',
   rose: '#F43F5E',
-  bg: '#F8FAFC',
+  bg: '#EEF2FF',
   card: '#FFFFFF',
   softBlue: '#EFF6FF',
   softPurple: '#F5F3FF',
@@ -1023,7 +1033,7 @@ if (campaigns.length > 0) {
 }
 
 if (platforms.length > 0) {
-  drawCard(35, 600, 250, 130, THEME.softBlue, '#BFDBFE');
+  drawCard(35, 600, 250, 165, THEME.softBlue, '#BFDBFE');
 
   doc.fillColor(THEME.text)
     .fontSize(13)
@@ -1046,7 +1056,7 @@ if (platforms.length > 0) {
       });
   });
 
-  drawCard(310, 600, 250, 130, THEME.softGreen, '#A7F3D0');
+  drawCard(310, 600, 250, 165, THEME.softGreen, '#A7F3D0');
 
   doc.fillColor(THEME.text)
     .fontSize(13)
@@ -1243,7 +1253,7 @@ recommendations.slice(0, 4).forEach((text, i) => {
 // PREMIUM REPORT DESIGN END
 // ===============================
 
- drawInsights(doc, safeSummary, currency);
+
  // Free plan watermark
  if (planName === 'free') {
    const range = doc.bufferedPageRange();
@@ -1260,7 +1270,7 @@ recommendations.slice(0, 4).forEach((text, i) => {
        .text(
          'Generated with Marketing Report Generator — Upgrade to remove branding',
          50,
-         742,
+         770,
          {
            width: 500,
            align: 'center',
@@ -1282,7 +1292,7 @@ for (let i = range.start; i < range.start + range.count; i++) {
     .text(
       `Page ${i + 1}`,
       50,
-      780,
+      792,
       {
         align: 'center',
         width: 500,
