@@ -754,7 +754,7 @@ metrics.forEach((m, i) => {
 });
 
 // Top campaign mini strip
-// Top campaign mini strip
+
 if (campaigns.length > 0) {
   const top = campaigns[0];
 
@@ -766,43 +766,66 @@ if (campaigns.length > 0) {
   doc.roundedRect(stripX, stripY, stripW, stripH, 14)
     .fill(THEME.navy);
 
+  // Left title
   doc.fillColor('#93C5FD')
     .fontSize(8)
     .font('Helvetica-Bold')
     .text(
       'TOP PERFORMING CAMPAIGN',
       stripX + 20,
-      stripY + 12,
-      {
-        lineBreak: false,
-      }
+      stripY + 12
     );
 
+  // Campaign name
   doc.fillColor('#FFFFFF')
     .fontSize(13)
     .font('Helvetica-Bold')
     .text(
-      (top.name || 'Unknown Campaign').substring(0, 30),
+      (top.name || 'Unknown Campaign').substring(0, 28),
       stripX + 20,
-      stripY + 30,
+      stripY + 31,
       {
-        width: 240,
+        width: 230,
         lineBreak: false,
         ellipsis: true,
       }
     );
 
+  // Right stats
   doc.fillColor('#DBEAFE')
     .fontSize(8)
     .font('Helvetica')
     .text(
-      `${formatCurrency(top.spend, currency)} Spend  |  ${formatNum(top.clicks)} Clicks  |  ${formatNum(top.conversions)} Leads`,
-      stripX + 260,
-      stripY + 28,
+      `${formatCurrency(top.spend, currency)} Spend`,
+      stripX + 300,
+      stripY + 23,
       {
-        width: 210,
+        width: 150,
         align: 'right',
-        lineBreak: false,
+      }
+    );
+
+  doc.fillColor('#DBEAFE')
+    .fontSize(8)
+    .text(
+      `${formatNum(top.clicks)} Clicks`,
+      stripX + 395,
+      stripY + 23,
+      {
+        width: 80,
+        align: 'right',
+      }
+    );
+
+  doc.fillColor('#DBEAFE')
+    .fontSize(8)
+    .text(
+      `${formatNum(top.conversions)} Leads`,
+      stripX + 455,
+      stripY + 23,
+      {
+        width: 60,
+        align: 'right',
       }
     );
 }
