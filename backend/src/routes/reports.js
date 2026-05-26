@@ -1014,7 +1014,7 @@ if (trends.length > 0) {
 }
 
 if (campaigns.length > 0) {
-  drawCard(35, 355, 525, 220, THEME.card, THEME.border);
+  drawCard(35, 355, 525, 270, THEME.card, THEME.border);
 
   drawBarChart(
     doc,
@@ -1033,7 +1033,7 @@ if (campaigns.length > 0) {
 }
 
 if (platforms.length > 0) {
-  drawCard(35, 600, 250, 165, THEME.softBlue, '#BFDBFE');
+  drawCard(35, 600, 250, 120, THEME.softBlue, '#BFDBFE');
 
   doc.fillColor(THEME.text)
     .fontSize(13)
@@ -1041,7 +1041,7 @@ if (platforms.length > 0) {
     .text('Platform Spend Share', 55, 620);
 
   platforms.slice(0, 4).forEach((p, i) => {
-    const y = 650 + i * 18;
+    const y = 690 + i * 18;
     const totalSpend = platforms.reduce((s, item) => s + Number(item.spend || 0), 0);
     const percent =
       totalSpend > 0 ? ((Number(p.spend || 0) / totalSpend) * 100).toFixed(1) : 0;
@@ -1056,7 +1056,7 @@ if (platforms.length > 0) {
       });
   });
 
-  drawCard(310, 600, 250, 165, THEME.softGreen, '#A7F3D0');
+  drawCard(310, 600, 250, 120, THEME.softGreen, '#A7F3D0');
 
   doc.fillColor(THEME.text)
     .fontSize(13)
@@ -1270,7 +1270,7 @@ recommendations.slice(0, 4).forEach((text, i) => {
        .text(
          'Generated with Marketing Report Generator — Upgrade to remove branding',
          50,
-         770,
+         748,
          {
            width: 500,
            align: 'center',
@@ -1292,7 +1292,7 @@ for (let i = range.start; i < range.start + range.count; i++) {
     .text(
       `Page ${i + 1}`,
       50,
-      792,
+      760,
       {
         align: 'center',
         width: 500,
