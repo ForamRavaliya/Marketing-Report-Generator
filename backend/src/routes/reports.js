@@ -618,15 +618,15 @@ doc.fillOpacity(1);
    };
 
     const metrics = [
-      { icon:'💰', label: 'Total Spend', value: formatCurrency(safeSummary.spend,currency) },
-      {  icon:'👁', label: 'Reach', value: formatNum(safeSummary.reach) },
-      { icon:'📈', label: 'Impressions', value: formatNum(safeSummary.impressions) },
-      { icon: '🖱️', label: 'Clicks', value: formatNum(safeSummary.clicks) },
-      { icon: '🎯', label: 'Leads / Results', value: formatNum(safeSummary.conversions) },
-      { icon: '📊', label: 'CTR', value: formatPct(safeSummary.ctr) },
-      { icon: '💵', label: 'CPC', value: formatCurrency(safeSummary.cpc,currency) },
-      { icon: '🧾', label: 'Cost / Lead', value: formatCurrency(safeSummary.cpa,currency) },
-      { icon: '🚀', label: 'ROAS', value: `${formatNum(safeSummary.roas, 2)}x`,},
+      {  label: 'Total Spend', value: formatCurrency(safeSummary.spend,currency) },
+      {  label: 'Reach', value: formatNum(safeSummary.reach) },
+      {  label: 'Impressions', value: formatNum(safeSummary.impressions) },
+      { label: 'Clicks', value: formatNum(safeSummary.clicks) },
+      { label: 'Leads / Results', value: formatNum(safeSummary.conversions) },
+      { label: 'CTR', value: formatPct(safeSummary.ctr) },
+      {  label: 'CPC', value: formatCurrency(safeSummary.cpc,currency) },
+      {  label: 'Cost / Lead', value: formatCurrency(safeSummary.cpa,currency) },
+      { label: 'ROAS', value: `${formatNum(safeSummary.roas, 2)}x`,},
     ];
 
     const cols = 3;
@@ -659,15 +659,18 @@ metrics.forEach((m, i) => {
  doc.rect(x, y, 4, cardH)
    .fill(accentColors[i % accentColors.length]);
 
-  doc.fontSize(12)
-    .text(m.icon, x + 12, y + 8);
 
-  doc.fillColor('#64748B')
-    .fontSize(7)
-    .font('Helvetica-Bold')
-    .text(m.label.toUpperCase(), x + 30, y + 11, {
-      width: cardW - 35,
-    });
+
+ // Small colored circle icon
+ doc.circle(x + 16, y + 16, 5)
+   .fill(accentColors[i % accentColors.length]);
+
+ doc.fillColor('#64748B')
+   .fontSize(7)
+   .font('Helvetica-Bold')
+   .text(m.label.toUpperCase(), x + 28, y + 11, {
+     width: cardW - 35,
+   });
 
   doc.fillColor('#0F172A')
     .fontSize(14)
@@ -785,6 +788,8 @@ if (campaigns.length > 0 || trends.length > 0) {
   doc.addPage();
 
   if (trends.length > 0) {
+  doc.roundedRect(35, 35, 525, 250, 14)
+     .fillAndStroke('#FFFFFF', '#E2E8F0');
     drawLineChart(doc, trends, {
       x: 50,
       y: 50,
@@ -798,6 +803,8 @@ if (campaigns.length > 0 || trends.length > 0) {
   }
 
 if (campaigns.length > 0) {
+doc.roundedRect(35, 305, 525, 300, 14)
+   .fillAndStroke('#FFFFFF', '#E2E8F0');
   drawBarChart(doc, campaigns, {
     x: 50,
     y: 340,
@@ -923,7 +930,23 @@ if (aiInsight) {
  }
 
     // Simple footer only on current page
+const range = doc.bufferedPageRange();
 
+for (let i = range.start; i < range.start + range.count; i++) {
+  doc.switchToPage(i);
+
+  doc.fontSize(8)
+    .fillColor('#94A3B8')
+    .text(
+      `Page ${i + 1}`,
+      50,
+      780,
+      {
+        align: 'center',
+        width: 500,
+      }
+    );
+}
     doc.end();
 
     writeStream.on('finish', async () => {
