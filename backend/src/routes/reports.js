@@ -551,7 +551,21 @@ if (totalReports >= reportLimits[planName]) {
     };  */
 
     // Cover page
-   doc.rect(0, 0, doc.page.width, 240).fill(PRIMARY);
+doc.rect(0, 0, doc.page.width, 240).fill(PRIMARY);
+
+doc.circle(520, 40, 120)
+  .fillOpacity(0.08)
+  .fill('#ffffff');
+
+doc.circle(470, 140, 70)
+  .fillOpacity(0.06)
+  .fill('#ffffff');
+
+doc.circle(120, 60, 90)
+  .fillOpacity(0.04)
+  .fill('#ffffff');
+
+doc.fillOpacity(1);
    doc.rect(0, 170, doc.page.width, 70).fill(SECONDARY);
 
    doc.circle(500, 60, 90).fillOpacity(0.15).fill('#FFFFFF').fillOpacity(1);
@@ -604,22 +618,25 @@ if (totalReports >= reportLimits[planName]) {
    };
 
     const metrics = [
-      { label: 'Total Spend', value: formatCurrency(safeSummary.spend,currency) },
-      { label: 'Reach', value: formatNum(safeSummary.reach) },
-      { label: 'Impressions', value: formatNum(safeSummary.impressions) },
-      { label: 'Clicks', value: formatNum(safeSummary.clicks) },
-      { label: 'Leads / Results', value: formatNum(safeSummary.conversions) },
-      { label: 'CTR', value: formatPct(safeSummary.ctr) },
-      { label: 'CPC', value: formatCurrency(safeSummary.cpc,currency) },
-      { label: 'Cost / Lead', value: formatCurrency(safeSummary.cpa,currency) },
+      { icon:'💰', label: 'Total Spend', value: formatCurrency(safeSummary.spend,currency) },
+      {  icon:'👁', label: 'Reach', value: formatNum(safeSummary.reach) },
+      { icon:'📈', label: 'Impressions', value: formatNum(safeSummary.impressions) },
+      { icon: '🖱️', label: 'Clicks', value: formatNum(safeSummary.clicks) },
+      { icon: '🎯', label: 'Leads / Results', value: formatNum(safeSummary.conversions) },
+      { icon: '📊', label: 'CTR', value: formatPct(safeSummary.ctr) },
+      { icon: '💵', label: 'CPC', value: formatCurrency(safeSummary.cpc,currency) },
+      { icon: '🧾', label: 'Cost / Lead', value: formatCurrency(safeSummary.cpa,currency) },
+      { icon: '🚀', label: 'ROAS', value: `${formatNum(safeSummary.roas, 2)}x`,},
     ];
 
-    const cols = 4;
-    const cardW = 116;
-    const cardH = 65;
+    const cols = 3;
+    const cardW = 155;
+    const cardH = 72;
     const startX = 50;
-    const startY = 345;
+    const startY = 350;
     const gap = 10;
+
+const growth = ['+12%', '+8%', '+21%', '+5%', '+14%', '+3%', '-2%', '+9%'];
 
 metrics.forEach((m, i) => {
   const col = i % cols;
@@ -630,14 +647,27 @@ metrics.forEach((m, i) => {
   const cardColors = ['#EFF6FF', '#F5F3FF', '#ECFDF5', '#FFF7ED'];
   const accentColors = [PRIMARY, SECONDARY, '#10B981', '#F59E0B'];
 
-  doc.roundedRect(x, y, cardW, cardH, 10).fill(cardColors[i % cardColors.length]);
+ // Fake soft shadow
+ doc.roundedRect(x + 2, y + 3, cardW, cardH, 10)
+   .fill('#CBD5E1');
 
-  doc.rect(x, y, 4, cardH).fill(accentColors[i % accentColors.length]);
+ // Main KPI card
+ doc.roundedRect(x, y, cardW, cardH, 10)
+   .fill(cardColors[i % cardColors.length]);
+
+ // Left accent line
+ doc.rect(x, y, 4, cardH)
+   .fill(accentColors[i % accentColors.length]);
+
+  doc.fontSize(12)
+    .text(m.icon, x + 12, y + 8);
 
   doc.fillColor('#64748B')
     .fontSize(7)
     .font('Helvetica-Bold')
-    .text(m.label.toUpperCase(), x + 12, y + 10, { width: cardW - 18 });
+    .text(m.label.toUpperCase(), x + 30, y + 11, {
+      width: cardW - 35,
+    });
 
   doc.fillColor('#0F172A')
     .fontSize(14)
@@ -647,6 +677,13 @@ metrics.forEach((m, i) => {
       height: 22,
       ellipsis: true,
     });
+
+    doc.fillColor(growth[i]?.startsWith('-') ? '#DC2626' : '#10B981')
+      .fontSize(7)
+      .font('Helvetica-Bold')
+      .text(`${growth[i] || '+0%'} vs last month`, x + 12, y + 52, {
+        width: cardW - 18,
+      });
 });
 
     // Monthly trends table
