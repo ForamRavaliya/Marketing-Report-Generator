@@ -19,6 +19,19 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div className="spin" style={{ width: 32, height: 32, border: '3px solid #E2E8F0', borderTopColor: '#2563EB', borderRadius: '50%' }} />
+    </div>
+  );
+  return user ? children : <Navigate to="/login" replace />;
+};
+
+const PublicRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
   if (!user) return children;
 
   return (
@@ -27,11 +40,7 @@ const PrivateRoute = ({ children }) => {
       replace
     />
   );
-
-const PublicRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  if (loading) return null;
- if (!user) return children;
+};
 
  return (
    <Navigate
@@ -61,7 +70,15 @@ function App() {
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route index element={ <Navigate to=
+                { JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super_admin'
+                 ? '/super-admin'
+                      : '/dashboard'
+                  }
+                  replace
+                />
+              }
+            />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="clients" element={<Clients />} />
             <Route path="clients/:id" element={<ClientDetail />} />
