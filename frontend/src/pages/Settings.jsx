@@ -15,8 +15,14 @@ export default function Settings() {
   useEffect(() => {
     getAgency().then(a => {
       setAgency(a);
-      setForm({ name: a.name || '', primaryColor: a.primary_color || '#2563EB', secondaryColor: a.secondary_color || '#7C3AED' });
-      if (a.logo_url) setLogoPreview(`http://localhost:5000${a.logo_url}`);
+      setForm({
+        name: a.name || '',
+        primaryColor: a.primary_color || '#2563EB',
+        secondaryColor: a.secondary_color || '#7C3AED'
+      });
+
+      const API_BASE = 'https://marketing-report-generator-p9wj.onrender.com';
+      if (a.logo_url) setLogoPreview(`${API_BASE}${a.logo_url}`);
     }).catch(() => {});
   }, []);
 
@@ -58,6 +64,7 @@ export default function Settings() {
             <Building2 size={16} color="var(--primary)" />
             <div style={{ fontWeight: 700, fontSize: 14 }}>Agency Information</div>
           </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="form-group">
               <label className="form-label">Agency Name</label>
