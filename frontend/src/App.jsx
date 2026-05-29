@@ -19,13 +19,14 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-      <div className="spin" style={{ width: 32, height: 32, border: '3px solid #E2E8F0', borderTopColor: '#2563EB', borderRadius: '50%' }} />
-    </div>
+  if (!user) return children;
+
+  return (
+    <Navigate
+      to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'}
+      replace
+    />
   );
-  return user ? children : <Navigate to="/login" replace />;
-};
 
 const PublicRoute = ({ children }) => {
   const { user, loading } = useAuth();
