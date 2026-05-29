@@ -16,6 +16,10 @@ import Settings from './pages/Settings';
 import Subscription from './pages/Subscription';
 import Billing from './pages/Billing';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import SuperAdminAgencies from './pages/SuperAdminAgencies';
+import SuperAdminSubscriptions from './pages/SuperAdminSubscriptions';
+import SuperAdminPayments from './pages/SuperAdminPayments';
+import SuperAdminSettings from './pages/SuperAdminSettings';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -179,6 +183,42 @@ function App() {
            />
 
           </Route>
+
+          <Route
+            path="super-admin/agencies"
+            element={
+              <RoleRoute allowedRoles={['super_admin']}>
+                <SuperAdminAgencies />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="super-admin/subscriptions"
+            element={
+              <RoleRoute allowedRoles={['super_admin']}>
+                <SuperAdminSubscriptions />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="super-admin/payments"
+            element={
+              <RoleRoute allowedRoles={['super_admin']}>
+                <SuperAdminPayments />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="super-admin/settings"
+            element={
+              <RoleRoute allowedRoles={['super_admin']}>
+                <SuperAdminSettings />
+              </RoleRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>

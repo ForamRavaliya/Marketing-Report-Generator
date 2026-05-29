@@ -4,7 +4,8 @@ import { getSubscription, getAgency } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import {
    LayoutDashboard, Users, Upload, FileBarChart2,
-    Settings, LogOut, Menu, BarChart3, ChevronRight, CreditCard, Receipt
+    Settings, LogOut, Menu, BarChart3, ChevronRight, CreditCard, Receipt,
+    Building2, WalletCards, CreditCard, Settings
 } from 'lucide-react';
 
 
@@ -21,7 +22,27 @@ const superAdminNavItems = [
   {
     to: '/super-admin',
     icon: LayoutDashboard,
-    label: 'Platform Dashboard',
+    label: 'Overview',
+  },
+  {
+    to: '/super-admin/agencies',
+    icon: Building2,
+    label: 'Agencies',
+  },
+  {
+    to: '/super-admin/subscriptions',
+    icon: WalletCards,
+    label: 'Subscriptions',
+  },
+  {
+    to: '/super-admin/payments',
+    icon: Receipt,
+    label: 'Payments',
+  },
+  {
+    to: '/super-admin/settings',
+    icon: Settings,
+    label: 'Platform Settings',
   },
 ];
 
