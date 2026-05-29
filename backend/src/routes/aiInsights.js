@@ -1,28 +1,31 @@
 const express = require('express');
 const router = express.Router();
 
-
-
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
 
+const safeNum = (value) => Number(value || 0);
 
+const getPerformanceLevel = (roas, ctr, conversions) => {
+  if (roas >= 4 && ctr >= 2 && conversions >= 100) return 'excellent';
+  if (roas >= 2 && ctr >= 1 && conversions >= 30) return 'strong';
+  if (roas >= 1) return 'moderate';
+  return 'needs improvement';
+};
 
-// Generate AI insights
 router.post('/generate/:clientId', async (req, res) => {
   try {
     const { clientId } = req.params;
 
-    // Get latest performance data
     const performanceResult = await db.query(
       `SELECT
-         SUM(spend) AS spend,
-         SUM(impressions) AS impressions,
-         SUM(clicks) AS clicks,
-         SUM(conversions) AS conversions,
-         SUM(revenue) AS revenue
+         SUM(COALESCE(spend, 0)) AS spend,
+         SUM(COALESCE(impressions, 0)) AS impressions,
+         SUM(COALESCE(clicks, 0)) AS clicks,
+         SUM(COALESCE(conversions, 0)) AS conversions,
+         SUM(COALESCE(revenue, 0)) AS revenue
        FROM performance_data
        WHERE client_id = $1`,
       [clientId]
@@ -30,112 +33,127 @@ router.post('/generate/:clientId', async (req, res) => {
 
     const metrics = performanceResult.rows[0];
 
-    if (!metrics) {
+    if (!metrics || safeNum(metrics.spend) === 0) {
       return res.status(404).json({
         error: 'No performance data found',
       });
     }
 
-    const ctr =
-      Number(metrics.impressions || 0) > 0
-        ? (
-            (Number(metrics.clicks || 0) /
-              Number(metrics.impressions || 1)) *
-            100
-          ).toFixed(2)
-        : 0;
+    const spend = safeNum(metrics.spend);
+    const impressions = safeNum(metrics.impressions);
+    const clicks = safeNum(metrics.clicks);
+    const conversions = safeNum(metrics.conversions);
+    const revenue = safeNum(metrics.revenue);
 
-    const cpa =
-      Number(metrics.conversions || 0) > 0
-        ? (
-            Number(metrics.spend || 0) /
-            Number(metrics.conversions || 1)
-          ).toFixed(2)
-        : 0;
+    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+    const cpc = clicks > 0 ? spend / clicks : 0;
+    const cpa = conversions > 0 ? spend / conversions : 0;
+    const roas = spend > 0 ? revenue / spend : 0;
 
-    const roas =
-      Number(metrics.spend || 0) > 0
-        ? (
-            Number(metrics.revenue || 0) /
-            Number(metrics.spend || 1)
-          ).toFixed(2)
-        : 0;
+    const platformResult = await db.query(
+      `SELECT
+         platform,
+         SUM(COALESCE(spend, 0)) AS spend,
+         SUM(COALESCE(clicks, 0)) AS clicks,
+         SUM(COALESCE(conversions, 0)) AS conversions,
+         SUM(COALESCE(revenue, 0)) AS revenue,
+         CASE
+           WHEN SUM(COALESCE(spend, 0)) > 0
+           THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
+           ELSE 0
+         END AS roas
+       FROM performance_data
+       WHERE client_id = $1
+       GROUP BY platform
+       ORDER BY roas DESC`,
+      [clientId]
+    );
 
-    const prompt = `
-You are a senior digital marketing strategist.
+    const campaignResult = await db.query(
+      `SELECT
+         c.name,
+         pd.platform,
+         SUM(COALESCE(pd.spend, 0)) AS spend,
+         SUM(COALESCE(pd.clicks, 0)) AS clicks,
+         SUM(COALESCE(pd.conversions, 0)) AS conversions,
+         SUM(COALESCE(pd.revenue, 0)) AS revenue,
+         CASE
+           WHEN SUM(COALESCE(pd.spend, 0)) > 0
+           THEN SUM(COALESCE(pd.revenue, 0)) / SUM(COALESCE(pd.spend, 0))
+           ELSE 0
+         END AS roas
+       FROM performance_data pd
+       LEFT JOIN campaigns c ON pd.campaign_id = c.id
+       WHERE pd.client_id = $1
+       GROUP BY c.name, pd.platform
+       ORDER BY roas DESC
+       LIMIT 5`,
+      [clientId]
+    );
 
-Analyze these marketing metrics and provide:
-1. Performance summary
-2. 3 actionable recommendations
+    const bestPlatform = platformResult.rows[0];
+    const bestCampaign = campaignResult.rows[0];
 
-Metrics:
-Spend: ${metrics.spend}
-Impressions: ${metrics.impressions}
-Clicks: ${metrics.clicks}
-Conversions: ${metrics.conversions}
-Revenue: ${metrics.revenue}
-CTR: ${ctr}%
-CPA: ${cpa}
-ROAS: ${roas}
+    const recommendations = [];
 
-Respond ONLY in JSON format:
-
-{
-  "summary": "short summary",
-  "recommendations": [
-    "recommendation 1",
-    "recommendation 2",
-    "recommendation 3"
-  ]
-}
-`;
-
-    const mockRecommendations = [];
-
-    if (Number(roas) < 2) {
-      mockRecommendations.push(
-        'ROAS is below target. Consider improving audience targeting and ad creatives.'
+    if (roas < 2) {
+      recommendations.push(
+        'ROAS is below the ideal level. Review low-performing campaigns and improve audience targeting, creatives, and landing pages.'
       );
     }
 
-    if (Number(ctr) < 2) {
-      mockRecommendations.push(
-        'CTR is relatively low. Test stronger CTA headlines and engaging creatives.'
+    if (ctr < 1) {
+      recommendations.push(
+        'CTR is low. Test stronger headlines, clearer CTAs, short-form video creatives, and better audience segmentation.'
       );
     }
 
-    if (Number(cpa) > 1000) {
-      mockRecommendations.push(
-        'CPA is high. Optimize campaigns with better conversion-focused landing pages.'
+    if (conversions < 50) {
+      recommendations.push(
+        'Conversion volume is low. Improve landing page speed, form simplicity, and offer clarity to increase lead generation.'
       );
     }
 
-    if (mockRecommendations.length === 0) {
-      mockRecommendations.push(
-        'Campaign performance looks healthy. Consider scaling high-performing campaigns.'
-      );
-
-      mockRecommendations.push(
-        'Meta campaigns are showing stable engagement and conversion quality.'
-      );
-
-      mockRecommendations.push(
-        'Try allocating additional budget toward top-performing audiences.'
+    if (cpa > 1000) {
+      recommendations.push(
+        'CPA is high. Reduce spend on expensive campaigns and shift budget toward campaigns with lower cost per conversion.'
       );
     }
 
-    const aiResponse = {
-      summary: `
-    Campaign generated ${metrics.clicks || 0} clicks and ${
-        metrics.conversions || 0
-      } conversions with a ROAS of ${roas}x.
+    if (spend > 5000 && roas > 4) {
+      recommendations.push(
+        'High spend is producing strong returns. Consider scaling budget gradually on the best-performing campaigns.'
+      );
+    }
 
-    Overall performance is ${
-        Number(roas) >= 2 ? 'strong' : 'moderate'
-      } based on current campaign metrics.
-      `,
-      recommendations: mockRecommendations,
-    };
+    if (bestPlatform) {
+      recommendations.push(
+        `${String(bestPlatform.platform).toUpperCase()} is currently the strongest platform by ROAS. Allocate more budget there while monitoring CPA.`
+      );
+    }
+
+    if (bestCampaign?.name) {
+      recommendations.push(
+        `"${bestCampaign.name}" is one of the best-performing campaigns. Use its audience, creative, and messaging pattern for future campaigns.`
+      );
+    }
+
+    recommendations.push(
+      'Retarget existing website visitors and engaged users to improve conversion efficiency and ROAS.'
+    );
+
+    const finalRecommendations = recommendations.slice(0, 5);
+
+    const performanceLevel = getPerformanceLevel(roas, ctr, conversions);
+
+    const summary =
+      `Campaigns generated ${clicks.toLocaleString()} clicks, ` +
+      `${conversions.toLocaleString()} conversions, and revenue of INR ${revenue.toLocaleString('en-IN', {
+        maximumFractionDigits: 2,
+      })}. ` +
+      `Overall performance is ${performanceLevel} with CTR ${ctr.toFixed(2)}%, ` +
+      `CPA INR ${cpa.toFixed(2)}, and ROAS ${roas.toFixed(2)}x.`;
+
     const saved = await db.query(
       `INSERT INTO ai_insights
        (
@@ -151,8 +169,8 @@ Respond ONLY in JSON format:
         clientId,
         req.user.agency_id,
         'performance',
-        aiResponse.summary,
-        JSON.stringify(aiResponse.recommendations),
+        summary,
+        JSON.stringify(finalRecommendations),
       ]
     );
 
@@ -166,7 +184,6 @@ Respond ONLY in JSON format:
   }
 });
 
-// Get latest AI insights
 router.get('/:clientId', async (req, res) => {
   try {
     const result = await db.query(

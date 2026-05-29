@@ -1,6 +1,6 @@
 import React, { useState , useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { getSubscription } from '../utils/api';
+import { getSubscription, getAgency } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import {
    LayoutDashboard, Users, Upload, FileBarChart2,
@@ -23,13 +23,20 @@ export default function Layout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [subscription, setSubscription] = useState(null);
+  const [agency, setAgency] = useState(null);
 
   const handleLogout = () => { logout(); navigate('/login'); };
+
 useEffect(() => {
   getSubscription()
     .then(setSubscription)
     .catch(() => {});
+
+  getAgency()
+    .then(setAgency)
+    .catch(() => {});
 }, []);
+
   const Sidebar = ({ mobile = false }) => (
     <aside style={{
       width: mobile ? '100%' : 240,
@@ -42,17 +49,32 @@ useEffect(() => {
       {/* Logo */}
       <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {user?.logoUrl ? (
-            <img src={`https://marketing-report-generator-p9wj.onrender.com${user.logoUrl}`} alt="logo"
-              style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6 }} />
-          ) : (
+         {agency?.logo_url ? (
+           <img
+             src={`https://marketing-report-generator-p9wj.onrender.com${agency.logo_url}`}
+             alt="logo"
+             style={{
+               height: 32,
+               width: 32,
+               objectFit: 'contain',
+               borderRadius: 8,
+               background: '#fff',
+               padding: 2
+             }}
+           />
+         ) : (
             <div style={{ width: 30, height: 30, background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BarChart3 size={16} color="#fff" />
             </div>
           )}
           <div>
-            <div style={{ color: '#fff', fontWeight: 800, fontSize: 14 }}>AdInsight</div>
-            <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 10 }}>{user?.agencyName || 'Agency'}</div>
+            <div style={{ color: '#fff', fontWeight: 800, fontSize: 14 }}>
+              {agency?.name || 'AdInsight'}
+            </div>
+
+            <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 10 }}>
+              Powered by AdInsight
+            </div>
           </div>
         </div>
       </div>
