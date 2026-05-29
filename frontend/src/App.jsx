@@ -42,6 +42,24 @@ const PublicRoute = ({ children }) => {
   );
 };
 
+const RoleRoute = ({ allowedRoles, children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (!user) return <Navigate to="/login" replace />;
+
+  if (!allowedRoles.includes(user.role)) {
+    return (
+      <Navigate
+        to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'}
+        replace
+      />
+    );
+  }
+
+  return children;
+};
 
 
 function App() {
@@ -60,24 +78,101 @@ function App() {
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={ <Navigate to=
-                { JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super_admin'
-                 ? '/super-admin'
-                      : '/dashboard'
-                  }
-                  replace
-                />
-              }
-            />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="clients" element={<Clients />} />
-            <Route path="clients/:id" element={<ClientDetail />} />
-            <Route path="upload" element={<UploadData />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="subscription" element={<Subscription />} />
-            <Route path="billing" element={<Billing />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="super-admin" element={<SuperAdminDashboard />} />
+           <Route
+             index
+             element={
+               <RoleRoute allowedRoles={['admin', 'super_admin']}>
+                 <Navigate
+                   to={
+                     JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super_admin'
+                       ? '/super-admin'
+                       : '/dashboard'
+                   }
+                   replace
+                 />
+               </RoleRoute>
+             }
+           />
+           <Route
+             path="dashboard"
+             element={
+               <RoleRoute allowedRoles={['admin']}>
+                 <Dashboard />
+               </RoleRoute>
+             }
+           />
+
+           <Route
+             path="clients"
+             element={
+               <RoleRoute allowedRoles={['admin']}>
+                 <Clients />
+               </RoleRoute>
+             }
+           />
+
+           <Route
+             path="clients/:id"
+             element={
+               <RoleRoute allowedRoles={['admin']}>
+                 <ClientDetail />
+               </RoleRoute>
+             }
+           />
+
+           <Route
+             path="upload"
+             element={
+               <RoleRoute allowedRoles={['admin']}>
+                 <UploadData />
+               </RoleRoute>
+             }
+           />
+
+           <Route
+             path="reports"
+             element={
+               <RoleRoute allowedRoles={['admin']}>
+                 <Reports />
+               </RoleRoute>
+             }
+           />
+
+           <Route
+             path="subscription"
+             element={
+               <RoleRoute allowedRoles={['admin']}>
+                 <Subscription />
+               </RoleRoute>
+             }
+           />
+
+           <Route
+             path="billing"
+             element={
+               <RoleRoute allowedRoles={['admin']}>
+                 <Billing />
+               </RoleRoute>
+             }
+           />
+
+           <Route
+             path="settings"
+             element={
+               <RoleRoute allowedRoles={['admin']}>
+                 <Settings />
+               </RoleRoute>
+             }
+           />
+
+           <Route
+             path="super-admin"
+             element={
+               <RoleRoute allowedRoles={['super_admin']}>
+                 <SuperAdminDashboard />
+               </RoleRoute>
+             }
+           />
 
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
