@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 
-const navItems = [
+const adminNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/clients', icon: Users, label: 'Clients' },
   { to: '/upload', icon: Upload, label: 'Upload Data' },
@@ -16,6 +16,13 @@ const navItems = [
   { to: '/subscription', icon: CreditCard, label: 'Subscription' },
   { to: '/billing', icon: Receipt, label: 'Billing' },
   { to: '/settings', icon: Settings, label: 'Settings' },
+];
+const superAdminNavItems = [
+  {
+    to: '/super-admin',
+    icon: LayoutDashboard,
+    label: 'Platform Dashboard',
+  },
 ];
 
 export default function Layout() {
@@ -81,7 +88,11 @@ useEffect(() => {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
-        {navItems.map(({ to, icon: Icon, label }) => (
+       {(
+         user?.role === 'super_admin'
+           ? superAdminNavItems
+           : adminNavItems
+       ).map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to}
             onClick={() => mobile && setSidebarOpen(false)}
             style={({ isActive }) => ({

@@ -15,6 +15,7 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Subscription from './pages/Subscription';
 import Billing from './pages/Billing';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -29,7 +30,18 @@ const PrivateRoute = ({ children }) => {
 const PublicRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return null;
-  return !user ? children : <Navigate to="/dashboard" replace />;
+ if (!user) return children;
+
+ return (
+   <Navigate
+     to={
+       user.role === 'super_admin'
+         ? '/super-admin'
+         : '/dashboard'
+     }
+     replace
+   />
+ );
 };
 
 function App() {
@@ -57,6 +69,7 @@ function App() {
             <Route path="subscription" element={<Subscription />} />
             <Route path="billing" element={<Billing />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="super-admin" element={<SuperAdminDashboard />} />
 
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
