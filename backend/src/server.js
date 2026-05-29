@@ -40,6 +40,7 @@ app.use('/api/ad-accounts', require('./routes/adAccounts'));
 app.use('/api/integrations', require('./routes/integrations'));
 app.use('/api/subscription', require('./routes/subscription'));
 app.use('/api/payments', require('./routes/payments'));
+app.use('/api/super-admin', require('./routes/superAdmin'));
 
 
 

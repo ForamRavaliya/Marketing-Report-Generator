@@ -43,4 +43,12 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-module.exports = { authenticate, JWT_SECRET };
+const requireSuperAdmin = (req, res, next) => {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Super admin access required' });
+  }
+
+  next();
+};
+
+module.exports = { authenticate, requireSuperAdmin, JWT_SECRET };
