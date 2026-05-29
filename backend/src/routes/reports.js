@@ -596,6 +596,27 @@ const drawFooter = (pageNo) => {
   doc.restore();
 };
 
+const drawAgencyLogo = () => {
+  try {
+    if (!canUseAgencyBranding || !agency?.logo_url) return;
+
+    const logoPath = path.join(
+      __dirname,
+      '../../',
+      agency.logo_url.replace('/data/', 'data/')
+    );
+
+    if (fs.existsSync(logoPath)) {
+      doc.image(logoPath, 50, 38, {
+        width: 42,
+        height: 42,
+        fit: [42, 42],
+      });
+    }
+  } catch (e) {
+    console.log('Logo render skipped:', e.message);
+  }
+};
 // ===============================
 // PAGE 1 - COVER + DASHBOARD
 // ===============================
@@ -622,10 +643,12 @@ doc.circle(95, 55, 85)
   .fillOpacity(1);
 
 // Agency name
+drawAgencyLogo();
+
 doc.fillColor('#FFFFFF')
   .fontSize(9)
   .font('Helvetica-Bold')
-  .text((agency?.name || 'Your Agency').toUpperCase(), 50, 42);
+  .text((agency?.name || 'Your Agency').toUpperCase(), agency?.logo_url ? 105 : 50, 42);
 
 // Title
 doc.fillColor('#FFFFFF')
