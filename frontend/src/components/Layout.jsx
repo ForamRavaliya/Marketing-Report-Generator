@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import {
    LayoutDashboard, Users, Upload, FileBarChart2,
     Settings, LogOut, Menu, BarChart3, ChevronRight, CreditCard, Receipt,
-    Building2, WalletCards, ,
+    Building2, WalletCards,
 } from 'lucide-react';
 
 
