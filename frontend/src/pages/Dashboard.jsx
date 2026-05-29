@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { getDashboardOverview } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Users, TrendingUp, BarChart3, ArrowRight } from 'lucide-react';
@@ -13,6 +13,11 @@ const fmtCur = (n) =>
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  if (user?.role === 'super_admin') {
+    return <Navigate to="/super-admin" replace />;
+  }
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
