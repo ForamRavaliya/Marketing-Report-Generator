@@ -60,7 +60,18 @@ const RoleRoute = ({ allowedRoles, children }) => {
 
   return children;
 };
+const HomeRedirect = () => {
+  const { user } = useAuth();
 
+  return (
+    <Navigate
+      to={user?.role === 'super_admin'
+        ? '/super-admin'
+        : '/dashboard'}
+      replace
+    />
+  );
+};
 
 function App() {
   return (
@@ -82,14 +93,7 @@ function App() {
              index
              element={
                <RoleRoute allowedRoles={['admin', 'super_admin']}>
-                 <Navigate
-                   to={
-                     JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super_admin'
-                       ? '/super-admin'
-                       : '/dashboard'
-                   }
-                   replace
-                 />
+                 <HomeRedirect />
                </RoleRoute>
              }
            />
