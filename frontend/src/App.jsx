@@ -42,17 +42,7 @@ const PublicRoute = ({ children }) => {
   );
 };
 
- return (
-   <Navigate
-     to={
-       user.role === 'super_admin'
-         ? '/super-admin'
-         : '/dashboard'
-     }
-     replace
-   />
- );
-};
+
 
 function App() {
   return (
