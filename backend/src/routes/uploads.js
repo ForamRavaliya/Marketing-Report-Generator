@@ -660,11 +660,4 @@ router.post('/manual', async (req, res) => {
   }
 });
 
-module.exports = {
-  extractFromCSV,
-  extractFromExcel,
-  extractFromPDF,
-  extractFromImage,
-  COLUMN_MAP,
-  normalizeHeader,
-};
+module.exports = router;
