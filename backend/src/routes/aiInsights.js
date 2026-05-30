@@ -28,7 +28,7 @@ router.post('/generate/:clientId', async (req, res) => {
          SUM(COALESCE(revenue, 0)) AS revenue
        FROM performance_data
        WHERE client_id = $1
-       AND external_campaign_name = 'aggregate',
+       AND external_campaign_name = 'aggregate'`,
       [clientId]
     );
 
@@ -87,6 +87,7 @@ router.post('/generate/:clientId', async (req, res) => {
        FROM performance_data pd
        LEFT JOIN campaigns c ON pd.campaign_id = c.id
        WHERE pd.client_id = $1
+       AND pd.campaign_id IS NOT NULL
        GROUP BY c.name, pd.platform
        ORDER BY roas DESC
        LIMIT 5`,
@@ -106,7 +107,7 @@ router.post('/generate/:clientId', async (req, res) => {
 
     if (ctr < 1) {
       recommendations.push(
-        'CTR is low. Test stronger headlines, clearer CTAs, short-form video creatives, and better audience segmentation.'
+        'CTR is low or clicks data is not available. Test stronger headlines, clearer CTAs, short-form video creatives, and better audience segmentation.'
       );
     }
 
@@ -145,11 +146,15 @@ router.post('/generate/:clientId', async (req, res) => {
     );
 
     const finalRecommendations = recommendations.slice(0, 5);
-
     const performanceLevel = getPerformanceLevel(roas, ctr, conversions);
 
+    const clickText =
+      clicks > 0
+        ? `${clicks.toLocaleString()} clicks`
+        : 'click data was not available';
+
     const summary =
-      `Campaigns generated ${clicks.toLocaleString()} clicks, ` +
+      `Campaigns generated ${clickText}, ` +
       `${conversions.toLocaleString()} conversions, and revenue of INR ${revenue.toLocaleString('en-IN', {
         maximumFractionDigits: 2,
       })}. ` +
