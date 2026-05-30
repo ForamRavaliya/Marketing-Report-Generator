@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { getClients, uploadFile, manualEntry, getUploads } from '../utils/api';
+import {
+  getClients,
+  uploadFile,
+  manualEntry,
+  getUploads,
+  previewUpload,
+  confirmUploadMapping,
+} from '../utils/api';
 import toast from 'react-hot-toast';
 import { Upload, FileText, Image, Table, CheckCircle, Clock, XCircle, Plus, Pencil } from 'lucide-react';
 
@@ -34,6 +41,10 @@ export default function UploadData() {
   const [uploads, setUploads] = useState([]);
   const [mode, setMode] = useState('file'); // 'file' | 'manual'
   const [manualForm, setManualForm] = useState({ spend: '', impressions: '', clicks: '', ctr: '', cpc: '', conversions: '', cpa: '', roas: '', revenue: '', campaignName: '' });
+  const [mappingModal, setMappingModal] = useState(false);
+  const [mappingHeaders, setMappingHeaders] = useState([]);
+  const [mappingData, setMappingData] = useState({});
+  const [previewUploadId, setPreviewUploadId] = useState(null);
 
   useEffect(() => {
     getClients().then(setClients).catch(() => {});
@@ -65,28 +76,70 @@ export default function UploadData() {
     if (dateEnd) fd.append('dateRangeEnd', dateEnd);
 
     try {
-      const result = await uploadFile(fd, setProgress);
-      toast.success('File uploaded! Extraction in progress...');
+      const result = await previewUpload(fd, setProgress);
+
+      setPreviewUploadId(result.uploadId);
+      setMappingHeaders(result.headers || []);
+      setMappingData(result.suggestedMapping || {});
+      setMappingModal(true);
+
+      toast.success('Review column mapping before import');
+
       setUploads(prev => [{ id: result.uploadId, file_name: acceptedFiles[0].name, file_type: result.fileType, extraction_status: 'processing', created_at: new Date().toISOString(), platform }, ...prev]);
 
-      // Poll status
-      const poll = setInterval(async () => {
-        const status = await getUploads(selectedClient);
-        setUploads(status);
-        if (status[0]?.extraction_status !== 'processing') {
-          clearInterval(poll);
-          if (status[0]?.extraction_status === 'completed') toast.success('Data extraction complete!');
-          else if (status[0]?.extraction_status === 'failed') toast.error('Extraction failed. Check file format.');
-        }
-      }, 2000);
-      setTimeout(() => clearInterval(poll), 30000);
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Upload failed');
-    } finally {
-      setUploading(false);
-      setProgress(0);
+          } catch (err) {
+            toast.error(err.response?.data?.error || 'Upload preview failed');
+          } finally {
+            setUploading(false);
+            setProgress(0);
+          }
+        };
+
+
+
+const handleConfirmMapping = async () => {
+  const requiredFields = ['spend', 'revenue', 'conversions'];
+
+  const missingImportant = requiredFields.filter(
+    (field) => !mappingData[field] || mappingData[field] === 'ignore'
+  );
+
+  if (missingImportant.length > 0) {
+    const ok = window.confirm(
+      `Important fields are missing: ${missingImportant.join(', ')}.\n\nDo you still want to import?`
+    );
+
+    if (!ok) return;
+  }
+
+  try {
+    setUploading(true);
+
+    await confirmUploadMapping(
+      previewUploadId,
+      mappingData
+    );
+
+    toast.success('Data imported successfully');
+
+    setMappingModal(false);
+    setPreviewUploadId(null);
+    setMappingHeaders([]);
+    setMappingData({});
+
+    if (selectedClient) {
+      const latestUploads = await getUploads(selectedClient);
+      setUploads(latestUploads);
     }
-  };
+  } catch (err) {
+    toast.error(
+      err.response?.data?.error ||
+      'Import failed'
+    );
+  } finally {
+    setUploading(false);
+  }
+};
 
   const setM = (k) => (e) => setManualForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -276,6 +329,167 @@ export default function UploadData() {
           )}
         </div>
       </div>
+
+      {mappingModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: 760,
+              maxWidth: '95%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              borderRadius: 18,
+            }}
+          >
+            <div
+              className="card-pad"
+              style={{
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 900, fontSize: 18 }}>
+                  Confirm Column Mapping
+                </div>
+                <div style={{ color: 'var(--text3)', fontSize: 13, marginTop: 4 }}>
+                  Review detected columns before importing data
+                </div>
+              </div>
+
+              <button
+                className="btn btn-sm"
+                onClick={() => setMappingModal(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="card-pad">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 12,
+                  marginBottom: 12,
+                  fontWeight: 800,
+                  color: 'var(--text3)',
+                  fontSize: 12,
+                }}
+              >
+                <div>System Field</div>
+                <div>Excel / CSV Column</div>
+              </div>
+
+              {[
+                'spend',
+                'revenue',
+                'conversions',
+                'clicks',
+                'impressions',
+                'reach',
+                'followers',
+                'ctr',
+                'cpc',
+                'cpa',
+                'roas',
+                'campaignName',
+                'platform',
+              ].map((field) => (
+                <div
+                  key={field}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 12,
+                    alignItems: 'center',
+                    marginBottom: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {field}
+                  </div>
+
+                  <select
+                    className="form-select"
+                    value={mappingData[field] || 'ignore'}
+                    onChange={(e) =>
+                      setMappingData((prev) => ({
+                        ...prev,
+                        [field]: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="ignore">Ignore</option>
+                    {mappingHeaders.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: 14,
+                  borderRadius: 12,
+                  background: 'var(--bg3)',
+                  color: 'var(--text2)',
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                }}
+              >
+                Please verify important fields like Spend, Revenue and Conversions.
+                Wrong mapping can create incorrect reports.
+              </div>
+
+              <div
+                style={{
+                  marginTop: 20,
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 12,
+                }}
+              >
+                <button
+                  className="btn btn-sm"
+                  onClick={() => setMappingModal(false)}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleConfirmMapping}
+                >
+                  Confirm & Import
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
