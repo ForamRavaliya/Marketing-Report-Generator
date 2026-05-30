@@ -17,13 +17,26 @@ const authenticate = async (req, res, next) => {
 
     // ✅ FIX 1: REMOVE is_active condition
     const result = await db.query(
-      'SELECT id, email, full_name, role, agency_id FROM users WHERE id = $1',
+      `SELECT
+         u.id, u.email, u.full_name, u.role, u.agency_id,
+         COALESCE(a.is_active, TRUE) AS agency_active
+       FROM users u
+       LEFT JOIN agencies a ON a.id = u.agency_id
+       WHERE u.id = $1`,
       [decoded.userId]
     );
 
     if (!result.rows.length) {
       return res.status(401).json({ error: 'Invalid token' });
     }
+
+const user = result.rows[0];
+
+if (user.role !== 'super_admin' && user.agency_active === false) {
+  return res.status(403).json({
+    error: 'Your agency account has been suspended. Please contact support.',
+  });
+}
 
     // ✅ FIX 2: MATCH your /me route
     req.user = {
