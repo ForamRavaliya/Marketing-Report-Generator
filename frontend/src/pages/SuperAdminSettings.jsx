@@ -113,21 +113,21 @@ export default function SuperAdminSettings() {
               onChange={(e) => handleChange('agencyReportLimit', e.target.value)}
             />
           </div>
+<div
+  style={{
+    marginTop: 16,
+    padding: 14,
+    background: 'var(--bg3)',
+    borderRadius: 12,
+    fontSize: 13,
+    color: 'var(--text2)',
+    lineHeight: 1.6,
+  }}
+>
+  Configure report limits based on subscription plans. These limits help control
+  usage for Free, Pro and Agency customers.
+</div>
 
-          <div
-            style={{
-              marginTop: 16,
-              padding: 14,
-              background: 'var(--bg3)',
-              borderRadius: 12,
-              fontSize: 13,
-              color: 'var(--text2)',
-              lineHeight: 1.6,
-            }}
-          >
-            These settings are UI-ready. Later we will save them in database
-            using a platform_settings table.
-          </div>
         </div>
       </div>
 
