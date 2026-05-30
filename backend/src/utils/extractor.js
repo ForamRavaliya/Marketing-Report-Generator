@@ -235,8 +235,9 @@ const COLUMN_MAP = {
     'followers',
     'ig follows',
     'instagram follows',
-    'follows',
+    'instagram followers',
     'new followers',
+    'follows',
   ],
 
   frequency: [
@@ -464,6 +465,7 @@ const parseMarketingData = (records) => {
     roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
     revenue: totalRevenue,
     reach: totalReach,
+    followers: totalFollowers,
   };
 
   return { metrics, campaigns, rawText: '' };
