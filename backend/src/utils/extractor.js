@@ -20,11 +20,23 @@ const extractFromExcel = async (filePath) => {
   });
 
   // Find actual header row
-  const headerIndex = rows.findIndex(row =>
-    row.some(cell =>
-      String(cell).toLowerCase().trim() === 'campaign name'
-    )
+const headerIndex = rows.findIndex(row => {
+  const text = row.map(cell => normalizeHeader(cell)).join(' ');
+
+  return (
+    text.includes('campaign') ||
+    text.includes('date') ||
+    text.includes('order') ||
+    text.includes('revenue') ||
+    text.includes('sales') ||
+    text.includes('spend') ||
+    text.includes('cost') ||
+    text.includes('click') ||
+    text.includes('impression') ||
+    text.includes('lead') ||
+    text.includes('roas')
   );
+});
 
   if (headerIndex === -1) {
     console.log('Excel headers not found');
@@ -105,44 +117,225 @@ const extractFromText = (text) => {
 
 // Map various column name formats to standard fields
 const COLUMN_MAP = {
-  spend: ['spend', 'amount spent', 'cost', 'budget used', 'total spend', 'amount_spent', 'cost_usd', 'spend_usd'],
-  impressions: ['impressions', 'impr', 'impressions.', 'total impressions'],
-  clicks: ['clicks', 'link clicks', 'click', 'total clicks', 'all clicks', 'website clicks'],
-  ctr: ['ctr', 'click-through rate', 'click through rate', 'ctr (%)', 'link ctr'],
-  cpc: ['cpc', 'cost per click', 'avg. cpc', 'average cpc', 'cost_per_click'],
-  conversions: ['conversions', 'leads', 'results', 'actions', 'total conversions', 'purchase', 'purchases'],
-  cpa: ['cpa', 'cost per result', 'cost per conversion', 'cost per lead', 'cost per acquisition', 'cost/conv.'],
-  roas: ['roas', 'return on ad spend', 'purchase roas', 'website purchase roas', 'conv. value/cost'],
-  revenue: ['revenue', 'conversion value', 'purchase value', 'total revenue', 'website purchase value'],
-  reach: ['reach', 'unique reach', 'estimated total reach'],
-  frequency: ['frequency', 'avg. frequency'],
-  campaignName: ['campaign', 'campaign name', 'campaign_name', 'ad campaign', 'campaign title'],
-  platform: ['platform', 'channel', 'network', 'source'],
-  deliveryLevel: ['delivery level'],
-  adSetName: ['ad set name'],
-  resultType: ['result type'],
-  starts: ['starts'],
-  ends: ['ends'],
-  reportingStarts: ['reporting starts'],
-  reportingEnds: ['reporting ends'],
+  spend: [
+    'spend',
+    'amount spent',
+    'amount spent (inr)',
+    'cost',
+    'budget used',
+    'total spend',
+    'amount_spent',
+    'cost_usd',
+    'spend_usd',
+    'meta spends',
+    'meta spend',
+    'meta spends (₹)',
+    'ad spend',
+    'ads spend',
+    'paid spend',
+    'marketing spend',
+  ],
+
+  impressions: [
+    'impressions',
+    'impr',
+    'impressions.',
+    'total impressions',
+    'views',
+    'ad views',
+    'total views',
+  ],
+
+  clicks: [
+    'clicks',
+    'link clicks',
+    'click',
+    'total clicks',
+    'all clicks',
+    'website clicks',
+    'outbound clicks',
+    'unique clicks',
+  ],
+
+  ctr: [
+    'ctr',
+    'click-through rate',
+    'click through rate',
+    'ctr (%)',
+    'link ctr',
+  ],
+
+  cpc: [
+    'cpc',
+    'cost per click',
+    'avg. cpc',
+    'average cpc',
+    'cost_per_click',
+  ],
+
+  conversions: [
+    'conversions',
+    'conversion',
+    'leads',
+    'lead',
+    'results',
+    'result',
+    'actions',
+    'total conversions',
+    'purchase',
+    'purchases',
+    'orders',
+    'order',
+    'sales count',
+    'total orders',
+  ],
+
+  cpa: [
+    'cpa',
+    'cost per result',
+    'cost per conversion',
+    'cost per lead',
+    'cost per acquisition',
+    'cost/conv.',
+    'cost per order',
+  ],
+
+  roas: [
+    'roas',
+    'return on ad spend',
+    'purchase roas',
+    'website purchase roas',
+    'conv. value/cost',
+    'return',
+  ],
+
+  revenue: [
+    'revenue',
+    'conversion value',
+    'purchase value',
+    'total revenue',
+    'website purchase value',
+    'website revenue',
+    'website revenue (₹)',
+    'meta reported revenue',
+    'meta reported revenue (₹)',
+    'sales',
+    'total sales',
+    'sale amount',
+    'gross sales',
+  ],
+
+  reach: [
+    'reach',
+    'unique reach',
+    'estimated total reach',
+  ],
+
+  followers: [
+    'followers',
+    'ig follows',
+    'instagram follows',
+    'follows',
+    'new followers',
+  ],
+
+  frequency: [
+    'frequency',
+    'avg. frequency',
+  ],
+
+  date: [
+    'date',
+    'day',
+    'report date',
+    'reporting date',
+  ],
+
+  campaignName: [
+    'campaign',
+    'campaign name',
+    'campaign_name',
+    'ad campaign',
+    'campaign title',
+  ],
+
+  platform: [
+    'platform',
+    'channel',
+    'network',
+    'source',
+  ],
+
+  deliveryLevel: [
+    'delivery level',
+  ],
+
+  adSetName: [
+    'ad set name',
+  ],
+
+  resultType: [
+    'result type',
+  ],
+
+  starts: [
+    'starts',
+  ],
+
+  ends: [
+    'ends',
+  ],
+
+  reportingStarts: [
+    'reporting starts',
+  ],
+
+  reportingEnds: [
+    'reporting ends',
+  ],
+};
+const normalizeHeader = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[₹$€£%()_\-./]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const similarity = (a, b) => {
+  a = normalizeHeader(a);
+  b = normalizeHeader(b);
+
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) return 0.85;
+
+  const aWords = new Set(a.split(' '));
+  const bWords = new Set(b.split(' '));
+
+  let match = 0;
+  bWords.forEach((word) => {
+    if (aWords.has(word)) match++;
+  });
+
+  return match / Math.max(bWords.size, 1);
 };
 
 const findColumn = (headers, fieldVariants) => {
-  const lowerHeaders = headers.map(h => h?.toString().toLowerCase().trim());
+  let bestColumn = null;
+  let bestScore = 0;
 
-  for (const variant of fieldVariants) {
-    const v = variant.toLowerCase();
+  for (const header of headers) {
+    for (const variant of fieldVariants) {
+      const score = similarity(header, variant);
 
-    // exact match first
-    let idx = lowerHeaders.indexOf(v);
-    if (idx !== -1) return headers[idx];
-
-    // partial match for columns like "Amount spent (INR)"
-    idx = lowerHeaders.findIndex(h => h.includes(v));
-    if (idx !== -1) return headers[idx];
+      if (score > bestScore) {
+        bestScore = score;
+        bestColumn = header;
+      }
+    }
   }
 
-  return null;
+  return bestScore >= 0.45 ? bestColumn : null;
 };
 
 const parseNum = (val) => {
@@ -160,6 +353,50 @@ const parseMarketingData = (records) => {
     colMap[field] = findColumn(headers, variants);
   }
 
+  const guessColumnsByValues = (records, headers, colMap) => {
+    const sampleRows = records.slice(0, 10);
+
+    const numericScore = (header) => {
+      let count = 0;
+
+      sampleRows.forEach((row) => {
+        const value = parseNum(row[header]);
+        if (value > 0) count++;
+      });
+
+      return count;
+    };
+
+    const unusedHeaders = headers.filter(
+      (h) => !Object.values(colMap).includes(h)
+    );
+
+    for (const header of unusedHeaders) {
+      const h = normalizeHeader(header);
+      const score = numericScore(header);
+
+      if (score === 0) continue;
+
+      if (!colMap.spend && /(cost|expense|spent|spend|budget|ad)/i.test(h)) {
+        colMap.spend = header;
+      } else if (!colMap.revenue && /(revenue|sales|income|value|amount|earning)/i.test(h)) {
+        colMap.revenue = header;
+      } else if (!colMap.conversions && /(order|lead|result|purchase|conversion|booking)/i.test(h)) {
+        colMap.conversions = header;
+      } else if (!colMap.clicks && /(click|tap|visit)/i.test(h)) {
+        colMap.clicks = header;
+      } else if (!colMap.impressions && /(impression|view|display)/i.test(h)) {
+        colMap.impressions = header;
+      } else if (!colMap.reach && /(reach|follower|follow)/i.test(h)) {
+        colMap.reach = header;
+      }
+    }
+
+    return colMap;
+  };
+
+  guessColumnsByValues(records, headers, colMap);
+
   const campaigns = [];
   let totalSpend = 0,
     totalImpressions = 0,
@@ -169,13 +406,7 @@ const parseMarketingData = (records) => {
     totalReach = 0;
 
   for (const record of records) {
-  const deliveryLevel = colMap.deliveryLevel
-    ? String(record[colMap.deliveryLevel] || '').toLowerCase().trim()
-    : '';
 
-  if (deliveryLevel !== 'campaign') {
-    continue;
-  }
     const spend = parseNum(colMap.spend ? record[colMap.spend] : 0);
     const impressions = parseNum(colMap.impressions ? record[colMap.impressions] : 0);
     const clicks = parseNum(colMap.clicks ? record[colMap.clicks] : 0);
