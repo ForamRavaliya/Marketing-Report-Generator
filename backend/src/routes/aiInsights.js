@@ -27,7 +27,8 @@ router.post('/generate/:clientId', async (req, res) => {
          SUM(COALESCE(conversions, 0)) AS conversions,
          SUM(COALESCE(revenue, 0)) AS revenue
        FROM performance_data
-       WHERE client_id = $1`,
+       WHERE client_id = $1
+       AND external_campaign_name = 'aggregate',
       [clientId]
     );
 
@@ -64,6 +65,7 @@ router.post('/generate/:clientId', async (req, res) => {
          END AS roas
        FROM performance_data
        WHERE client_id = $1
+       AND external_campaign_name = 'aggregate'
        GROUP BY platform
        ORDER BY roas DESC`,
       [clientId]
@@ -190,7 +192,6 @@ router.get('/:clientId', async (req, res) => {
       `SELECT *
        FROM ai_insights
        WHERE client_id = $1
-       AND external_campaign_name = 'aggregate'
        AND agency_id = $2
        ORDER BY created_at DESC
        LIMIT 1`,
