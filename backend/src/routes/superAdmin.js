@@ -166,4 +166,29 @@ router.put('/agencies/:agencyId/plan', async (req, res) => {
   }
 });
 
+router.put('/agencies/:agencyId/status', async (req, res) => {
+  try {
+    const { agencyId } = req.params;
+    const { isActive } = req.body;
+
+    const result = await db.query(
+      `UPDATE agencies
+       SET is_active = $1,
+           updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [isActive, agencyId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Agency not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Agency status update error:', error);
+    res.status(500).json({ error: 'Failed to update agency status' });
+  }
+});
+
 module.exports = router;

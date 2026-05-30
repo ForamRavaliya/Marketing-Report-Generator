@@ -44,6 +44,33 @@ export default function SuperAdminAgencies() {
     }
   };
 
+const updateAgencyStatus = async (agency) => {
+  const isSuspending = agency.is_active !== false;
+
+  const ok = window.confirm(
+    isSuspending
+      ? `Suspend ${agency.name}? This agency will not be able to access the system.`
+      : `Activate ${agency.name}? This agency will regain access.`
+  );
+
+  if (!ok) return;
+
+  try {
+    setUpdating(true);
+
+    await api.put(`/super-admin/agencies/${agency.id}/status`, {
+      isActive: !isSuspending,
+    });
+
+    toast.success(isSuspending ? 'Agency suspended' : 'Agency activated');
+    loadAgencies();
+  } catch {
+    toast.error('Failed to update agency status');
+  } finally {
+    setUpdating(false);
+  }
+};
+
   return (
     <div className="fade-in">
       <div className="page-header">
@@ -188,16 +215,20 @@ export default function SuperAdminAgencies() {
                           fontSize: 11,
                           fontWeight: 800,
                           background:
-                            agency.subscription_status === 'active'
+                            agency.is_active === false
+                              ? 'var(--danger-light)'
+                              : agency.subscription_status === 'active'
                               ? 'var(--success-light)'
                               : 'var(--danger-light)',
                           color:
-                            agency.subscription_status === 'active'
+                            agency.is_active === false
+                              ? 'var(--danger)'
+                              : agency.subscription_status === 'active'
                               ? 'var(--success)'
                               : 'var(--danger)',
                         }}
                       >
-                        {agency.subscription_status || 'active'}
+                       {agency.is_active === false ? 'suspended' : (agency.subscription_status || 'active')}
                       </span>
                     </td>
                      <td>
@@ -211,13 +242,14 @@ export default function SuperAdminAgencies() {
 
                                           <button
                                             className="btn btn-sm"
+                                            disabled={updating}
                                             style={{
-                                              background: '#FEF3C7',
-                                              color: '#92400E'
+                                              background: agency.is_active === false ? '#DCFCE7' : '#FEF3C7',
+                                              color: agency.is_active === false ? '#15803D' : '#92400E',
                                             }}
-                                            onClick={() => alert(`Suspend ${agency.name}`)}
+                                            onClick={() => updateAgencyStatus(agency)}
                                           >
-                                            Suspend
+                                            {agency.is_active === false ? 'Activate' : 'Suspend'}
                                           </button>
 
                                           <button
@@ -317,9 +349,12 @@ export default function SuperAdminAgencies() {
 
               <div>
                 <strong>Status</strong>
-                <div>{selectedAgency.subscription_status || 'Active'}</div>
+                <div>
+                  {selectedAgency.is_active === false
+                    ? 'Suspended'
+                    : (selectedAgency.subscription_status || 'Active')}
+                </div>
               </div>
-
               <div>
                 <strong>Clients</strong>
                 <div>{selectedAgency.clients_count}</div>
