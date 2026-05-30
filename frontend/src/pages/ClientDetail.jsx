@@ -228,23 +228,23 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
             <div>
               {/* KPI Cards */}
               <div className="grid grid-4" style={{ marginBottom: 20 }}>
-                <MetricCard label="Total Spend" value={fmtCur(summary?.total_spend)} icon={DollarSign} color="#2563EB"
+                <MetricCard label="Total Spend" value={fmtCur(summary?.spend)} icon={DollarSign} color="#2563EB"
                   change={comparison?.comparison?.spend?.change} />
-                <MetricCard label="Impressions" value={fmt(summary?.total_impressions)} icon={TrendingUp} color="#7C3AED"
+                <MetricCard label="Impressions" value={fmt(summary?.impressions)} icon={TrendingUp} color="#7C3AED"
                   change={comparison?.comparison?.impressions?.change} />
-                <MetricCard label="Clicks" value={fmt(summary?.total_clicks)} icon={MousePointerClick} color="#059669"
+                <MetricCard label="Clicks" value={fmt(summary?.clicks)} icon={MousePointerClick} color="#059669"
                   change={comparison?.comparison?.clicks?.change} />
-                <MetricCard label="Conversions" value={fmt(summary?.total_conversions)} icon={Target} color="#D97706"
+                <MetricCard label="Conversions" value={fmt(summary?.conversions)} icon={Target} color="#D97706"
                   change={comparison?.comparison?.conversions?.change} />
               </div>
               <div className="grid grid-4" style={{ marginBottom: 20 }}>
-                <MetricCard label="CTR" value={fmtPct(summary?.avg_ctr)} color="#0891B2"
+                <MetricCard label="CTR" value={fmtPct(summary?.ctr)} color="#0891B2"
                   change={comparison?.comparison?.ctr?.change} />
-                <MetricCard label="CPC" value={fmtCur(summary?.avg_cpc)} color="#7C3AED"
+                <MetricCard label="CPC" value={fmtCur(summary?.cpc)} color="#7C3AED"
                   change={comparison?.comparison?.cpc?.change} />
-                <MetricCard label="CPA" value={fmtCur(summary?.avg_cpa)} color="#DC2626"
+                <MetricCard label="CPA" value={fmtCur(summary?.cpa)} color="#DC2626"
                   change={comparison?.comparison?.cpa?.change} />
-                <MetricCard label="ROAS" value={`${fmt(summary?.avg_roas, 2)}x`} color="#059669"
+                <MetricCard label="ROAS" value={`${fmt(summary?.roas, 2)}x`} color="#059669"
                   change={comparison?.comparison?.roas?.change} />
               </div>
 
