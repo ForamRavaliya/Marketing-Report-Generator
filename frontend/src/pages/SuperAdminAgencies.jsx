@@ -10,28 +10,28 @@ export default function SuperAdminAgencies() {
   const [updating, setUpdating] = useState(false);
   const [selectedAgency, setSelectedAgency] = useState(null);
 
- const loadAgencies = async () => {
-   try {
-     setLoading(true);
-     const res = await api.get('/super-admin/overview');
+  const loadAgencies = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/super-admin/overview');
 
-     const normalizedAgencies = (res.data.agencies || []).map((a) => ({
-       ...a,
-       is_active:
-         a.is_active === false ||
-         a.is_active === 'false' ||
-         a.is_active === 'f'
-           ? false
-           : true,
-     }));
+      const normalizedAgencies = (res.data.agencies || []).map((a) => ({
+        ...a,
+        is_active:
+          a.is_active === false ||
+          a.is_active === 'false' ||
+          a.is_active === 'f'
+            ? false
+            : true,
+      }));
 
-     setAgencies(normalizedAgencies);
-   } catch (err) {
-     toast.error('Failed to load agencies');
-   } finally {
-     setLoading(false);
-   }
- };
+      setAgencies(normalizedAgencies);
+    } catch {
+      toast.error('Failed to load agencies');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadAgencies();
@@ -48,39 +48,40 @@ export default function SuperAdminAgencies() {
 
       toast.success('Plan updated');
       loadAgencies();
-    } catch (err) {
+    } catch {
       toast.error('Failed to update plan');
     } finally {
       setUpdating(false);
     }
   };
 
-const updateAgencyStatus = async (agency) => {
-  const isSuspending = agency.is_active !== false;
+  const updateAgencyStatus = async (agency) => {
+    const isSuspending = agency.is_active !== false;
 
-  const ok = window.confirm(
-    isSuspending
-      ? `Suspend ${agency.name}? This agency will not be able to access the system.`
-      : `Activate ${agency.name}? This agency will regain access.`
-  );
+    const ok = window.confirm(
+      isSuspending
+        ? `Suspend ${agency.name}? This agency will not be able to access the system.`
+        : `Activate ${agency.name}? This agency will regain access.`
+    );
 
-  if (!ok) return;
+    if (!ok) return;
 
-  try {
-    setUpdating(true);
+    try {
+      setUpdating(true);
 
-    await api.put(`/super-admin/agencies/${agency.id}/status`, {
-      isActive: !isSuspending,
-    });
+      await api.put(`/super-admin/agencies/${agency.id}/status`, {
+        isActive: !isSuspending,
+      });
 
-    toast.success(isSuspending ? 'Agency suspended' : 'Agency activated');
-    loadAgencies();
-  } catch {
-    toast.error('Failed to update agency status');
-  } finally {
-    setUpdating(false);
-  }
-};
+      toast.success(isSuspending ? 'Agency suspended' : 'Agency activated');
+      setSelectedAgency(null);
+      loadAgencies();
+    } catch {
+      toast.error('Failed to update agency status');
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   return (
     <div className="fade-in">
@@ -106,7 +107,12 @@ const updateAgencyStatus = async (agency) => {
             TOTAL CLIENTS
           </div>
           <div style={{ fontSize: 30, fontWeight: 900 }}>
-            {fmt(agencies.reduce((sum, a) => sum + Number(a.clients_count || 0), 0))}
+            {fmt(
+              agencies.reduce(
+                (sum, a) => sum + Number(a.clients_count || 0),
+                0
+              )
+            )}
           </div>
         </div>
 
@@ -115,7 +121,12 @@ const updateAgencyStatus = async (agency) => {
             TOTAL REPORTS
           </div>
           <div style={{ fontSize: 30, fontWeight: 900 }}>
-            {fmt(agencies.reduce((sum, a) => sum + Number(a.reports_count || 0), 0))}
+            {fmt(
+              agencies.reduce(
+                (sum, a) => sum + Number(a.reports_count || 0),
+                0
+              )
+            )}
           </div>
         </div>
       </div>
@@ -150,7 +161,6 @@ const updateAgencyStatus = async (agency) => {
           <div className="table-wrap">
             <table>
               <thead>
-
                 <tr>
                   <th>Agency</th>
                   <th>Owner</th>
@@ -159,8 +169,8 @@ const updateAgencyStatus = async (agency) => {
                   <th>Clients</th>
                   <th>Reports</th>
                   <th>Status</th>
-                   <th>Actions</th>
-                 </tr>
+                  <th>Actions</th>
+                </tr>
               </thead>
 
               <tbody>
@@ -239,211 +249,247 @@ const updateAgencyStatus = async (agency) => {
                               : 'var(--danger)',
                         }}
                       >
-                       {agency.is_active === false ? 'suspended' : (agency.subscription_status || 'active')}
+                        {agency.is_active === false
+                          ? 'suspended'
+                          : agency.subscription_status || 'active'}
                       </span>
                     </td>
-                     <td>
-                                        <div style={{ display: 'flex', gap: 8 }}>
-                                          <button
-                                            className="btn btn-sm"
-                                            onClick={() => setSelectedAgency(agency)}
-                                          >
-                                            View
-                                          </button>
 
-                                          <button
-                                            className="btn btn-sm"
-                                            disabled={updating}
-                                            style={{
-                                              background: agency.is_active === false ? '#DCFCE7' : '#FEF3C7',
-                                              color: agency.is_active === false ? '#15803D' : '#92400E',
-                                            }}
-                                            onClick={() => updateAgencyStatus(agency)}
-                                          >
-                                            {agency.is_active === false ? 'Activate' : 'Suspend'}
-                                          </button>
+                    <td>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          className="btn btn-sm"
+                          onClick={() => setSelectedAgency(agency)}
+                        >
+                          View
+                        </button>
 
-                                       <button
-                                         className="btn btn-sm"
-                                         disabled
-                                         style={{
-                                           background: '#E2E8F0',
-                                           color: '#64748B',
-                                           cursor: 'not-allowed',
-                                         }}
-                                       >
-                                        🚫 Disable
-                                       </button>
-                                      </td>
+                        <button
+                          className="btn btn-sm"
+                          disabled={updating}
+                          style={{
+                            background:
+                              agency.is_active === false ? '#DCFCE7' : '#FEF3C7',
+                            color:
+                              agency.is_active === false ? '#15803D' : '#92400E',
+                          }}
+                          onClick={() => updateAgencyStatus(agency)}
+                        >
+                          {agency.is_active === false ? 'Activate' : 'Suspend'}
+                        </button>
+
+                        <button
+                          className="btn btn-sm"
+                          disabled
+                          style={{
+                            background: '#E2E8F0',
+                            color: '#64748B',
+                            cursor: 'not-allowed',
+                          }}
+                        >
+                          🚫 Disable
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-
       </div>
-    <div
-      className="card-pad"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: 18,
-      }}
-    >
-      {/* Agency Header */}
-      <div
-        style={{
-          gridColumn: '1 / -1',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
+
+      {selectedAgency && (
         <div
           style={{
-            width: 70,
-            height: 70,
-            borderRadius: 18,
-            background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)',
-            color: '#fff',
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.45)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 28,
-            fontWeight: 900,
+            zIndex: 9999,
           }}
         >
-          {selectedAgency.name?.charAt(0)}
-        </div>
+          <div
+            className="card"
+            style={{
+              width: '700px',
+              maxWidth: '95%',
+              borderRadius: 20,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              className="card-pad"
+              style={{
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <h3 style={{ margin: 0 }}>{selectedAgency.name}</h3>
 
-        <div>
-          <h2 style={{ margin: 0 }}>
-            {selectedAgency.name}
-          </h2>
+              <button
+                className="btn btn-sm"
+                onClick={() => setSelectedAgency(null)}
+              >
+                Close
+              </button>
+            </div>
 
-          <div style={{ color: 'var(--text3)' }}>
-            Agency ID #{selectedAgency.id}
-          </div>
-        </div>
-      </div>
+            <div
+              className="card-pad"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 18,
+              }}
+            >
+              <div
+                style={{
+                  gridColumn: '1 / -1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                  marginBottom: 24,
+                }}
+              >
+                <div
+                  style={{
+                    width: 70,
+                    height: 70,
+                    borderRadius: 18,
+                    background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 28,
+                    fontWeight: 900,
+                  }}
+                >
+                  {selectedAgency.name?.charAt(0)}
+                </div>
 
-      {/* Statistics Cards */}
-      <div
-        style={{
-          gridColumn: '1 / -1',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3,1fr)',
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
-        <div className="card card-pad">
-          <div style={{ color: 'var(--text3)' }}>Clients</div>
-          <div style={{ fontSize: 24, fontWeight: 900 }}>
-            {selectedAgency.clients_count}
-          </div>
-        </div>
+                <div>
+                  <h2 style={{ margin: 0 }}>{selectedAgency.name}</h2>
+                  <div style={{ color: 'var(--text3)' }}>
+                    Agency ID #{selectedAgency.id}
+                  </div>
+                </div>
+              </div>
 
-        <div className="card card-pad">
-          <div style={{ color: 'var(--text3)' }}>Reports</div>
-          <div style={{ fontSize: 24, fontWeight: 900 }}>
-            {selectedAgency.reports_count}
-          </div>
-        </div>
+              <div
+                style={{
+                  gridColumn: '1 / -1',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3,1fr)',
+                  gap: 12,
+                  marginBottom: 20,
+                }}
+              >
+                <div className="card card-pad">
+                  <div style={{ color: 'var(--text3)' }}>Clients</div>
+                  <div style={{ fontSize: 24, fontWeight: 900 }}>
+                    {selectedAgency.clients_count}
+                  </div>
+                </div>
 
-        <div className="card card-pad">
-          <div style={{ color: 'var(--text3)' }}>Plan</div>
-          <div style={{ fontSize: 24, fontWeight: 900 }}>
-            {selectedAgency.plan_name}
-          </div>
-        </div>
-      </div>
+                <div className="card card-pad">
+                  <div style={{ color: 'var(--text3)' }}>Reports</div>
+                  <div style={{ fontSize: 24, fontWeight: 900 }}>
+                    {selectedAgency.reports_count}
+                  </div>
+                </div>
 
-      <div>
-        <strong>Agency ID</strong>
-        <div>{selectedAgency.id}</div>
-      </div>
+                <div className="card card-pad">
+                  <div style={{ color: 'var(--text3)' }}>Plan</div>
+                  <div style={{ fontSize: 24, fontWeight: 900 }}>
+                    {selectedAgency.plan_name || 'free'}
+                  </div>
+                </div>
+              </div>
 
-      <div>
-        <strong>Owner Email</strong>
-        <div>{selectedAgency.owner_email || 'N/A'}</div>
-      </div>
+              <div>
+                <strong>Agency ID</strong>
+                <div>{selectedAgency.id}</div>
+              </div>
 
-      <div>
-        <strong>Contact Email</strong>
-        <div>{selectedAgency.contact_email || 'N/A'}</div>
-      </div>
+              <div>
+                <strong>Owner Email</strong>
+                <div>{selectedAgency.owner_email || 'N/A'}</div>
+              </div>
 
-      <div>
-        <strong>Website</strong>
-        <div>{selectedAgency.website || 'N/A'}</div>
-      </div>
+              <div>
+                <strong>Contact Email</strong>
+                <div>{selectedAgency.contact_email || 'N/A'}</div>
+              </div>
 
-      <div>
-        <strong>Plan</strong>
-        <div>{selectedAgency.plan_name || 'Free'}</div>
-      </div>
+              <div>
+                <strong>Website</strong>
+                <div>{selectedAgency.website || 'N/A'}</div>
+              </div>
 
-      <div>
-        <strong>Status</strong>
-        <div>
-          {selectedAgency.is_active === false
-            ? 'Suspended'
-            : (selectedAgency.subscription_status || 'Active')}
-        </div>
-      </div>
+              <div>
+                <strong>Plan</strong>
+                <div>{selectedAgency.plan_name || 'Free'}</div>
+              </div>
 
-      <div>
-        <strong>Clients</strong>
-        <div>{selectedAgency.clients_count}</div>
-      </div>
+              <div>
+                <strong>Status</strong>
+                <div>
+                  {selectedAgency.is_active === false
+                    ? 'Suspended'
+                    : selectedAgency.subscription_status || 'Active'}
+                </div>
+              </div>
 
-      <div>
-        <strong>Reports</strong>
-        <div>{selectedAgency.reports_count}</div>
-      </div>
+              <div>
+                <strong>Clients</strong>
+                <div>{selectedAgency.clients_count}</div>
+              </div>
 
-      <div>
-        <strong>Phone</strong>
-        <div>{selectedAgency.phone || 'N/A'}</div>
-      </div>
+              <div>
+                <strong>Reports</strong>
+                <div>{selectedAgency.reports_count}</div>
+              </div>
 
-      <div>
-        <strong>Address</strong>
-        <div>{selectedAgency.address || 'N/A'}</div>
-      </div>
+              <div>
+                <strong>Phone</strong>
+                <div>{selectedAgency.phone || 'N/A'}</div>
+              </div>
 
-      {/* Action Buttons */}
-      <div
-        style={{
-          gridColumn: '1 / -1',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: 12,
-          marginTop: 20,
-        }}
-      >
-        <button
-          className="btn btn-sm"
-          onClick={() => updateAgencyStatus(selectedAgency)}
-        >
-          {selectedAgency.is_active === false
-            ? 'Activate Agency'
-            : 'Suspend Agency'}
-        </button>
-
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => setSelectedAgency(null)}
-        >
-          Close
-        </button>
-      </div>
-    </div>
+              <div>
                 <strong>Address</strong>
                 <div>{selectedAgency.address || 'N/A'}</div>
+              </div>
+
+              <div
+                style={{
+                  gridColumn: '1 / -1',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 12,
+                  marginTop: 20,
+                }}
+              >
+                <button
+                  className="btn btn-sm"
+                  onClick={() => updateAgencyStatus(selectedAgency)}
+                >
+                  {selectedAgency.is_active === false
+                    ? 'Activate Agency'
+                    : 'Suspend Agency'}
+                </button>
+
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setSelectedAgency(null)}
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>
