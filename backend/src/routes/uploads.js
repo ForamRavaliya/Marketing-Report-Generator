@@ -365,13 +365,34 @@ async function processFileWithMapping(
     };
 
     for (const record of records) {
-      totalSpend += getValue(record, 'spend');
-      totalImpressions += getValue(record, 'impressions');
-      totalClicks += getValue(record, 'clicks');
-      totalConversions += getValue(record, 'conversions');
-      totalRevenue += getValue(record, 'revenue');
-      totalReach += getValue(record, 'reach');
-      totalFollowers += getValue(record, 'followers');
+      const spend = getValue(record, 'spend');
+      const impressions = getValue(record, 'impressions');
+      let clicks = getValue(record, 'clicks');
+      const ctrValue = getValue(record, 'ctr');
+      const cpcValue = getValue(record, 'cpc');
+      const conversions = getValue(record, 'conversions');
+      const revenue = getValue(record, 'revenue');
+      const reach = getValue(record, 'reach');
+      const followers = getValue(record, 'followers');
+
+      // Derived clicks
+      // Clicks = Impressions × CTR / 100
+      if (!clicks && impressions > 0 && ctrValue > 0) {
+        clicks = (impressions * ctrValue) / 100;
+      }
+
+      // Clicks = Spend / CPC
+      if (!clicks && spend > 0 && cpcValue > 0) {
+        clicks = spend / cpcValue;
+      }
+
+      totalSpend += spend;
+      totalImpressions += impressions;
+      totalClicks += clicks;
+      totalConversions += conversions;
+      totalRevenue += revenue;
+      totalReach += reach;
+      totalFollowers += followers;
     }
 
     const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;

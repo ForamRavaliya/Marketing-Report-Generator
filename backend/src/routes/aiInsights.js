@@ -190,6 +190,7 @@ router.get('/:clientId', async (req, res) => {
       `SELECT *
        FROM ai_insights
        WHERE client_id = $1
+       AND external_campaign_name = 'aggregate'
        AND agency_id = $2
        ORDER BY created_at DESC
        LIMIT 1`,
