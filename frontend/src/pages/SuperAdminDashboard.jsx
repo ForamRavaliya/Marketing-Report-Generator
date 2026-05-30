@@ -119,9 +119,6 @@ export default function SuperAdminDashboard() {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 20 }}>
-
-
       <div className="card card-pad">
         <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 14 }}>
           Recent Payments
