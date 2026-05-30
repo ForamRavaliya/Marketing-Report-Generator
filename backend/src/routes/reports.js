@@ -359,13 +359,35 @@ if (totalReports >= reportLimits[planName]) {
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
     // Fetch metrics
-    let whereClause = 'WHERE pd.client_id = $1';
-    const params = [clientId];
-    let idx = 2;
+   let whereClause = `
+     WHERE pd.client_id = $1
+     AND pd.external_campaign_name = 'aggregate'
+   `;
 
-    if (dateStart) { whereClause += ` AND pd.report_month >= $${idx++}`; params.push(new Date(dateStart)); }
-    if (dateEnd) { whereClause += ` AND pd.report_month <= $${idx++}`; params.push(new Date(dateEnd)); }
-    if (platform && platform !== 'all') { whereClause += ` AND pd.platform = $${idx++}`; params.push(platform); }
+   const params = [clientId];
+   let idx = 2;
+
+   if (dateStart) {
+     whereClause += ` AND pd.report_month >= $${idx++}`;
+     params.push(new Date(dateStart));
+   }
+
+   if (dateEnd) {
+     whereClause += ` AND pd.report_month <= $${idx++}`;
+     params.push(new Date(dateEnd));
+   }
+
+   if (platform && platform !== 'all') {
+     whereClause += ` AND pd.platform = $${idx++}`;
+     params.push(platform);
+   }
+
+   const aggregateWhereClause = whereClause;
+
+   const campaignWhereClause = whereClause.replace(
+     "AND pd.external_campaign_name = 'aggregate'",
+     "AND pd.campaign_id IS NOT NULL"
+   );
 
     const [summaryResult, trendsResult, platformsResult, campaignsResult, aiInsightResult] = await Promise.all([
      db.query(
@@ -388,29 +410,44 @@ if (totalReports >= reportLimits[planName]) {
          CASE WHEN SUM(COALESCE(spend, 0)) > 0
            THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
            ELSE 0 END as roas
-        FROM performance_data pd ${whereClause}`,
+        FROM performance_data pd ${aggregateWhereClause}`,
        params
      ),
-      db.query(
-        `SELECT TO_CHAR(report_month, 'Mon YYYY') as month, SUM(spend) as spend,
-          SUM(clicks) as clicks, SUM(conversions) as conversions,
-          CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas
-         FROM performance_data pd ${whereClause} GROUP BY TO_CHAR(report_month, 'Mon YYYY')
-                                                 ORDER BY MIN(report_month)`,
-        params
-      ),
-      db.query(
-        `SELECT platform, SUM(spend) as spend, SUM(clicks) as clicks, SUM(conversions) as conversions
-         FROM performance_data pd ${whereClause} GROUP BY platform ORDER BY SUM(spend) DESC`,
-        params
-      ),
-      db.query(
-        `SELECT c.name, pd.platform, SUM(pd.spend) as spend, SUM(pd.clicks) as clicks, SUM(pd.conversions) as conversions
-         FROM performance_data pd JOIN campaigns c ON pd.campaign_id = c.id
-         ${whereClause} AND pd.campaign_id IS NOT NULL
-         GROUP BY c.name, pd.platform ORDER BY SUM(pd.spend) DESC LIMIT 10`,
-        params
-      ),
+     db.query(
+       `SELECT TO_CHAR(report_month, 'Mon YYYY') as month,
+         SUM(spend) as spend,
+         SUM(clicks) as clicks,
+         SUM(conversions) as conversions,
+         CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas
+        FROM performance_data pd ${aggregateWhereClause}
+        GROUP BY TO_CHAR(report_month, 'Mon YYYY')
+        ORDER BY MIN(report_month)`,
+       params
+     ),
+     db.query(
+       `SELECT platform,
+         SUM(spend) as spend,
+         SUM(clicks) as clicks,
+         SUM(conversions) as conversions
+        FROM performance_data pd ${aggregateWhereClause}
+        GROUP BY platform
+        ORDER BY SUM(spend) DESC`,
+       params
+     ),
+     db.query(
+       `SELECT c.name,
+         pd.platform,
+         SUM(pd.spend) as spend,
+         SUM(pd.clicks) as clicks,
+         SUM(pd.conversions) as conversions
+        FROM performance_data pd
+        JOIN campaigns c ON pd.campaign_id = c.id
+        ${campaignWhereClause}
+        GROUP BY c.name, pd.platform
+        ORDER BY SUM(pd.spend) DESC
+        LIMIT 10`,
+       params
+     ),
       db.query(
         `SELECT summary, recommendations, created_at
          FROM ai_insights
