@@ -469,4 +469,4 @@ const parseMarketingData = (records) => {
   return { metrics, campaigns, rawText: '' };
 };
 
-module.exports = { extractFromCSV, extractFromExcel, extractFromPDF, extractFromImage };
+module.exports = router;

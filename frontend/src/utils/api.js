@@ -80,7 +80,18 @@ export const getReportHistory = (clientId) => api.get(`/reports/history/${client
 export const deleteReport = (reportId) =>
   api.delete(`/reports/${reportId}`).then(r => r.data);
 
+export const previewUpload = (formData, onUploadProgress) =>
+  api.post('/uploads/preview', formData, {
+    onUploadProgress: (e) => {
+      if (onUploadProgress && e.total) {
+        onUploadProgress(Math.round((e.loaded * 100) / e.total));
+      }
+    },
+  }).then(res => res.data);
 
+export const confirmUploadMapping = (uploadId, mapping) =>
+  api.post(`/uploads/${uploadId}/confirm-mapping`, { mapping })
+    .then(res => res.data);
  // Subscription
     export const getSubscription = () =>
       api.get('/subscription').then(r => r.data);

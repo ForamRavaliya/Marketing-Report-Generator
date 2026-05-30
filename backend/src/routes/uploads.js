@@ -5,7 +5,15 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
-const { extractFromCSV, extractFromExcel, extractFromPDF, extractFromImage } = require('../utils/extractor');
+const {
+  extractFromCSV,
+  extractFromExcel,
+  extractFromPDF,
+  extractFromImage,
+  COLUMN_MAP,
+  normalizeHeader,
+  parseNum,
+} = require('../utils/extractor');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -39,6 +47,220 @@ const getFileType = (filename) => {
   if (['.png', '.jpg', '.jpeg'].includes(ext)) return 'image';
   return 'other';
 };
+
+const XLSX = require('xlsx');
+const { parse } = require('csv-parse/sync');
+
+async function extractHeaders(filePath, fileType) {
+  if (fileType === 'csv') {
+    const content = fs.readFileSync(filePath, 'utf8');
+
+    const records = parse(content, {
+      skip_empty_lines: true,
+    });
+
+    return (records[0] || []).map((h) => String(h).trim());
+  }
+
+  if (fileType === 'excel') {
+    const workbook = XLSX.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+
+    const rows = XLSX.utils.sheet_to_json(
+      workbook.Sheets[sheetName],
+      {
+        header: 1,
+        defval: '',
+      }
+    );
+
+    const headerIndex = rows.findIndex((row) => {
+      const text = row
+        .map((cell) => String(cell || '').toLowerCase())
+        .join(' ');
+
+      return (
+        text.includes('campaign') ||
+        text.includes('revenue') ||
+        text.includes('sales') ||
+        text.includes('spend') ||
+        text.includes('cost') ||
+        text.includes('click') ||
+        text.includes('impression') ||
+        text.includes('lead')
+      );
+    });
+
+    if (headerIndex === -1) {
+      return [];
+    }
+
+    return rows[headerIndex]
+      .map((h) => String(h || '').trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+const STANDARD_FIELDS = [
+  'spend',
+  'impressions',
+  'clicks',
+  'ctr',
+  'cpc',
+  'conversions',
+  'cpa',
+  'roas',
+  'revenue',
+  'reach',
+  'followers',
+  'campaignName',
+  'platform',
+];
+
+function suggestColumnMapping(headers) {
+  const mapping = {};
+
+  headers.forEach((header) => {
+    const normalized = normalizeHeader(header);
+
+    for (const [field, variants] of Object.entries(COLUMN_MAP)) {
+      const matched = variants.some(
+        (variant) =>
+          normalizeHeader(variant) === normalized ||
+          normalized.includes(normalizeHeader(variant))
+      );
+
+      if (matched) {
+        mapping[field] = header;
+        break;
+      }
+    }
+  });
+
+  return mapping;
+}
+
+
+router.post('/preview', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const { clientId, platform } = req.body;
+    if (!clientId) return res.status(400).json({ error: 'Client ID required' });
+
+    const fileType = getFileType(req.file.originalname);
+
+    if (!['csv', 'excel'].includes(fileType)) {
+      return res.status(400).json({
+        error: 'Column mapping preview is currently supported for CSV and Excel files only',
+      });
+    }
+
+    const clientCheck = await db.query(
+      'SELECT id FROM clients WHERE id=$1 AND agency_id=$2',
+      [clientId, req.user.agency_id]
+    );
+
+    if (!clientCheck.rows.length) {
+      return res.status(403).json({ error: 'Client not found' });
+    }
+
+    const uploadResult = await db.query(
+      `INSERT INTO report_uploads
+       (client_id, uploaded_by, file_name, file_type, file_path, file_size, platform, extraction_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'mapping_required')
+       RETURNING *`,
+      [
+        clientId,
+        req.user.id,
+        req.file.originalname,
+        fileType,
+        req.file.path,
+        req.file.size,
+        platform || 'meta',
+      ]
+    );
+
+    const headers = await extractHeaders(req.file.path, fileType);
+    const suggestedMapping = suggestColumnMapping(headers);
+
+    res.status(201).json({
+      uploadId: uploadResult.rows[0].id,
+      fileType,
+      headers,
+      suggestedMapping,
+    });
+  } catch (error) {
+    console.error('Preview upload error:', error);
+    res.status(500).json({ error: 'Failed to preview file' });
+  }
+});
+
+router.post('/:uploadId/confirm-mapping', async (req, res) => {
+  try {
+    const { uploadId } = req.params;
+    const { mapping } = req.body;
+
+    if (!mapping || typeof mapping !== 'object') {
+      return res.status(400).json({ error: 'Mapping is required' });
+    }
+
+    const uploadResult = await db.query(
+      `SELECT ru.*, c.agency_id
+       FROM report_uploads ru
+       JOIN clients c ON c.id = ru.client_id
+       WHERE ru.id = $1 AND c.agency_id = $2`,
+      [uploadId, req.user.agency_id]
+    );
+
+    if (!uploadResult.rows.length) {
+      return res.status(404).json({ error: 'Upload not found' });
+    }
+
+    const uploadRow = uploadResult.rows[0];
+
+    for (const [targetField, sourceColumn] of Object.entries(mapping)) {
+      if (!sourceColumn || sourceColumn === 'ignore') continue;
+
+      await db.query(
+        `INSERT INTO column_mappings
+         (client_id, platform, target_field, source_column)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (client_id, platform, target_field)
+         DO UPDATE SET
+           source_column = EXCLUDED.source_column,
+           created_at = NOW()`,
+        [
+          uploadRow.client_id,
+          uploadRow.platform || 'meta',
+          targetField,
+          sourceColumn,
+        ]
+      );
+    }
+
+    await processFileWithMapping(
+      uploadRow.id,
+      uploadRow.file_type,
+      uploadRow.file_path,
+      uploadRow.client_id,
+      uploadRow.platform,
+      uploadRow.date_range_start,
+      uploadRow.date_range_end,
+      mapping
+    );
+
+    res.json({
+      success: true,
+      message: 'Mapping confirmed and data imported successfully',
+    });
+  } catch (error) {
+    console.error('Confirm mapping error:', error);
+    res.status(500).json({ error: 'Failed to confirm mapping' });
+  }
+});
 
 // Upload and extract file
 router.post('/', upload.single('file'), async (req, res) => {
@@ -83,6 +305,166 @@ router.post('/', upload.single('file'), async (req, res) => {
     res.status(500).json({ error: 'Upload failed' });
   }
 });
+
+async function processFileWithMapping(
+  uploadId,
+  fileType,
+  filePath,
+  clientId,
+  platform,
+  dateStart,
+  dateEnd,
+  mapping
+) {
+  try {
+    let records = [];
+
+    if (fileType === 'csv') {
+      const content = fs.readFileSync(filePath, 'utf8');
+      records = parse(content, {
+        columns: true,
+        skip_empty_lines: true,
+      });
+    }
+
+    if (fileType === 'excel') {
+      const workbook = XLSX.readFile(filePath);
+      const sheetName = workbook.SheetNames[0];
+
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+        header: 1,
+        defval: '',
+      });
+
+      const headers = await extractHeaders(filePath, fileType);
+      const headerIndex = rows.findIndex((row) =>
+        headers.every((h) => row.map(String).includes(h))
+      );
+
+      const dataRows = rows.slice(headerIndex + 1);
+
+      records = dataRows
+        .filter((row) => row.some((cell) => String(cell).trim() !== ''))
+        .map((row) => {
+          const obj = {};
+          headers.forEach((h, i) => {
+            obj[h] = row[i];
+          });
+          return obj;
+        });
+    }
+
+    const reportMonth = dateStart ? new Date(dateStart) : new Date();
+    reportMonth.setDate(1);
+
+    let totalSpend = 0;
+    let totalImpressions = 0;
+    let totalClicks = 0;
+    let totalConversions = 0;
+    let totalRevenue = 0;
+    let totalReach = 0;
+
+    const getValue = (record, field) => {
+      const col = mapping[field];
+      if (!col || col === 'ignore') return 0;
+      return parseNum(record[col]);
+    };
+
+    for (const record of records) {
+      totalSpend += getValue(record, 'spend');
+      totalImpressions += getValue(record, 'impressions');
+      totalClicks += getValue(record, 'clicks');
+      totalConversions += getValue(record, 'conversions');
+      totalRevenue += getValue(record, 'revenue');
+      totalReach += getValue(record, 'reach') || getValue(record, 'followers');
+    }
+
+    const ctr =
+      totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+
+    const cpc =
+      totalClicks > 0 ? totalSpend / totalClicks : 0;
+
+    const cpa =
+      totalConversions > 0 ? totalSpend / totalConversions : 0;
+
+    const roas =
+      totalSpend > 0 ? totalRevenue / totalSpend : 0;
+
+    const metrics = {
+      spend: totalSpend,
+      impressions: totalImpressions,
+      clicks: totalClicks,
+      ctr,
+      cpc,
+      conversions: totalConversions,
+      cpa,
+      roas,
+      revenue: totalRevenue,
+      reach: totalReach,
+      mapping,
+    };
+
+    await db.query(
+      `INSERT INTO performance_data
+        (client_id, upload_id, platform, report_month, date_range_start, date_range_end,
+         spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, raw_data)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       ON CONFLICT (client_id, platform, report_month, campaign_id)
+       DO UPDATE SET
+         spend=EXCLUDED.spend,
+         impressions=EXCLUDED.impressions,
+         clicks=EXCLUDED.clicks,
+         ctr=EXCLUDED.ctr,
+         cpc=EXCLUDED.cpc,
+         conversions=EXCLUDED.conversions,
+         cpa=EXCLUDED.cpa,
+         roas=EXCLUDED.roas,
+         revenue=EXCLUDED.revenue,
+         reach=EXCLUDED.reach,
+         raw_data=EXCLUDED.raw_data,
+         updated_at=NOW()`,
+      [
+        clientId,
+        uploadId,
+        platform || 'meta',
+        reportMonth,
+        dateStart || null,
+        dateEnd || null,
+        metrics.spend,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.ctr,
+        metrics.cpc,
+        metrics.conversions,
+        metrics.cpa,
+        metrics.roas,
+        metrics.revenue,
+        metrics.reach,
+        JSON.stringify(metrics),
+      ]
+    );
+
+    await db.query(
+      `UPDATE report_uploads
+       SET extraction_status='completed'
+       WHERE id=$1`,
+      [uploadId]
+    );
+  } catch (error) {
+    console.error('Mapping import error:', error);
+
+    await db.query(
+      `UPDATE report_uploads
+       SET extraction_status='failed',
+           extraction_error=$1
+       WHERE id=$2`,
+      [error.message, uploadId]
+    );
+
+    throw error;
+  }
+}
 
 async function processFile(uploadId, fileType, filePath, clientId, platform, dateStart, dateEnd) {
   try {
@@ -278,4 +660,11 @@ router.post('/manual', async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = {
+  extractFromCSV,
+  extractFromExcel,
+  extractFromPDF,
+  extractFromImage,
+  COLUMN_MAP,
+  normalizeHeader,
+};
