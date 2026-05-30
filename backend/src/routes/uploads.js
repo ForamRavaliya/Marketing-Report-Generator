@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
+
 const {
   extractFromCSV,
   extractFromExcel,
@@ -14,6 +15,9 @@ const {
   normalizeHeader,
   parseNum,
 } = require('../utils/extractor');
+
+const XLSX = require('xlsx');
+const { parse } = require('csv-parse/sync');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -42,58 +46,47 @@ router.use(authenticate);
 const getFileType = (filename) => {
   const ext = path.extname(filename).toLowerCase();
   if (ext === '.pdf') return 'pdf';
-  if (['.csv'].includes(ext)) return 'csv';
+  if (ext === '.csv') return 'csv';
   if (['.xlsx', '.xls'].includes(ext)) return 'excel';
   if (['.png', '.jpg', '.jpeg'].includes(ext)) return 'image';
   return 'other';
 };
 
-const XLSX = require('xlsx');
-const { parse } = require('csv-parse/sync');
-
 async function extractHeaders(filePath, fileType) {
   if (fileType === 'csv') {
     const content = fs.readFileSync(filePath, 'utf8');
-
-    const records = parse(content, {
-      skip_empty_lines: true,
-    });
-
-    return (records[0] || []).map((h) => String(h).trim());
+    const records = parse(content, { skip_empty_lines: true });
+    return (records[0] || []).map((h) => String(h).trim()).filter(Boolean);
   }
 
   if (fileType === 'excel') {
     const workbook = XLSX.readFile(filePath);
     const sheetName = workbook.SheetNames[0];
 
-    const rows = XLSX.utils.sheet_to_json(
-      workbook.Sheets[sheetName],
-      {
-        header: 1,
-        defval: '',
-      }
-    );
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+      header: 1,
+      defval: '',
+    });
 
     const headerIndex = rows.findIndex((row) => {
-      const text = row
-        .map((cell) => String(cell || '').toLowerCase())
-        .join(' ');
-
+      const text = row.map((cell) => normalizeHeader(cell)).join(' ');
       return (
         text.includes('campaign') ||
+        text.includes('date') ||
+        text.includes('order') ||
         text.includes('revenue') ||
         text.includes('sales') ||
         text.includes('spend') ||
         text.includes('cost') ||
         text.includes('click') ||
         text.includes('impression') ||
-        text.includes('lead')
+        text.includes('lead') ||
+        text.includes('roas') ||
+        text.includes('follow')
       );
     });
 
-    if (headerIndex === -1) {
-      return [];
-    }
+    if (headerIndex === -1) return [];
 
     return rows[headerIndex]
       .map((h) => String(h || '').trim())
@@ -103,22 +96,6 @@ async function extractHeaders(filePath, fileType) {
   return [];
 }
 
-const STANDARD_FIELDS = [
-  'spend',
-  'impressions',
-  'clicks',
-  'ctr',
-  'cpc',
-  'conversions',
-  'cpa',
-  'roas',
-  'revenue',
-  'reach',
-  'followers',
-  'campaignName',
-  'platform',
-];
-
 function suggestColumnMapping(headers) {
   const mapping = {};
 
@@ -126,11 +103,10 @@ function suggestColumnMapping(headers) {
     const normalized = normalizeHeader(header);
 
     for (const [field, variants] of Object.entries(COLUMN_MAP)) {
-      const matched = variants.some(
-        (variant) =>
-          normalizeHeader(variant) === normalized ||
-          normalized.includes(normalizeHeader(variant))
-      );
+      const matched = variants.some((variant) => {
+        const v = normalizeHeader(variant);
+        return normalized === v || normalized.includes(v);
+      });
 
       if (matched) {
         mapping[field] = header;
@@ -141,7 +117,6 @@ function suggestColumnMapping(headers) {
 
   return mapping;
 }
-
 
 router.post('/preview', upload.single('file'), async (req, res) => {
   try {
@@ -159,7 +134,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     }
 
     const clientCheck = await db.query(
-      'SELECT id FROM clients WHERE id=$1 AND agency_id=$2',
+      'SELECT id FROM clients WHERE id = $1 AND agency_id = $2',
       [clientId, req.user.agency_id]
     );
 
@@ -227,7 +202,7 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
       await db.query(
         `INSERT INTO column_mappings
          (client_id, platform, target_field, source_column)
-         VALUES ($1, $2, $3, $4)
+         VALUES ($1,$2,$3,$4)
          ON CONFLICT (client_id, platform, target_field)
          DO UPDATE SET
            source_column = EXCLUDED.source_column,
@@ -262,7 +237,6 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
   }
 });
 
-// Upload and extract file
 router.post('/', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -273,27 +247,37 @@ router.post('/', upload.single('file'), async (req, res) => {
   const filePath = req.file.path;
 
   try {
-    // Verify client belongs to agency
     const clientCheck = await db.query(
-      'SELECT id FROM clients WHERE id=$1 AND agency_id=$2', [clientId, req.user.agency_id]
+      'SELECT id FROM clients WHERE id = $1 AND agency_id = $2',
+      [clientId, req.user.agency_id]
     );
-    if (!clientCheck.rows.length) return res.status(403).json({ error: 'Client not found' });
 
-    // Record the upload
+    if (!clientCheck.rows.length) {
+      return res.status(403).json({ error: 'Client not found' });
+    }
+
     const uploadResult = await db.query(
-      `INSERT INTO report_uploads (client_id, uploaded_by, file_name, file_type, file_path, file_size, platform, date_range_start, date_range_end, extraction_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'processing') RETURNING *`,
-      [clientId, req.user.id, req.file.originalname, fileType, filePath,
-       req.file.size, platform, dateRangeStart || null, dateRangeEnd || null]
+      `INSERT INTO report_uploads
+       (client_id, uploaded_by, file_name, file_type, file_path, file_size, platform, date_range_start, date_range_end, extraction_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'processing')
+       RETURNING *`,
+      [
+        clientId,
+        req.user.id,
+        req.file.originalname,
+        fileType,
+        filePath,
+        req.file.size,
+        platform || 'meta',
+        dateRangeStart || null,
+        dateRangeEnd || null,
+      ]
     );
 
     const uploadId = uploadResult.rows[0].id;
 
-    // Run extraction asynchronously
     processFile(uploadId, fileType, filePath, clientId, platform, dateRangeStart, dateRangeEnd)
-      .catch(err => {
-        console.error("FILE PROCESS ERROR:", err);
-      });
+      .catch((err) => console.error('FILE PROCESS ERROR:', err));
 
     res.status(201).json({
       uploadId,
@@ -306,6 +290,50 @@ router.post('/', upload.single('file'), async (req, res) => {
   }
 });
 
+async function buildRecordsFromMappedFile(filePath, fileType) {
+  if (fileType === 'csv') {
+    const content = fs.readFileSync(filePath, 'utf8');
+    return parse(content, {
+      columns: true,
+      skip_empty_lines: true,
+    });
+  }
+
+  if (fileType === 'excel') {
+    const workbook = XLSX.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+      header: 1,
+      defval: '',
+    });
+
+    const headers = await extractHeaders(filePath, fileType);
+
+    const headerIndex = rows.findIndex((row) => {
+      const rowHeaders = row.map((cell) => String(cell || '').trim());
+      return headers.every((h) => rowHeaders.includes(h));
+    });
+
+    if (headerIndex === -1) {
+      throw new Error('Header row not found during mapped import');
+    }
+
+    return rows
+      .slice(headerIndex + 1)
+      .filter((row) => row.some((cell) => String(cell).trim() !== ''))
+      .map((row) => {
+        const obj = {};
+        headers.forEach((h, i) => {
+          obj[h] = row[i];
+        });
+        return obj;
+      });
+  }
+
+  throw new Error('Mapped import supports only CSV and Excel');
+}
+
 async function processFileWithMapping(
   uploadId,
   fileType,
@@ -317,42 +345,7 @@ async function processFileWithMapping(
   mapping
 ) {
   try {
-    let records = [];
-
-    if (fileType === 'csv') {
-      const content = fs.readFileSync(filePath, 'utf8');
-      records = parse(content, {
-        columns: true,
-        skip_empty_lines: true,
-      });
-    }
-
-    if (fileType === 'excel') {
-      const workbook = XLSX.readFile(filePath);
-      const sheetName = workbook.SheetNames[0];
-
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
-        header: 1,
-        defval: '',
-      });
-
-      const headers = await extractHeaders(filePath, fileType);
-      const headerIndex = rows.findIndex((row) =>
-        headers.every((h) => row.map(String).includes(h))
-      );
-
-      const dataRows = rows.slice(headerIndex + 1);
-
-      records = dataRows
-        .filter((row) => row.some((cell) => String(cell).trim() !== ''))
-        .map((row) => {
-          const obj = {};
-          headers.forEach((h, i) => {
-            obj[h] = row[i];
-          });
-          return obj;
-        });
-    }
+    const records = await buildRecordsFromMappedFile(filePath, fileType);
 
     const reportMonth = dateStart ? new Date(dateStart) : new Date();
     reportMonth.setDate(1);
@@ -363,6 +356,7 @@ async function processFileWithMapping(
     let totalConversions = 0;
     let totalRevenue = 0;
     let totalReach = 0;
+    let totalFollowers = 0;
 
     const getValue = (record, field) => {
       const col = mapping[field];
@@ -376,20 +370,14 @@ async function processFileWithMapping(
       totalClicks += getValue(record, 'clicks');
       totalConversions += getValue(record, 'conversions');
       totalRevenue += getValue(record, 'revenue');
-      totalReach += getValue(record, 'reach') || getValue(record, 'followers');
+      totalReach += getValue(record, 'reach');
+      totalFollowers += getValue(record, 'followers');
     }
 
-    const ctr =
-      totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-
-    const cpc =
-      totalClicks > 0 ? totalSpend / totalClicks : 0;
-
-    const cpa =
-      totalConversions > 0 ? totalSpend / totalConversions : 0;
-
-    const roas =
-      totalSpend > 0 ? totalRevenue / totalSpend : 0;
+    const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+    const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+    const cpa = totalConversions > 0 ? totalSpend / totalConversions : 0;
+    const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
 
     const metrics = {
       spend: totalSpend,
@@ -402,32 +390,36 @@ async function processFileWithMapping(
       roas,
       revenue: totalRevenue,
       reach: totalReach,
+      followers: totalFollowers,
       mapping,
     };
 
     await db.query(
       `INSERT INTO performance_data
-        (client_id, upload_id, platform, report_month, date_range_start, date_range_end,
-         spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, raw_data)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-       ON CONFLICT (client_id, platform, report_month, campaign_id)
+        (client_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
+         spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, raw_data)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+       ON CONFLICT (client_id, platform, external_campaign_name, report_month)
        DO UPDATE SET
-         spend=EXCLUDED.spend,
-         impressions=EXCLUDED.impressions,
-         clicks=EXCLUDED.clicks,
-         ctr=EXCLUDED.ctr,
-         cpc=EXCLUDED.cpc,
-         conversions=EXCLUDED.conversions,
-         cpa=EXCLUDED.cpa,
-         roas=EXCLUDED.roas,
-         revenue=EXCLUDED.revenue,
-         reach=EXCLUDED.reach,
-         raw_data=EXCLUDED.raw_data,
-         updated_at=NOW()`,
+         upload_id = EXCLUDED.upload_id,
+         spend = EXCLUDED.spend,
+         impressions = EXCLUDED.impressions,
+         clicks = EXCLUDED.clicks,
+         ctr = EXCLUDED.ctr,
+         cpc = EXCLUDED.cpc,
+         conversions = EXCLUDED.conversions,
+         cpa = EXCLUDED.cpa,
+         roas = EXCLUDED.roas,
+         revenue = EXCLUDED.revenue,
+         reach = EXCLUDED.reach,
+         followers = EXCLUDED.followers,
+         raw_data = EXCLUDED.raw_data,
+         updated_at = NOW()`,
       [
         clientId,
         uploadId,
         platform || 'meta',
+        'aggregate',
         reportMonth,
         dateStart || null,
         dateEnd || null,
@@ -441,14 +433,15 @@ async function processFileWithMapping(
         metrics.roas,
         metrics.revenue,
         metrics.reach,
+        metrics.followers,
         JSON.stringify(metrics),
       ]
     );
 
     await db.query(
       `UPDATE report_uploads
-       SET extraction_status='completed'
-       WHERE id=$1`,
+       SET extraction_status = 'completed'
+       WHERE id = $1`,
       [uploadId]
     );
   } catch (error) {
@@ -456,9 +449,9 @@ async function processFileWithMapping(
 
     await db.query(
       `UPDATE report_uploads
-       SET extraction_status='failed',
-           extraction_error=$1
-       WHERE id=$2`,
+       SET extraction_status = 'failed',
+           extraction_error = $1
+       WHERE id = $2`,
       [error.message, uploadId]
     );
 
@@ -469,6 +462,7 @@ async function processFileWithMapping(
 async function processFile(uploadId, fileType, filePath, clientId, platform, dateStart, dateEnd) {
   try {
     let result;
+
     if (fileType === 'csv') result = await extractFromCSV(filePath);
     else if (fileType === 'excel') result = await extractFromExcel(filePath);
     else if (fileType === 'pdf') result = await extractFromPDF(filePath);
@@ -476,34 +470,44 @@ async function processFile(uploadId, fileType, filePath, clientId, platform, dat
     else throw new Error('Unsupported file type');
 
     const { metrics, campaigns } = result;
+
     const reportMonth = dateStart ? new Date(dateStart) : new Date();
     reportMonth.setDate(1);
 
-    // Store aggregated metrics (ONLY if data exists)
     if (
       metrics.spend ||
       metrics.impressions ||
       metrics.clicks ||
       metrics.conversions ||
-      metrics.reach
+      metrics.reach ||
+      metrics.followers
     ) {
       await db.query(
         `INSERT INTO performance_data
-          (client_id, upload_id, platform, report_month, date_range_start, date_range_end,
-           spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, raw_data)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-         ON CONFLICT (client_id, platform, report_month, campaign_id)
+          (client_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
+           spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, raw_data)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+         ON CONFLICT (client_id, platform, external_campaign_name, report_month)
          DO UPDATE SET
-           spend=EXCLUDED.spend,
-           impressions=EXCLUDED.impressions,
-           clicks=EXCLUDED.clicks,
-           conversions=EXCLUDED.conversions,
-           reach=EXCLUDED.reach,
-           updated_at=NOW()`,
+           upload_id = EXCLUDED.upload_id,
+           spend = EXCLUDED.spend,
+           impressions = EXCLUDED.impressions,
+           clicks = EXCLUDED.clicks,
+           ctr = EXCLUDED.ctr,
+           cpc = EXCLUDED.cpc,
+           conversions = EXCLUDED.conversions,
+           cpa = EXCLUDED.cpa,
+           roas = EXCLUDED.roas,
+           revenue = EXCLUDED.revenue,
+           reach = EXCLUDED.reach,
+           followers = EXCLUDED.followers,
+           raw_data = EXCLUDED.raw_data,
+           updated_at = NOW()`,
         [
           clientId,
           uploadId,
           platform || 'meta',
+          'aggregate',
           reportMonth,
           dateStart || null,
           dateEnd || null,
@@ -517,140 +521,230 @@ async function processFile(uploadId, fileType, filePath, clientId, platform, dat
           metrics.roas || 0,
           metrics.revenue || 0,
           metrics.reach || 0,
+          metrics.followers || 0,
           JSON.stringify(metrics),
         ]
       );
     }
 
-    // Store individual campaigns
     for (const camp of campaigns) {
       if (
-        !camp.spend && !camp.impressions && !camp.clicks && !camp.conversions && !camp.reach
-      ) continue;
+        !camp.spend &&
+        !camp.impressions &&
+        !camp.clicks &&
+        !camp.conversions &&
+        !camp.reach &&
+        !camp.followers
+      ) {
+        continue;
+      }
 
-      // Upsert campaign
       let campaignId = null;
-      if (camp.name) {
-        const campResult = await db.query(
-          `INSERT INTO campaigns (client_id, name, platform) VALUES ($1,$2,$3)
-           ON CONFLICT DO NOTHING RETURNING id`,
-          [clientId, camp.name, camp.platform || platform || 'other']
+      const campaignName = camp.name || 'Unknown Campaign';
+
+      const campResult = await db.query(
+        `INSERT INTO campaigns (client_id, name, platform)
+         VALUES ($1,$2,$3)
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [clientId, campaignName, camp.platform || platform || 'other']
+      );
+
+      if (campResult.rows.length) {
+        campaignId = campResult.rows[0].id;
+      } else {
+        const existing = await db.query(
+          'SELECT id FROM campaigns WHERE client_id = $1 AND name = $2',
+          [clientId, campaignName]
         );
-        if (campResult.rows.length) {
-          campaignId = campResult.rows[0].id;
-        } else {
-          const existing = await db.query(
-            'SELECT id FROM campaigns WHERE client_id=$1 AND name=$2', [clientId, camp.name]
-          );
-          campaignId = existing.rows[0]?.id;
-        }
+        campaignId = existing.rows[0]?.id || null;
       }
 
       await db.query(
-        `INSERT INTO performance_data 
-          (client_id, campaign_id, upload_id, platform, report_month, date_range_start, date_range_end,
-           spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, raw_data)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-         ON CONFLICT (client_id, platform, report_month, campaign_id) 
-         DO UPDATE SET spend=EXCLUDED.spend, impressions=EXCLUDED.impressions, updated_at=NOW()`,
-        [clientId, campaignId, uploadId, camp.platform || platform || 'other', reportMonth,
-         dateStart || null, dateEnd || null,
-         camp.spend, camp.impressions, camp.clicks, camp.ctr, camp.cpc,
-         camp.conversions, camp.cpa, camp.roas, camp.revenue, camp.reach,
-         JSON.stringify(camp.rawData)]
-      ).catch(() => {}); // Skip duplicates
+        `INSERT INTO performance_data
+          (client_id, campaign_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
+           spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, raw_data)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         ON CONFLICT (client_id, platform, external_campaign_name, report_month)
+         DO UPDATE SET
+           campaign_id = EXCLUDED.campaign_id,
+           upload_id = EXCLUDED.upload_id,
+           spend = EXCLUDED.spend,
+           impressions = EXCLUDED.impressions,
+           clicks = EXCLUDED.clicks,
+           ctr = EXCLUDED.ctr,
+           cpc = EXCLUDED.cpc,
+           conversions = EXCLUDED.conversions,
+           cpa = EXCLUDED.cpa,
+           roas = EXCLUDED.roas,
+           revenue = EXCLUDED.revenue,
+           reach = EXCLUDED.reach,
+           followers = EXCLUDED.followers,
+           raw_data = EXCLUDED.raw_data,
+           updated_at = NOW()`,
+        [
+          clientId,
+          campaignId,
+          uploadId,
+          camp.platform || platform || 'other',
+          campaignName,
+          reportMonth,
+          dateStart || null,
+          dateEnd || null,
+          camp.spend || 0,
+          camp.impressions || 0,
+          camp.clicks || 0,
+          camp.ctr || 0,
+          camp.cpc || 0,
+          camp.conversions || 0,
+          camp.cpa || 0,
+          camp.roas || 0,
+          camp.revenue || 0,
+          camp.reach || 0,
+          camp.followers || 0,
+          JSON.stringify(camp.rawData || {}),
+        ]
+      );
     }
 
     await db.query(
-      "UPDATE report_uploads SET extraction_status='completed' WHERE id=$1", [uploadId]
+      `UPDATE report_uploads
+       SET extraction_status = 'completed'
+       WHERE id = $1`,
+      [uploadId]
     );
   } catch (error) {
+    console.error('File processing error:', error);
+
     await db.query(
-      "UPDATE report_uploads SET extraction_status='failed', extraction_error=$1 WHERE id=$2",
+      `UPDATE report_uploads
+       SET extraction_status = 'failed',
+           extraction_error = $1
+       WHERE id = $2`,
       [error.message, uploadId]
     );
   }
 }
 
-// Get uploads for a client
 router.get('/client/:clientId', async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT ru.*, u.full_name as uploaded_by_name 
+      `SELECT ru.*, u.full_name AS uploaded_by_name
        FROM report_uploads ru
        LEFT JOIN users u ON ru.uploaded_by = u.id
-       WHERE ru.client_id=$1
-       ORDER BY ru.created_at DESC LIMIT 50`,
+       WHERE ru.client_id = $1
+       ORDER BY ru.created_at DESC
+       LIMIT 50`,
       [req.params.clientId]
     );
+
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch uploads' });
   }
 });
 
-// Get upload status
 router.get('/:id/status', async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT id, extraction_status, extraction_error FROM report_uploads WHERE id=$1',
+      'SELECT id, extraction_status, extraction_error FROM report_uploads WHERE id = $1',
       [req.params.id]
     );
-    if (!result.rows.length) return res.status(404).json({ error: 'Upload not found' });
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Upload not found' });
+    }
+
     res.json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: 'Failed to get status' });
   }
 });
 
-// Manual data entry
 router.post('/manual', async (req, res) => {
   try {
     const { clientId, platform, reportMonth, metrics, campaignName } = req.body;
+
     if (!clientId || !platform || !reportMonth) {
-      return res.status(400).json({ error: 'clientId, platform, and reportMonth required' });
+      return res.status(400).json({
+        error: 'clientId, platform, and reportMonth required',
+      });
     }
 
     const clientCheck = await db.query(
-      'SELECT id FROM clients WHERE id=$1 AND agency_id=$2', [clientId, req.user.agency_id]
+      'SELECT id FROM clients WHERE id = $1 AND agency_id = $2',
+      [clientId, req.user.agency_id]
     );
-    if (!clientCheck.rows.length) return res.status(403).json({ error: 'Client not found' });
+
+    if (!clientCheck.rows.length) {
+      return res.status(403).json({ error: 'Client not found' });
+    }
 
     const month = new Date(reportMonth);
     month.setDate(1);
 
     let campaignId = null;
+    const externalCampaignName = campaignName || 'manual_entry';
+
     if (campaignName) {
       const campResult = await db.query(
-        `INSERT INTO campaigns (client_id, name, platform) VALUES ($1,$2,$3)
-         ON CONFLICT DO NOTHING RETURNING id`,
+        `INSERT INTO campaigns (client_id, name, platform)
+         VALUES ($1,$2,$3)
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
         [clientId, campaignName, platform]
       );
+
       if (campResult.rows.length) {
         campaignId = campResult.rows[0].id;
       } else {
         const existing = await db.query(
-          'SELECT id FROM campaigns WHERE client_id=$1 AND name=$2', [clientId, campaignName]
+          'SELECT id FROM campaigns WHERE client_id = $1 AND name = $2',
+          [clientId, campaignName]
         );
-        campaignId = existing.rows[0]?.id;
+        campaignId = existing.rows[0]?.id || null;
       }
     }
 
     const result = await db.query(
-      `INSERT INTO performance_data 
-        (client_id, campaign_id, platform, report_month, spend, impressions, clicks, 
-         ctr, cpc, conversions, cpa, roas, revenue, reach)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-       ON CONFLICT (client_id, platform, report_month, campaign_id)
-       DO UPDATE SET spend=EXCLUDED.spend, impressions=EXCLUDED.impressions, 
-         clicks=EXCLUDED.clicks, ctr=EXCLUDED.ctr, cpc=EXCLUDED.cpc,
-         conversions=EXCLUDED.conversions, cpa=EXCLUDED.cpa, roas=EXCLUDED.roas,
-         revenue=EXCLUDED.revenue, updated_at=NOW()
+      `INSERT INTO performance_data
+        (client_id, campaign_id, platform, external_campaign_name, report_month,
+         spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       ON CONFLICT (client_id, platform, external_campaign_name, report_month)
+       DO UPDATE SET
+         campaign_id = EXCLUDED.campaign_id,
+         spend = EXCLUDED.spend,
+         impressions = EXCLUDED.impressions,
+         clicks = EXCLUDED.clicks,
+         ctr = EXCLUDED.ctr,
+         cpc = EXCLUDED.cpc,
+         conversions = EXCLUDED.conversions,
+         cpa = EXCLUDED.cpa,
+         roas = EXCLUDED.roas,
+         revenue = EXCLUDED.revenue,
+         reach = EXCLUDED.reach,
+         followers = EXCLUDED.followers,
+         updated_at = NOW()
        RETURNING *`,
-      [clientId, campaignId, platform, month,
-       metrics.spend || 0, metrics.impressions || 0, metrics.clicks || 0,
-       metrics.ctr || 0, metrics.cpc || 0, metrics.conversions || 0,
-       metrics.cpa || 0, metrics.roas || 0, metrics.revenue || 0, metrics.reach || 0]
+      [
+        clientId,
+        campaignId,
+        platform,
+        externalCampaignName,
+        month,
+        metrics.spend || 0,
+        metrics.impressions || 0,
+        metrics.clicks || 0,
+        metrics.ctr || 0,
+        metrics.cpc || 0,
+        metrics.conversions || 0,
+        metrics.cpa || 0,
+        metrics.roas || 0,
+        metrics.revenue || 0,
+        metrics.reach || 0,
+        metrics.followers || 0,
+      ]
     );
 
     res.status(201).json(result.rows[0]);
