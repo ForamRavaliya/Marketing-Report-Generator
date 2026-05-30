@@ -111,6 +111,7 @@ export default function SuperAdminAgencies() {
           <div className="table-wrap">
             <table>
               <thead>
+
                 <tr>
                   <th>Agency</th>
                   <th>Owner</th>
@@ -119,7 +120,8 @@ export default function SuperAdminAgencies() {
                   <th>Clients</th>
                   <th>Reports</th>
                   <th>Status</th>
-                </tr>
+                   <th>Actions</th>
+                 </tr>
               </thead>
 
               <tbody>
@@ -197,6 +199,38 @@ export default function SuperAdminAgencies() {
                         {agency.subscription_status || 'active'}
                       </span>
                     </td>
+                     <td>
+                                        <div style={{ display: 'flex', gap: 8 }}>
+                                          <button
+                                            className="btn btn-sm"
+                                            onClick={() => alert(`View Agency ${agency.name}`)}
+                                          >
+                                            View
+                                          </button>
+
+                                          <button
+                                            className="btn btn-sm"
+                                            style={{
+                                              background: '#FEF3C7',
+                                              color: '#92400E'
+                                            }}
+                                            onClick={() => alert(`Suspend ${agency.name}`)}
+                                          >
+                                            Suspend
+                                          </button>
+
+                                          <button
+                                            className="btn btn-sm"
+                                            style={{
+                                              background: '#FEE2E2',
+                                              color: '#B91C1C'
+                                            }}
+                                            onClick={() => alert(`Delete ${agency.name}`)}
+                                          >
+                                            Delete
+                                          </button>
+                                        </div>
+                                      </td>
                   </tr>
                 ))}
               </tbody>
