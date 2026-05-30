@@ -469,4 +469,12 @@ const parseMarketingData = (records) => {
   return { metrics, campaigns, rawText: '' };
 };
 
-module.exports = router;
+module.exports = {
+  extractFromCSV,
+  extractFromExcel,
+  extractFromPDF,
+  extractFromImage,
+  COLUMN_MAP,
+  normalizeHeader,
+  parseNum,
+};
