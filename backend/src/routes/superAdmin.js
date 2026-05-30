@@ -43,6 +43,7 @@ router.get('/overview', async (req, res) => {
           a.name,
           a.logo_url,
           a.created_at,
+          a.is_active,
           (
             SELECT u.email
             FROM users u
