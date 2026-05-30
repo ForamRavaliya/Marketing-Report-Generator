@@ -320,24 +320,40 @@ const similarity = (a, b) => {
   return match / Math.max(bWords.size, 1);
 };
 
-const findColumn = (headers, fieldVariants) => {
-  let bestColumn = null;
-  let bestScore = 0;
+const findColumn = (headers, fieldVariants, fieldName) => {
+  const lowerHeaders = headers.map(h => normalizeHeader(h));
 
-  for (const header of headers) {
-    for (const variant of fieldVariants) {
-      const score = similarity(header, variant);
+  for (const variant of fieldVariants) {
+    const v = normalizeHeader(variant);
 
-      if (score > bestScore) {
-        bestScore = score;
-        bestColumn = header;
-      }
+    let idx = lowerHeaders.indexOf(v);
+    if (idx !== -1) return headers[idx];
+
+    idx = lowerHeaders.findIndex(h => h.includes(v));
+    if (idx !== -1) return headers[idx];
+  }
+
+  const keywordRules = {
+    spend: /(spend|spent|cost|expense|budget|ad cost|marketing cost)/,
+    revenue: /(revenue|sales|income|earning|value)/,
+    conversions: /(order|orders|lead|leads|conversion|purchase|booking|result)/,
+    clicks: /(click|clicks|tap|taps)/,
+    impressions: /(impression|impressions|views|ad views)/,
+    reach: /(reach|followers|follows)/,
+  };
+
+  const rule = keywordRules[fieldName];
+
+  if (!rule) return null;
+
+  for (let i = 0; i < lowerHeaders.length; i++) {
+    if (rule.test(lowerHeaders[i])) {
+      return headers[i];
     }
   }
 
-  return bestScore >= 0.45 ? bestColumn : null;
+  return null;
 };
-
 const parseNum = (val) => {
   if (val === null || val === undefined || val === '') return 0;
   const str = val.toString().replace(/[$₹€£,%]/g, '').replace(/,/g, '').trim();
@@ -350,7 +366,7 @@ const parseMarketingData = (records) => {
   const headers = Object.keys(records[0]);
   const colMap = {};
   for (const [field, variants] of Object.entries(COLUMN_MAP)) {
-    colMap[field] = findColumn(headers, variants);
+    colMap[field] = findColumn(headers, variants, field);
   }
 
   const guessColumnsByValues = (records, headers, colMap) => {
