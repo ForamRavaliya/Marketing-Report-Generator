@@ -10,17 +10,28 @@ export default function SuperAdminAgencies() {
   const [updating, setUpdating] = useState(false);
   const [selectedAgency, setSelectedAgency] = useState(null);
 
-  const loadAgencies = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get('/super-admin/overview');
-      setAgencies(res.data.agencies || []);
-    } catch (err) {
-      toast.error('Failed to load agencies');
-    } finally {
-      setLoading(false);
-    }
-  };
+ const loadAgencies = async () => {
+   try {
+     setLoading(true);
+     const res = await api.get('/super-admin/overview');
+
+     const normalizedAgencies = (res.data.agencies || []).map((a) => ({
+       ...a,
+       is_active:
+         a.is_active === false ||
+         a.is_active === 'false' ||
+         a.is_active === 'f'
+           ? false
+           : true,
+     }));
+
+     setAgencies(normalizedAgencies);
+   } catch (err) {
+     toast.error('Failed to load agencies');
+   } finally {
+     setLoading(false);
+   }
+ };
 
   useEffect(() => {
     loadAgencies();
