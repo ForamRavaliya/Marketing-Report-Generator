@@ -8,6 +8,7 @@ export default function SuperAdminAgencies() {
   const [agencies, setAgencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [selectedAgency, setSelectedAgency] = useState(null);
 
   const loadAgencies = async () => {
     try {
@@ -203,7 +204,7 @@ export default function SuperAdminAgencies() {
                                         <div style={{ display: 'flex', gap: 8 }}>
                                           <button
                                             className="btn btn-sm"
-                                            onClick={() => alert(`View Agency ${agency.name}`)}
+                                            onClick={() => setSelectedAgency(agency)}
                                           >
                                             View
                                           </button>
@@ -237,7 +238,111 @@ export default function SuperAdminAgencies() {
             </table>
           </div>
         )}
+
       </div>
+      {selectedAgency && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '700px',
+              maxWidth: '95%',
+              borderRadius: 20,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              className="card-pad"
+              style={{
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <h3 style={{ margin: 0 }}>
+                {selectedAgency.name}
+              </h3>
+
+              <button
+                className="btn btn-sm"
+                onClick={() => setSelectedAgency(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div
+              className="card-pad"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 18,
+              }}
+            >
+              <div>
+                <strong>Agency ID</strong>
+                <div>{selectedAgency.id}</div>
+              </div>
+
+              <div>
+                <strong>Owner Email</strong>
+                <div>{selectedAgency.owner_email || 'N/A'}</div>
+              </div>
+
+              <div>
+                <strong>Contact Email</strong>
+                <div>{selectedAgency.contact_email || 'N/A'}</div>
+              </div>
+
+              <div>
+                <strong>Website</strong>
+                <div>{selectedAgency.website || 'N/A'}</div>
+              </div>
+
+              <div>
+                <strong>Plan</strong>
+                <div>{selectedAgency.plan_name || 'Free'}</div>
+              </div>
+
+              <div>
+                <strong>Status</strong>
+                <div>{selectedAgency.subscription_status || 'Active'}</div>
+              </div>
+
+              <div>
+                <strong>Clients</strong>
+                <div>{selectedAgency.clients_count}</div>
+              </div>
+
+              <div>
+                <strong>Reports</strong>
+                <div>{selectedAgency.reports_count}</div>
+              </div>
+
+              <div>
+                <strong>Phone</strong>
+                <div>{selectedAgency.phone || 'N/A'}</div>
+              </div>
+
+              <div>
+                <strong>Address</strong>
+                <div>{selectedAgency.address || 'N/A'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
