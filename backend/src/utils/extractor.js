@@ -423,8 +423,8 @@ const parseMarketingData = (records) => {
     totalClicks = 0,
     totalConversions = 0,
     totalRevenue = 0,
-    totalReach = 0;
- totalFollowers = 0;
+    totalReach = 0,
+    totalFollowers = 0;
 
   for (const record of records) {
 
