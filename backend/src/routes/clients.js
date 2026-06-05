@@ -13,7 +13,9 @@ router.get('/', async (req, res) => {
         COUNT(DISTINCT p.id) as report_count,
         MAX(p.report_month) as last_report_month
        FROM clients c
-       LEFT JOIN performance_data p ON p.client_id = c.id
+       LEFT JOIN performance_data p
+         ON p.client_id = c.id
+        AND p.external_campaign_name = 'aggregate'
        WHERE c.agency_id = $1 AND c.is_active = TRUE
        GROUP BY c.id
        ORDER BY c.name`,
