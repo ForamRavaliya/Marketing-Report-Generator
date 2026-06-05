@@ -211,7 +211,13 @@ router.post('/preview', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const { clientId, platform } = req.body;
+    const {
+      clientId,
+      platform,
+      dateRangeStart,
+      dateRangeEnd,
+    } = req.body;
+
     if (!clientId) return res.status(400).json({ error: 'Client ID required' });
 
     const fileType = getFileType(req.file.originalname);
@@ -233,20 +239,31 @@ router.post('/preview', upload.single('file'), async (req, res) => {
 
     const uploadResult = await db.query(
       `INSERT INTO report_uploads
-      (client_id, uploaded_by, file_name, file_type, file_path, file_size, platform, date_range_start, date_range_end, extraction_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'mapping_required')
+       (
+         client_id,
+         uploaded_by,
+         file_name,
+         file_type,
+         file_path,
+         file_size,
+         platform,
+         date_range_start,
+         date_range_end,
+         extraction_status
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'mapping_required')
        RETURNING *`,
-     [
-       clientId,
-       req.user.id,
-       req.file.originalname,
-       fileType,
-       req.file.path,
-       req.file.size,
-       platform || 'meta',
-       req.body.dateRangeStart || null,
-       req.body.dateRangeEnd || null,
-     ]
+      [
+        clientId,
+        req.user.id,
+        req.file.originalname,
+        fileType,
+        req.file.path,
+        req.file.size,
+        platform || 'meta',
+        dateRangeStart || null,
+        dateRangeEnd || null,
+      ]
     );
 
     const headers = await extractHeaders(req.file.path, fileType);
