@@ -529,17 +529,21 @@ const pageW = doc.page.width;
 const pageH = doc.page.height;
 
 const safeSummary = {
-  spend: summary?.spend || 0,
-  reach: summary?.reach || 0,
-  impressions: summary?.impressions || 0,
-  clicks: summary?.clicks || 0,
-  conversions: summary?.conversions || 0,
-  ctr: summary?.ctr || 0,
-  cpc: summary?.cpc || 0,
-  cpa: summary?.cpa || 0,
-  roas: summary?.roas || 0,
-};
+  spend: Number(summary?.spend ?? 0),
+  reach: Number(summary?.reach ?? 0),
+  impressions: Number(summary?.impressions ?? 0),
+  clicks: Number(summary?.clicks ?? 0),
+  conversions: Number(summary?.conversions ?? 0),
+  ctr: Number(summary?.ctr ?? 0),
+  cpc: Number(summary?.cpc ?? 0),
+  cpa: Number(summary?.cpa ?? 0),
+  roas: Number(summary?.roas ?? 0),
+  revenue: Number(summary?.revenue ?? 0),
 
+  hasClicks: Number(summary?.clicks ?? 0) > 0,
+  hasRevenue: Number(summary?.revenue ?? 0) > 0,
+  hasImpressions: Number(summary?.impressions ?? 0) > 0,
+};
 const reportTitle = customTitle || title || 'Marketing Performance Report';
 
 const dateLabel =
@@ -594,13 +598,21 @@ const drawKpiCard = (x, y, w, h, item, color, bg) => {
       ellipsis: true,
     });
 
-  doc.fillColor(item.growth?.startsWith('-') ? THEME.rose : THEME.emerald)
-    .fontSize(7)
-    .font('Helvetica-Bold')
-    .text(`${item.growth || '+0%'} vs last month`, x + 16, y + 54, {
-      width: w - 25,
-    });
-};
+ if (item.growth !== null && item.growth !== undefined) {
+   doc.fillColor(item.growth?.startsWith('-') ? THEME.rose : THEME.emerald)
+     .fontSize(7)
+     .font('Helvetica-Bold')
+     .text(`${item.growth} vs last month`, x + 16, y + 54, {
+       width: w - 25,
+     });
+ } else {
+   doc.fillColor(THEME.muted)
+     .fontSize(7)
+     .font('Helvetica-Bold')
+     .text('No previous month data', x + 16, y + 54, {
+       width: w - 25,
+     });
+ }
 
 const drawFooter = (pageNo) => {
   doc.save();
@@ -732,70 +744,80 @@ doc.fillColor(THEME.muted)
 drawSectionTitle('Performance Dashboard', 50, 365, THEME.violet);
 
 const metrics = [
-  {
-    label: 'Total Spend',
-    value: formatCurrency(safeSummary.spend, currency),
-    growth: '+12%',
-    color: THEME.royal,
-    bg: THEME.softBlue,
-  },
-  {
-    label: 'Reach',
-    value: formatNum(safeSummary.reach),
-    growth: '+8%',
-    color: THEME.violet,
-    bg: THEME.softPurple,
-  },
-  {
-    label: 'Impressions',
-    value: formatNum(safeSummary.impressions),
-    growth: '+21%',
-    color: THEME.cyan,
-    bg: '#ECFEFF',
-  },
-  {
-    label: 'Clicks',
-    value: formatNum(safeSummary.clicks),
-    growth: '+5%',
-    color: THEME.amber,
-    bg: THEME.softAmber,
-  },
-  {
-    label: 'Leads / Results',
-    value: formatNum(safeSummary.conversions),
-    growth: '+14%',
-    color: THEME.emerald,
-    bg: THEME.softGreen,
-  },
-  {
-    label: 'CTR',
-    value: formatPct(safeSummary.ctr),
-    growth: '+3%',
-    color: THEME.violet,
-    bg: THEME.softPurple,
-  },
-  {
-    label: 'CPC',
-    value: formatCurrency(safeSummary.cpc, currency),
-    growth: '-2%',
-    color: THEME.rose,
-    bg: THEME.softRose,
-  },
-  {
-    label: 'Cost / Lead',
-    value: formatCurrency(safeSummary.cpa, currency),
-    growth: '+9%',
-    color: THEME.amber,
-    bg: THEME.softAmber,
-  },
-  {
-    label: 'ROAS',
-    value: `${formatNum(safeSummary.roas, 2)}x`,
-    growth: '+0%',
-    color: THEME.royal,
-    bg: THEME.softBlue,
-  },
-];
+   {
+     label: 'Total Spend',
+     value: formatCurrency(safeSummary.spend, currency),
+     growth: null,
+     color: THEME.royal,
+     bg: THEME.softBlue,
+   },
+   {
+     label: 'Reach',
+     value: safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'N/A',
+     growth: null,
+     color: THEME.violet,
+     bg: THEME.softPurple,
+   },
+   {
+     label: 'Impressions',
+     value: safeSummary.hasImpressions
+       ? formatNum(safeSummary.impressions)
+       : 'N/A',
+     growth: null,
+     color: THEME.cyan,
+     bg: '#ECFEFF',
+   },
+   {
+     label: 'Clicks',
+     value: safeSummary.hasClicks
+       ? formatNum(safeSummary.clicks)
+       : 'N/A',
+     growth: null,
+     color: THEME.amber,
+     bg: THEME.softAmber,
+   },
+   {
+     label: 'Leads / Results',
+     value: formatNum(safeSummary.conversions),
+     growth: null,
+     color: THEME.emerald,
+     bg: THEME.softGreen,
+   },
+   {
+     label: 'CTR',
+     value: safeSummary.hasClicks
+       ? formatPct(safeSummary.ctr)
+       : 'N/A',
+     growth: null,
+     color: THEME.violet,
+     bg: THEME.softPurple,
+   },
+   {
+     label: 'CPC',
+     value: safeSummary.hasClicks
+       ? formatCurrency(safeSummary.cpc, currency)
+       : 'N/A',
+     growth: null,
+     color: THEME.rose,
+     bg: THEME.softRose,
+   },
+   {
+     label: 'Cost / Lead',
+     value: formatCurrency(safeSummary.cpa, currency),
+     growth: null,
+     color: THEME.amber,
+     bg: THEME.softAmber,
+   },
+   {
+     label: 'ROAS',
+     value: safeSummary.hasRevenue
+       ? `${formatNum(safeSummary.roas, 2)}x`
+       : 'N/A',
+     growth: null,
+     color: THEME.royal,
+     bg: THEME.softBlue,
+   },
+ ];
 
 const cardW = 155;
 const cardH = 66;
@@ -1165,9 +1187,10 @@ doc.fillColor(THEME.muted)
   .font('Helvetica')
   .text(
     aiInsight?.summary ||
-      `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results with ${formatPct(
-        safeSummary.ctr
-      )} CTR and ${formatNum(safeSummary.roas, 2)}x ROAS.`,
+      `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results. ` +
+      `Total spend was ${formatCurrency(safeSummary.spend, currency)} with CPA ${formatCurrency(safeSummary.cpa, currency)}. ` +
+      `${safeSummary.clicks > 0 ? `Clicks were ${formatNum(safeSummary.clicks)} and CTR was ${formatPct(safeSummary.ctr)}. ` : 'Click/CTR data was not available in the uploaded report. '}` +
+      `${safeSummary.revenue > 0 ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue/ROAS data was not available.'}`,
     55,
     315,
     {
@@ -1189,7 +1212,9 @@ const observations = [
   `Total reach was ${formatNum(safeSummary.reach)} with ${formatNum(
     safeSummary.impressions
   )} impressions.`,
-  `CTR is ${formatPct(safeSummary.ctr)}, so creative optimization can improve engagement.`,
+  safeSummary.clicks > 0
+    ? `CTR is ${formatPct(safeSummary.ctr)}, based on ${formatNum(safeSummary.clicks)} clicks.`
+    : 'Click/CTR data was not available in the uploaded report, so engagement rate cannot be evaluated.',
 ];
 
 observations.forEach((text, i) => {
