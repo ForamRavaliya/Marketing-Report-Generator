@@ -500,8 +500,23 @@ async function processFileWithMapping(
     const getValue = (record, field) => {
       const col = mapping[field];
       if (!col || col === 'ignore') return 0;
-      return parseNum(record[col]);
+
+      if (record[col] !== undefined && record[col] !== null && record[col] !== '') {
+        return parseNum(record[col]);
+      }
+
+      const wanted = normalizeHeader(col);
+
+      const actualKey = Object.keys(record).find(
+        (key) => normalizeHeader(key) === wanted
+      );
+
+      if (!actualKey) return 0;
+
+      return parseNum(record[actualKey]);
     };
+console.log('FIRST RECORD:', records[0]);
+console.log('MAPPING:', mapping);
 
     for (const record of records) {
       const spend = getValue(record, 'spend');
@@ -513,6 +528,12 @@ async function processFileWithMapping(
       const revenue = getValue(record, 'revenue');
       const reach = getValue(record, 'reach');
       const followers = getValue(record, 'followers');
+      console.log({
+        spend,
+        impressions,
+        reach,
+        conversions,
+      });
 
       // Derived clicks
       // Clicks = Impressions × CTR / 100
