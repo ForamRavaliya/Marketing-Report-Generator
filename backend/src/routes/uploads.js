@@ -52,6 +52,70 @@ const getFileType = (filename) => {
   return 'other';
 };
 
+const norm = (v) => normalizeHeader(v || '');
+
+const isAny = (header, words) => {
+  const h = norm(header);
+  return words.some((w) => h === norm(w) || h.includes(norm(w)));
+};
+
+function getExcelHeaderInfo(filePath) {
+  const workbook = XLSX.readFile(filePath);
+  const sheetName = workbook.SheetNames[0];
+
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+    header: 1,
+    defval: '',
+  });
+
+  const headerIndex = rows.findIndex((row) => {
+    const text = row.map((cell) => normalizeHeader(cell)).join(' ');
+
+    return (
+      text.includes('campaign') ||
+      text.includes('date') ||
+      text.includes('order') ||
+      text.includes('revenue') ||
+      text.includes('sales') ||
+      text.includes('spend') ||
+      text.includes('amount spent') ||
+      text.includes('cost') ||
+      text.includes('click') ||
+      text.includes('impression') ||
+      text.includes('lead') ||
+      text.includes('result') ||
+      text.includes('reach') ||
+      text.includes('roas') ||
+      text.includes('follow')
+    );
+  });
+
+  if (headerIndex === -1) {
+    return {
+      rows,
+      headerIndex: -1,
+      headers: [],
+      headerCells: [],
+    };
+  }
+
+  const headerRow = rows[headerIndex];
+
+  const headerCells = headerRow
+    .map((cell, index) => ({
+      name: String(cell || '').trim(),
+      index,
+    }))
+    .filter((h) => h.name);
+
+  return {
+    rows,
+    headerIndex,
+    headers: headerCells.map((h) => h.name),
+    headerCells,
+  };
+}
+
 async function extractHeaders(filePath, fileType) {
   if (fileType === 'csv') {
     const content = fs.readFileSync(filePath, 'utf8');
@@ -60,55 +124,18 @@ async function extractHeaders(filePath, fileType) {
   }
 
   if (fileType === 'excel') {
-    const workbook = XLSX.readFile(filePath);
-    const sheetName = workbook.SheetNames[0];
-
-    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
-      header: 1,
-      defval: '',
-    });
-
-    const headerIndex = rows.findIndex((row) => {
-      const text = row.map((cell) => normalizeHeader(cell)).join(' ');
-      return (
-        text.includes('campaign') ||
-        text.includes('date') ||
-        text.includes('order') ||
-        text.includes('revenue') ||
-        text.includes('sales') ||
-        text.includes('spend') ||
-        text.includes('cost') ||
-        text.includes('click') ||
-        text.includes('impression') ||
-        text.includes('lead') ||
-        text.includes('roas') ||
-        text.includes('follow')
-      );
-    });
-
-    if (headerIndex === -1) return [];
-
-    return rows[headerIndex]
-      .map((h) => String(h || '').trim())
-      .filter(Boolean);
+    const { headers } = getExcelHeaderInfo(filePath);
+    return headers;
   }
 
   return [];
 }
-
-const norm = (v) => normalizeHeader(v || '');
-
-const isAny = (header, words) => {
-  const h = norm(header);
-  return words.some((w) => h === norm(w) || h.includes(norm(w)));
-};
 
 function suggestColumnMapping(headers) {
   const mapping = {};
 
   const find = (words) => headers.find((h) => isAny(h, words));
 
-  // Strict safe mapping
   mapping.spend = find([
     'amount spent',
     'amount spent inr',
@@ -205,7 +232,6 @@ function suggestColumnMapping(headers) {
 
   return mapping;
 }
-
 
 router.post('/preview', upload.single('file'), async (req, res) => {
   try {
@@ -439,22 +465,9 @@ async function buildRecordsFromMappedFile(filePath, fileType) {
   }
 
   if (fileType === 'excel') {
-    const workbook = XLSX.readFile(filePath);
-    const sheetName = workbook.SheetNames[0];
+    const { rows, headerIndex, headerCells } = getExcelHeaderInfo(filePath);
 
-    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
-      header: 1,
-      defval: '',
-    });
-
-    const headers = await extractHeaders(filePath, fileType);
-
-    const headerIndex = rows.findIndex((row) => {
-      const rowHeaders = row.map((cell) => String(cell || '').trim());
-      return headers.every((h) => rowHeaders.includes(h));
-    });
-
-    if (headerIndex === -1) {
+    if (headerIndex === -1 || !headerCells.length) {
       throw new Error('Header row not found during mapped import');
     }
 
@@ -463,9 +476,11 @@ async function buildRecordsFromMappedFile(filePath, fileType) {
       .filter((row) => row.some((cell) => String(cell).trim() !== ''))
       .map((row) => {
         const obj = {};
-        headers.forEach((h, i) => {
-          obj[h] = row[i];
+
+        headerCells.forEach(({ name, index }) => {
+          obj[name] = row[index];
         });
+
         return obj;
       });
   }
@@ -515,8 +530,6 @@ async function processFileWithMapping(
 
       return parseNum(record[actualKey]);
     };
-console.log('FIRST RECORD:', records[0]);
-console.log('MAPPING:', mapping);
 
     for (const record of records) {
       const spend = getValue(record, 'spend');
@@ -528,20 +541,11 @@ console.log('MAPPING:', mapping);
       const revenue = getValue(record, 'revenue');
       const reach = getValue(record, 'reach');
       const followers = getValue(record, 'followers');
-      console.log({
-        spend,
-        impressions,
-        reach,
-        conversions,
-      });
 
-      // Derived clicks
-      // Clicks = Impressions × CTR / 100
       if (!clicks && impressions > 0 && ctrValue > 0) {
         clicks = (impressions * ctrValue) / 100;
       }
 
-      // Clicks = Spend / CPC
       if (!clicks && spend > 0 && cpcValue > 0) {
         clicks = spend / cpcValue;
       }
