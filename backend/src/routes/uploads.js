@@ -96,27 +96,116 @@ async function extractHeaders(filePath, fileType) {
   return [];
 }
 
+const norm = (v) => normalizeHeader(v || '');
+
+const isAny = (header, words) => {
+  const h = norm(header);
+  return words.some((w) => h === norm(w) || h.includes(norm(w)));
+};
+
 function suggestColumnMapping(headers) {
   const mapping = {};
 
-  headers.forEach((header) => {
-    const normalized = normalizeHeader(header);
+  const find = (words) => headers.find((h) => isAny(h, words));
 
-    for (const [field, variants] of Object.entries(COLUMN_MAP)) {
-      const matched = variants.some((variant) => {
-        const v = normalizeHeader(variant);
-        return normalized === v || normalized.includes(v);
-      });
+  // Strict safe mapping
+  mapping.spend = find([
+    'amount spent',
+    'amount spent inr',
+    'amount spent (inr)',
+    'spend',
+    'meta spends',
+    'meta spend',
+    'total spend',
+    'ad spend',
+  ]);
 
-      if (matched) {
-        mapping[field] = header;
-        break;
-      }
-    }
+  mapping.revenue = find([
+    'website revenue',
+    'revenue',
+    'sales revenue',
+    'purchase value',
+    'conversion value',
+    'meta reported revenue',
+    'total revenue',
+  ]);
+
+  mapping.conversions = find([
+    'results',
+    'leads',
+    'orders',
+    'conversions',
+    'purchases',
+    'purchase',
+  ]);
+
+  mapping.clicks = find([
+    'clicks',
+    'link clicks',
+    'website clicks',
+    'outbound clicks',
+    'all clicks',
+    'unique clicks',
+    'inline link clicks',
+  ]);
+
+  mapping.impressions = find([
+    'impressions',
+    'total impressions',
+  ]);
+
+  mapping.reach = find([
+    'reach',
+    'unique reach',
+  ]);
+
+  mapping.followers = find([
+    'followers',
+    'ig follows',
+    'instagram followers',
+    'new followers',
+    'follows',
+  ]);
+
+  mapping.ctr = find([
+    'ctr',
+    'click through rate',
+    'click-through rate',
+    'ctr (%)',
+  ]);
+
+  mapping.cpc = find([
+    'cpc',
+    'cost per click',
+    'average cpc',
+    'avg cpc',
+  ]);
+
+  mapping.cpa = find([
+    'cost per result',
+    'cost per lead',
+    'cost per conversion',
+    'cpa',
+  ]);
+
+  mapping.roas = find([
+    'roas',
+    'return on ad spend',
+    'purchase roas',
+  ]);
+
+  mapping.campaignName = find([
+    'campaign name',
+    'campaign',
+  ]);
+
+  Object.keys(mapping).forEach((key) => {
+    if (!mapping[key]) delete mapping[key];
   });
 
   return mapping;
 }
+
 
 router.post('/preview', upload.single('file'), async (req, res) => {
   try {
@@ -173,6 +262,28 @@ router.post('/preview', upload.single('file'), async (req, res) => {
   }
 });
 
+function validateMapping(mapping) {
+  const errors = [];
+
+  const spendCol = norm(mapping.spend);
+  const cpaCol = norm(mapping.cpa);
+  const cpcCol = norm(mapping.cpc);
+
+  if (spendCol.includes('cost per result') || spendCol.includes('cost per lead')) {
+    errors.push('Spend cannot be mapped to Cost per result. Use Amount spent instead.');
+  }
+
+  if (cpcCol.includes('cost per result') || cpcCol.includes('cost per lead')) {
+    errors.push('CPC cannot be mapped to Cost per result. Cost per result should be mapped to CPA.');
+  }
+
+  if (cpaCol.includes('amount spent')) {
+    errors.push('CPA cannot be mapped to Amount spent.');
+  }
+
+  return errors;
+}
+
 router.post('/:uploadId/confirm-mapping', async (req, res) => {
   try {
     const { uploadId } = req.params;
@@ -180,6 +291,15 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
 
     if (!mapping || typeof mapping !== 'object') {
       return res.status(400).json({ error: 'Mapping is required' });
+    }
+
+    const mappingErrors = validateMapping(mapping);
+
+    if (mappingErrors.length > 0) {
+      return res.status(400).json({
+        error: mappingErrors.join(' '),
+        mappingErrors,
+      });
     }
 
     const uploadResult = await db.query(
