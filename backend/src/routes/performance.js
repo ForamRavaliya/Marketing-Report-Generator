@@ -11,7 +11,10 @@ router.get('/summary/:clientId', async (req, res) => {
     const { clientId } = req.params;
     const { startDate, endDate, platform } = req.query;
 
-    let whereClause = 'WHERE pd.client_id = $1';
+   let whereClause = `
+     WHERE pd.client_id = $1
+     AND pd.external_campaign_name = 'aggregate'
+   `;
     const params = [clientId];
     let paramIdx = 2;
 
@@ -82,7 +85,10 @@ router.get('/trends/:clientId', async (req, res) => {
     const { clientId } = req.params;
     const { months = 6, platform } = req.query;
 
-    let whereClause = 'WHERE pd.client_id = $1';
+    let whereClause = `
+      WHERE pd.client_id = $1
+      AND pd.external_campaign_name = 'aggregate'
+    `;
     const params = [clientId];
 
     if (platform && platform !== 'all') {
@@ -136,7 +142,10 @@ router.get('/comparison/:clientId', async (req, res) => {
           CASE WHEN SUM(conversions) > 0 THEN SUM(spend) / SUM(conversions) ELSE 0 END as cpa,
           CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas,
           SUM(revenue) as revenue
-         FROM performance_data WHERE client_id = $1 AND report_month = $2`;
+        FROM performance_data
+        WHERE client_id = $1
+        AND report_month = $2
+        AND external_campaign_name = 'aggregate'`;
       const params = [clientId, month];
 
       if (platform && platform !== 'all') {
@@ -224,7 +233,10 @@ router.get('/platforms/:clientId', async (req, res) => {
     const { clientId } = req.params;
     const { startDate, endDate } = req.query;
 
-    let whereClause = 'WHERE client_id = $1';
+    let whereClause = `
+      WHERE client_id = $1
+      AND external_campaign_name = 'aggregate'
+    `;
     const params = [clientId];
     let idx = 2;
 
