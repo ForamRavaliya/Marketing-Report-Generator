@@ -121,11 +121,11 @@ const COLUMN_MAP = {
     'spend',
     'amount spent',
     'amount spent (inr)',
-    'cost',
+    //'cost',
     'budget used',
     'total spend',
     'amount_spent',
-    'cost_usd',
+    //'cost_usd',
     'spend_usd',
     'meta spends',
     'meta spend',
@@ -335,12 +335,13 @@ const findColumn = (headers, fieldVariants, fieldName) => {
   }
 
   const keywordRules = {
-    spend: /(spend|spent|cost|expense|budget|ad cost|marketing cost)/,
-    revenue: /(revenue|sales|income|earning|value)/,
+    spend: /(amount spent|spend|spent|budget|ad spend|marketing spend)/,
+    revenue: /(revenue|sales|income|earning|purchase value|conversion value)/,
     conversions: /(order|orders|lead|leads|conversion|purchase|booking|result)/,
     clicks: /(click|clicks|tap|taps)/,
     impressions: /(impression|impressions|views|ad views)/,
-    reach: /(reach|followers|follows)/,
+    reach: /(reach)/,
+    followers: /(followers|follows|ig follows|instagram follows)/,
   };
 
   const rule = keywordRules[fieldName];
@@ -394,7 +395,7 @@ const parseMarketingData = (records) => {
 
       if (score === 0) continue;
 
-      if (!colMap.spend && /(cost|expense|spent|spend|budget|ad)/i.test(h)) {
+      if (!colMap.spend && /(amount spent|spend|spent|budget|ad spend|marketing spend)/i.test(h)) {
         colMap.spend = header;
       } else if (!colMap.revenue && /(revenue|sales|income|value|amount|earning)/i.test(h)) {
         colMap.revenue = header;
@@ -404,9 +405,11 @@ const parseMarketingData = (records) => {
         colMap.clicks = header;
       } else if (!colMap.impressions && /(impression|view|display)/i.test(h)) {
         colMap.impressions = header;
-      } else if (!colMap.reach && /(reach|follower|follow)/i.test(h)) {
-        colMap.reach = header;
-      }
+     } else if (!colMap.reach && /(reach)/i.test(h)) {
+       colMap.reach = header;
+     } else if (!colMap.followers && /(follower|follow|ig follows|instagram follows)/i.test(h)) {
+       colMap.followers = header;
+     }
     }
 
     return colMap;
@@ -421,6 +424,7 @@ const parseMarketingData = (records) => {
     totalConversions = 0,
     totalRevenue = 0,
     totalReach = 0;
+ totalFollowers = 0;
 
   for (const record of records) {
 
@@ -430,12 +434,14 @@ const parseMarketingData = (records) => {
     const conversions = parseNum(colMap.conversions ? record[colMap.conversions] : 0);
     const revenue = parseNum(colMap.revenue ? record[colMap.revenue] : 0);
     const reach = parseNum(colMap.reach ? record[colMap.reach] : 0);
+    const followers = parseNum(colMap.followers ? record[colMap.followers] : 0);
     totalSpend += spend;
     totalImpressions += impressions;
     totalClicks += clicks;
     totalConversions += conversions;
     totalRevenue += revenue;
     totalReach += reach;
+    totalFollowers += followers;
 
     campaigns.push({
       name: colMap.campaignName ? record[colMap.campaignName] : 'Campaign',
@@ -450,6 +456,7 @@ const parseMarketingData = (records) => {
       roas: colMap.roas ? parseNum(record[colMap.roas]) : (spend > 0 ? revenue / spend : 0),
       revenue,
       reach,
+      followers,
       rawData: record,
     });
   }
