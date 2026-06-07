@@ -725,6 +725,10 @@ const drawSectionTitle = (title, x, y, color = THEME.royal) => {
 
   doc.roundedRect(x, y + 24, 55, 4, 2).fill(color);
 };
+const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
+  doc.roundedRect(x + 2, y + 3, w, h, 12).fill('#CBD5E1');
+  doc.roundedRect(x, y, w, h, 12).fillAndStroke(bg, border);
+};
 
 const drawKpiCard = (x, y, w, h, item, color, bg) => {
   drawCard(x, y, w, h, bg, '#DDE6F3');
