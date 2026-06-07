@@ -784,16 +784,7 @@ const drawKpiCard = (x, y, w, h, item, color, bg) => {
     });
 };
 
-   if (item.description && !item.subtitle) {
-     doc.fillColor(THEME.muted)
-       .fontSize(6.5)
-       .font('Helvetica')
-       .text(item.description, x + 40, y + 57, {
-         width: w - 50,
-         lineBreak: false,
-       });
-   }
- };
+
  const drawAgencyLogo = () => {
    try {
      if (!canUseAgencyBranding || !agency?.logo_url) return;
@@ -1083,10 +1074,11 @@ const metrics = [
 
 const cardW = 155;
 const cardH = 58;
+const gapX = 15;
 const gapY = 8;
-const startY = 380;
 const startX = 50;
-const startY = 415;
+const startY = 380;
+
 
 metrics.forEach((m, i) => {
   const col = i % 3;
