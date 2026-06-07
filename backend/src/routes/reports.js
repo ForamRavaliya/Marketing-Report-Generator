@@ -726,75 +726,63 @@ const drawSectionTitle = (title, x, y, color = THEME.royal) => {
   doc.roundedRect(x, y + 24, 55, 4, 2).fill(color);
 };
 
-const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
-  doc.roundedRect(x + 2, y + 3, w, h, 12).fill('#CBD5E1');
-  doc.roundedRect(x, y, w, h, 12).fillAndStroke(bg, border);
+const drawKpiCard = (x, y, w, h, item, color, bg) => {
+  drawCard(x, y, w, h, bg, '#DDE6F3');
+
+  doc.circle(x + 17, y + 19, 8).fill(color);
+
+  doc.fillColor(THEME.muted)
+    .fontSize(7)
+    .font('Helvetica-Bold')
+    .text(item.label.toUpperCase(), x + 32, y + 13, {
+      width: w - 40,
+      lineBreak: false,
+    });
+
+  doc.fillColor(THEME.text)
+    .fontSize(13)
+    .font('Helvetica-Bold')
+    .text(item.value, x + 32, y + 31, {
+      width: w - 40,
+      height: 18,
+      ellipsis: true,
+    });
+
+  if (item.subtitle) {
+    doc.roundedRect(x + 32, y + 50, 70, 12, 6).fill('#DBEAFE');
+
+    doc.fillColor(color)
+      .fontSize(6.5)
+      .font('Helvetica-Bold')
+      .text(item.subtitle, x + 36, y + 53, {
+        width: 62,
+        align: 'center',
+        lineBreak: false,
+      });
+    return;
+  }
+
+  const smallText =
+    item.growth && item.growth.startsWith('-')
+      ? `▼ ${item.growth}`
+      : item.growth
+        ? `▲ ${item.growth}`
+        : item.note || item.description || '';
+
+  doc.fillColor(
+      item.growth
+        ? item.growth.startsWith('-')
+          ? THEME.rose
+          : THEME.emerald
+        : THEME.muted
+    )
+    .fontSize(6.5)
+    .font('Helvetica-Bold')
+    .text(smallText, x + 32, y + 51, {
+      width: w - 40,
+      lineBreak: false,
+    });
 };
-
- const drawKpiCard = (x, y, w, h, item, color, bg) => {
-   drawCard(x, y, w, h, bg, '#DDE6F3');
-
-   doc.circle(x + 20, y + 23, 11).fill(color);
-
-   doc.fillColor('#FFFFFF')
-     .fontSize(8)
-     .font('Helvetica-Bold')
-     .text('●', x + 16.5, y + 17.5, {
-       width: 8,
-       align: 'center',
-       lineBreak: false,
-     });
-
-   doc.fillColor(THEME.muted)
-     .fontSize(7.5)
-     .font('Helvetica-Bold')
-     .text(item.label.toUpperCase(), x + 40, y + 17, {
-       width: w - 50,
-       lineBreak: false,
-     });
-
-   doc.fillColor(THEME.text)
-     .fontSize(15)
-     .font('Helvetica-Bold')
-     .text(item.value, x + 40, y + 35, {
-       width: w - 50,
-       height: 20,
-       ellipsis: true,
-     });
-
-   if (item.subtitle) {
-     doc.roundedRect(x + 40, y + 56, 70, 14, 7).fill('#DBEAFE');
-
-     doc.fillColor(color)
-       .fontSize(7)
-       .font('Helvetica-Bold')
-       .text(item.subtitle, x + 44, y + 59, {
-         width: 62,
-         align: 'center',
-         lineBreak: false,
-       });
-   } else {
-     const growthText =
-       item.growth && item.growth.startsWith('-')
-         ? `▼ ${item.growth}`
-         : item.growth
-           ? `▲ ${item.growth}`
-           : item.note || item.description || '';
-
-     doc.fillColor(
-         item.growth
-           ? item.growth.startsWith('-')
-             ? THEME.rose
-             : THEME.emerald
-           : THEME.muted
-       )
-       .fontSize(7)
-       .font('Helvetica-Bold')
-       .text(growthText, x + 40, y + 57, {
-         width: w - 50,
-         lineBreak: false,
-       });
-   }
 
    if (item.description && !item.subtitle) {
      doc.fillColor(THEME.muted)
@@ -948,14 +936,14 @@ if (performanceScore >= 85) {
 // KEY TAKEAWAY BANNER
 // ===============================
 
-drawCard(35, 235, 525, 55, '#F8FAFC', '#BFDBFE');
+drawCard(35, 225, 525, 48, '#F8FAFC', '#BFDBFE');
 
-doc.circle(60, 262, 14).fill(THEME.royal);
+doc.circle(60, 249, 12).fill(THEME.royal);
 
 doc.fillColor('#FFFFFF')
   .fontSize(11)
   .font('Helvetica-Bold')
-  .text('↗', 55, 255, {
+  .text('i', 57, 243, {
     width: 12,
     align: 'center',
     lineBreak: false,
@@ -967,7 +955,7 @@ doc.fillColor(THEME.text)
   .text(
     `Key Takeaway: Generated ${formatNum(safeSummary.conversions)} leads at ${formatCurrency(safeSummary.cpa, currency)} CPL from total spend of ${formatCurrency(safeSummary.spend, currency)}.`,
     85,
-    252,
+    240,
     {
       width: 445,
       lineGap: 2,
@@ -978,12 +966,12 @@ doc.fillColor(THEME.text)
 // EXECUTIVE SNAPSHOT
 // ===============================
 
-doc.roundedRect(50, 310, 495, 55, 16).fillAndStroke('#FFFFFF', THEME.border);
+doc.roundedRect(50, 285, 495, 50, 16).fillAndStroke('#FFFFFF', THEME.border);
 
 doc.fillColor(THEME.text)
   .fontSize(13)
   .font('Helvetica-Bold')
-  .text('Executive Snapshot', 70, 325);
+  .text('Executive Snapshot', 70, 298);
 
 doc.fillColor(THEME.muted)
   .fontSize(8)
@@ -991,7 +979,7 @@ doc.fillColor(THEME.muted)
   .text(
     `This report summarizes ${client.name}'s marketing performance, campaign spend, audience reach, engagement, conversions and recommended actions.`,
     70,
-    346,
+    316,
     {
       width: 440,
       lineGap: 2,
@@ -1002,7 +990,7 @@ doc.fillColor(THEME.muted)
 // KPI CARDS
 // ===============================
 
-drawSectionTitle('Performance Dashboard', 50, 390, THEME.violet);
+drawSectionTitle('Performance Dashboard', 50, 355, THEME.violet);
 
 const metrics = [
   {
@@ -1094,9 +1082,9 @@ const metrics = [
 ];
 
 const cardW = 155;
-const cardH = 66;
-const gapX = 15;
-const gapY = 12;
+const cardH = 58;
+const gapY = 8;
+const startY = 380;
 const startX = 50;
 const startY = 415;
 
@@ -1132,12 +1120,12 @@ if (!safeSummary.hasRevenue) {
   missingMetrics.push('ROAS');
 }
 
-drawCard(35, 700, 525, 40, '#F8FAFC', '#BFDBFE');
+drawCard(35, 660, 525, 42, '#F8FAFC', '#BFDBFE');
 
 doc.fillColor(THEME.royal)
   .fontSize(8)
   .font('Helvetica-Bold')
-  .text('DATA AVAILABILITY', 55, 742, {
+  .text('DATA AVAILABILITY', 55, 672, {
     width: 120,
     lineBreak: false,
   });
@@ -1145,7 +1133,7 @@ doc.fillColor(THEME.royal)
 doc.fillColor(THEME.emerald)
   .fontSize(7.5)
   .font('Helvetica-Bold')
-  .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 742, {
+  .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 672, {
     width: 170,
     lineBreak: false,
   });
@@ -1153,7 +1141,7 @@ doc.fillColor(THEME.emerald)
 doc.fillColor(THEME.rose)
   .fontSize(7.5)
   .font('Helvetica-Bold')
-  .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 742, {
+  .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 672, {
     width: 180,
     lineBreak: false,
   });
