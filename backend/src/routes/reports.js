@@ -243,7 +243,10 @@ const drawPieChart = (doc, data, options, currency = 'INR') => {
     .font('Helvetica-Bold')
     .text(title, x - 80, y - radius - 55);
 
-  const total = data.reduce((sum, d) => sum + Number(d.spend || 0), 0);
+  const total= Math.max(
+               data.reduce((sum,d)=>sum+Number(d.spend||0),0),
+               1
+             );
 
   const colors = [
     '#3B82F6',
@@ -282,7 +285,7 @@ const drawPieChart = (doc, data, options, currency = 'INR') => {
       .fontSize(9)
       .font('Helvetica')
       .text(
-        `${d.platform.toUpperCase()} (${percent}%)`,
+        `${String(d.platform || 'Unknown').toUpperCase()} (${percent}%)`,
         x + radius + 60,
         legendY - 1
       );
@@ -318,7 +321,9 @@ const subscriptionResult = await db.query(
   [req.user.agency_id]
 );
 
-const planName = subscriptionResult.rows[0]?.plan_name || 'free';
+const planName =
+ (subscriptionResult.rows[0]?.plan_name || 'free')
+   .toLowerCase();;
 const canUseAgencyBranding = planName !== 'free';
 
 // Total generated reports
@@ -384,10 +389,10 @@ if (totalReports >= reportLimits[planName]) {
 
    const aggregateWhereClause = whereClause;
 
-   const campaignWhereClause = whereClause.replace(
-     "AND pd.external_campaign_name = 'aggregate'",
-     "AND pd.campaign_id IS NOT NULL"
-   );
+  const campaignWhereClause = whereClause.replace(
+    "AND pd.external_campaign_name = 'aggregate'",
+    "AND pd.external_campaign_name <> 'aggregate'"
+  );
 
     const [summaryResult, trendsResult, platformsResult, campaignsResult, aiInsightResult] = await Promise.all([
      db.query(
@@ -414,14 +419,20 @@ if (totalReports >= reportLimits[planName]) {
        params
      ),
      db.query(
-       `SELECT TO_CHAR(report_month, 'Mon YYYY') as month,
-         SUM(spend) as spend,
-         SUM(clicks) as clicks,
-         SUM(conversions) as conversions,
-         CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas
+       `SELECT
+          report_month,
+          TO_CHAR(report_month, 'Mon YYYY') as month,
+          SUM(spend) as spend,
+          SUM(clicks) as clicks,
+          SUM(conversions) as conversions,
+          CASE
+            WHEN SUM(spend) > 0
+            THEN SUM(revenue) / SUM(spend)
+            ELSE 0
+          END as roas
         FROM performance_data pd ${aggregateWhereClause}
-        GROUP BY TO_CHAR(report_month, 'Mon YYYY')
-        ORDER BY MIN(report_month)`,
+        GROUP BY report_month
+        ORDER BY report_month`,
        params
      ),
      db.query(
@@ -435,15 +446,16 @@ if (totalReports >= reportLimits[planName]) {
        params
      ),
      db.query(
-       `SELECT c.name,
-         pd.platform,
-         SUM(pd.spend) as spend,
-         SUM(pd.clicks) as clicks,
-         SUM(pd.conversions) as conversions
+       `SELECT
+          COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign') as name,
+          pd.platform,
+          SUM(pd.spend) as spend,
+          SUM(pd.clicks) as clicks,
+          SUM(pd.conversions) as conversions
         FROM performance_data pd
-        JOIN campaigns c ON pd.campaign_id = c.id
+        LEFT JOIN campaigns c ON pd.campaign_id = c.id
         ${campaignWhereClause}
-        GROUP BY c.name, pd.platform
+        GROUP BY COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign'), pd.platform
         ORDER BY SUM(pd.spend) DESC
         LIMIT 10`,
        params
@@ -463,6 +475,56 @@ if (totalReports >= reportLimits[planName]) {
     const platforms = platformsResult.rows;
     const campaigns = campaignsResult.rows;
     const aiInsight = aiInsightResult.rows[0] || null;
+
+    const latestMonthResult = await db.query(
+      `SELECT MAX(report_month) AS latest_month
+       FROM performance_data
+       WHERE client_id = $1
+       AND external_campaign_name = 'aggregate'`,
+      [clientId]
+    );
+
+    const latestMonth = latestMonthResult.rows[0]?.latest_month
+      ? new Date(latestMonthResult.rows[0].latest_month)
+      : null;
+
+    let previousSummary = null;
+
+    if (latestMonth) {
+      const previousMonth = new Date(latestMonth);
+      previousMonth.setMonth(previousMonth.getMonth() - 1);
+
+      const previousResult = await db.query(
+        `SELECT
+           SUM(COALESCE(spend, 0)) as spend,
+           SUM(COALESCE(reach, 0)) as reach,
+           SUM(COALESCE(impressions, 0)) as impressions,
+           SUM(COALESCE(clicks, 0)) as clicks,
+           SUM(COALESCE(conversions, 0)) as conversions,
+           SUM(COALESCE(revenue, 0)) as revenue,
+           CASE WHEN SUM(COALESCE(impressions, 0)) > 0
+             THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100
+             ELSE 0 END as ctr,
+           CASE WHEN SUM(COALESCE(clicks, 0)) > 0
+             THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(clicks, 0))
+             ELSE 0 END as cpc,
+           CASE WHEN SUM(COALESCE(conversions, 0)) > 0
+             THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0))
+             ELSE 0 END as cpa,
+           CASE WHEN SUM(COALESCE(spend, 0)) > 0
+             THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
+             ELSE 0 END as roas
+         FROM performance_data
+         WHERE client_id = $1
+         AND external_campaign_name = 'aggregate'
+         AND DATE_TRUNC('month', report_month)
+         =
+         DATE_TRUNC('month', $2::date)`,
+        [clientId, previousMonth]
+      );
+
+      previousSummary = previousResult.rows[0];
+    }
 
     // Create PDF
     const outputDir = path.join(__dirname, '../../data/reports');
@@ -544,6 +606,73 @@ const safeSummary = {
   hasRevenue: Number(summary?.revenue ?? 0) > 0,
   hasImpressions: Number(summary?.impressions ?? 0) > 0,
 };
+
+const calcChange = (current, previous, reverse = false) => {
+  const curr = Number(current || 0);
+  const prev = Number(previous || 0);
+
+  if (!prev || prev === 0) return null;
+
+  const change = ((curr - prev) / Math.abs(prev)) * 100;
+  return reverse ? -change : change;
+};
+
+const formatGrowth = (change) => {
+  if (change === null || change === undefined || Number.isNaN(change)) {
+    return null;
+  }
+
+  const sign = change > 0 ? '+' : '';
+  return `${sign}${formatNum(change, 1)}%`;
+};
+
+const growth = {
+  spend: formatGrowth(calcChange(safeSummary.spend, previousSummary?.spend)),
+  reach: formatGrowth(calcChange(safeSummary.reach, previousSummary?.reach)),
+  impressions: formatGrowth(calcChange(safeSummary.impressions, previousSummary?.impressions)),
+  clicks: formatGrowth(calcChange(safeSummary.clicks, previousSummary?.clicks)),
+  conversions: formatGrowth(calcChange(safeSummary.conversions, previousSummary?.conversions)),
+  ctr: formatGrowth(calcChange(safeSummary.ctr, previousSummary?.ctr)),
+  cpc: formatGrowth(calcChange(safeSummary.cpc, previousSummary?.cpc, true)),
+  cpa: formatGrowth(calcChange(safeSummary.cpa, previousSummary?.cpa, true)),
+  roas: formatGrowth(calcChange(safeSummary.roas, previousSummary?.roas)),
+};
+
+const hasMetric = (value) => Number(value || 0) > 0;
+
+
+
+const drawEmptyState = (x, y, w, h, title, message) => {
+  drawCard(x, y, w, h, THEME.card, THEME.border);
+
+  doc.fillColor(THEME.text)
+    .fontSize(13)
+    .font('Helvetica-Bold')
+    .text(title, x + 25, y + 35, { width: w - 50, align: 'center' });
+
+  doc.fillColor(THEME.muted)
+    .fontSize(9)
+    .font('Helvetica')
+    .text(message, x + 35, y + 62, {
+      width: w - 70,
+      align: 'center',
+      lineGap: 3,
+    });
+};
+
+const hasData = (value) => Number(value || 0) > 0;
+
+const displayClicks = safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A';
+const displayCtr = safeSummary.hasClicks ? formatPct(safeSummary.ctr) : 'N/A';
+const displayCpc = safeSummary.hasClicks ? formatCurrency(safeSummary.cpc, currency) : 'N/A';
+const displayRoas = safeSummary.hasRevenue ? `${formatNum(safeSummary.roas, 2)}x` : 'N/A';
+
+const reportSummaryText =
+  `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results. ` +
+  `Total spend was ${formatCurrency(safeSummary.spend, currency)} with CPA ${formatCurrency(safeSummary.cpa, currency)}. ` +
+  `${safeSummary.hasClicks ? `Clicks were ${formatNum(safeSummary.clicks)} and CTR was ${formatPct(safeSummary.ctr)}. ` : 'Click/CTR data was not available in the uploaded report. '}` +
+  `${safeSummary.hasRevenue ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue/ROAS data was not available.'}`;
+
 const reportTitle = customTitle || title || 'Marketing Performance Report';
 
 const dateLabel =
@@ -577,42 +706,36 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
   doc.roundedRect(x, y, w, h, 12).fillAndStroke(bg, border);
 };
 
-const drawKpiCard = (x, y, w, h, item, color, bg) => {
-  drawCard(x, y, w, h, bg, '#DDE6F3');
+ const drawKpiCard = (x, y, w, h, item, color, bg) => {
+      drawCard(x, y, w, h, bg, '#DDE6F3');
 
-  doc.circle(x + 18, y + 20, 6).fill(color);
+      doc.circle(x + 18, y + 20, 6).fill(color);
 
-  doc.fillColor(THEME.muted)
-    .fontSize(7)
-    .font('Helvetica-Bold')
-    .text(item.label.toUpperCase(), x + 32, y + 14, {
-      width: w - 42,
-    });
+      doc.fillColor(THEME.muted)
+        .fontSize(7)
+        .font('Helvetica-Bold')
+        .text(item.label.toUpperCase(), x + 32, y + 14, {
+          width: w - 42,
+        });
 
-  doc.fillColor(THEME.text)
-    .fontSize(15)
-    .font('Helvetica-Bold')
-    .text(item.value, x + 16, y + 36, {
-      width: w - 25,
-      height: 22,
-      ellipsis: true,
-    });
+      doc.fillColor(THEME.text)
+        .fontSize(15)
+        .font('Helvetica-Bold')
+        .text(item.value, x + 16, y + 36, {
+          width: w - 25,
+          height: 22,
+          ellipsis: true,
+        });
 
- if (item.growth !== null && item.growth !== undefined) {
-   doc.fillColor(item.growth?.startsWith('-') ? THEME.rose : THEME.emerald)
-     .fontSize(7)
-     .font('Helvetica-Bold')
-     .text(`${item.growth} vs last month`, x + 16, y + 54, {
-       width: w - 25,
-     });
- } else {
-   doc.fillColor(THEME.muted)
-     .fontSize(7)
-     .font('Helvetica-Bold')
-     .text('No previous month data', x + 16, y + 54, {
-       width: w - 25,
-     });
- }
+      doc.fillColor(THEME.muted)
+        .fontSize(7)
+        .font('Helvetica-Bold')
+        .text(item.growth || 'Not enough comparison data', x + 16, y + 54, {
+          width: w - 25,
+        });
+    };
+
+
 
 const drawFooter = (pageNo) => {
   doc.save();
@@ -747,14 +870,17 @@ const metrics = [
    {
      label: 'Total Spend',
      value: formatCurrency(safeSummary.spend, currency),
-     growth: null,
+     growth: growth.spend,
      color: THEME.royal,
      bg: THEME.softBlue,
    },
    {
      label: 'Reach',
-     value: safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'N/A',
-     growth: null,
+     value:
+     safeSummary.reach > 0
+      ? formatNum(safeSummary.reach)
+      : 'Not Provided',
+     growth: growth.reach,
      color: THEME.violet,
      bg: THEME.softPurple,
    },
@@ -763,7 +889,7 @@ const metrics = [
      value: safeSummary.hasImpressions
        ? formatNum(safeSummary.impressions)
        : 'N/A',
-     growth: null,
+     growth: growth.impressions,
      color: THEME.cyan,
      bg: '#ECFEFF',
    },
@@ -772,14 +898,14 @@ const metrics = [
      value: safeSummary.hasClicks
        ? formatNum(safeSummary.clicks)
        : 'N/A',
-     growth: null,
+     growth: growth.clicks,
      color: THEME.amber,
      bg: THEME.softAmber,
    },
    {
      label: 'Leads / Results',
      value: formatNum(safeSummary.conversions),
-     growth: null,
+     growth: growth.conversions,
      color: THEME.emerald,
      bg: THEME.softGreen,
    },
@@ -788,7 +914,7 @@ const metrics = [
      value: safeSummary.hasClicks
        ? formatPct(safeSummary.ctr)
        : 'N/A',
-     growth: null,
+     growth: growth.ctr,
      color: THEME.violet,
      bg: THEME.softPurple,
    },
@@ -797,14 +923,14 @@ const metrics = [
      value: safeSummary.hasClicks
        ? formatCurrency(safeSummary.cpc, currency)
        : 'N/A',
-     growth: null,
+     growth: growth.cpc,
      color: THEME.rose,
      bg: THEME.softRose,
    },
    {
      label: 'Cost / Lead',
      value: formatCurrency(safeSummary.cpa, currency),
-     growth: null,
+     growth: growth.cpa,
      color: THEME.amber,
      bg: THEME.softAmber,
    },
@@ -813,10 +939,11 @@ const metrics = [
      value: safeSummary.hasRevenue
        ? `${formatNum(safeSummary.roas, 2)}x`
        : 'N/A',
-     growth: null,
+     growth: growth.roas,
      color: THEME.royal,
      bg: THEME.softBlue,
    },
+
  ];
 
 const cardW = 155;
@@ -929,13 +1056,13 @@ if (trends.length > 0) {
     const bg = idx % 2 === 0 ? '#F8FAFC' : '#EEF2FF';
     doc.roundedRect(55, tY, 485, 24, 5).fill(bg);
 
-    const vals = [
-      row.month,
-      formatCurrency(row.spend, currency),
-      formatNum(row.clicks),
-      formatNum(row.conversions),
-      `${formatNum(row.roas, 2)}x`,
-    ];
+   const vals = [
+     row.month,
+     formatCurrency(row.spend, currency),
+     Number(row.clicks || 0) > 0 ? formatNum(row.clicks) : 'N/A',
+     formatNum(row.conversions),
+     Number(row.roas || 0) > 0 ? `${formatNum(row.roas, 2)}x` : 'N/A',
+   ];
 
     tX = 55;
     vals.forEach((v, i) => {
@@ -948,6 +1075,16 @@ if (trends.length > 0) {
 
     tY += 26;
   });
+
+} else {
+  drawEmptyState(
+    35,
+    120,
+    525,
+    220,
+    'Not enough monthly data',
+    'No monthly performance data is available for the selected report period.'
+  );
 }
 
 // Top campaign mini strip
@@ -997,6 +1134,18 @@ if (campaigns.length > 0) {
     cY += 22;
   });
 }
+else {
+  drawEmptyState(
+    35,
+    375,
+    525,
+    315,
+    'Campaign-level data not available',
+    'The uploaded report contains aggregate data only, so campaign-wise chart cannot be generated.'
+  );
+}
+
+
 drawFooter(2);
 // ===============================
 // PAGE 3 - CHARTS
@@ -1017,7 +1166,7 @@ doc.fillColor('#CBD5E1')
   .font('Helvetica')
   .text('Visual analysis of spend and campaign performance', 50, 62);
 
-if (trends.length > 0) {
+if (trends.length > 1) {
   drawCard(35, 120, 525, 220, THEME.card, THEME.border);
 
   drawLineChart(
@@ -1034,6 +1183,16 @@ if (trends.length > 0) {
       color: THEME.royal,
     },
     currency
+  );
+
+} else {
+  drawEmptyState(
+    35,
+    120,
+    525,
+    220,
+    'Not enough monthly data',
+    'At least two months of data are required to display a meaningful spend trend chart.'
   );
 }
 
@@ -1053,6 +1212,16 @@ if (campaigns.length > 0) {
       color: THEME.violet,
     },
     currency
+  );
+}
+else {
+  drawEmptyState(
+    35,
+    375,
+    525,
+    315,
+    'Campaign-level data not available',
+    'The uploaded report contains aggregate data only, so campaign-wise chart cannot be generated.'
   );
 }
 
@@ -1078,7 +1247,7 @@ doc.fillColor('#CBD5E1')
   .text('Platform-wise spend distribution and leads performance', 50, 62);
 
 // Top campaign mini strip
-if (platforms.length > 0) {
+if (platforms.length > 0 && platforms.some(p => Number(p.spend || 0) > 0)) {
   drawCard(35, 120, 525, 240, THEME.card, THEME.border);
 
   drawPieChart(doc, platforms, {
@@ -1099,6 +1268,15 @@ if (platforms.length > 0) {
     valueKey: 'conversions',
     color: THEME.emerald,
   });
+} else {
+  drawEmptyState(
+    35,
+    160,
+    525,
+    260,
+    'Platform data not available',
+    'Platform-wise spend distribution cannot be shown because platform data is missing or zero.'
+  );
 }
 
 drawFooter(4);
@@ -1186,11 +1364,7 @@ doc.fillColor(THEME.muted)
   .fontSize(9)
   .font('Helvetica')
   .text(
-    aiInsight?.summary ||
-      `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results. ` +
-      `Total spend was ${formatCurrency(safeSummary.spend, currency)} with CPA ${formatCurrency(safeSummary.cpa, currency)}. ` +
-      `${safeSummary.clicks > 0 ? `Clicks were ${formatNum(safeSummary.clicks)} and CTR was ${formatPct(safeSummary.ctr)}. ` : 'Click/CTR data was not available in the uploaded report. '}` +
-      `${safeSummary.revenue > 0 ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue/ROAS data was not available.'}`,
+    reportSummaryText,
     55,
     315,
     {
@@ -1244,13 +1418,25 @@ doc.fillColor(THEME.text)
   .font('Helvetica-Bold')
   .text('Recommended Actions', 330, 452);
 
-let recommendations = [
-  'CTR is relatively low. Test stronger CTA headlines and engaging creatives.',
-  'Improve landing page speed and mobile responsiveness.',
-  'Retarget previous website visitors for better conversion efficiency.',
-  'Test new ad creatives and audience segments.',
-  'Optimize ad spend on high-performing campaigns.',
-];
+let recommendations = [];
+
+if (!safeSummary.hasClicks) {
+  recommendations.push('Click and CTR data were not available in the uploaded report. Include click metrics in future exports to evaluate engagement.');
+} else if (safeSummary.ctr < 1) {
+  recommendations.push('CTR is low. Test stronger CTA headlines, creative variations, and audience segments.');
+}
+
+if (!safeSummary.hasRevenue) {
+  recommendations.push('Revenue and ROAS data were not available. Add revenue or ROAS columns to evaluate return on ad spend.');
+} else if (safeSummary.roas < 1) {
+  recommendations.push('ROAS is below 1x. Review campaign targeting, offer quality, landing page, and budget allocation.');
+}
+
+if (safeSummary.conversions > 0) {
+  recommendations.push(`Campaigns generated ${formatNum(safeSummary.conversions)} leads/results at ${formatCurrency(safeSummary.cpa, currency)} cost per result.`);
+}
+
+recommendations.push('Continue monitoring spend, leads/results, and cost per result before scaling budget.');
 
 if (aiInsight?.recommendations) {
   try {
@@ -1258,10 +1444,18 @@ if (aiInsight?.recommendations) {
       ? aiInsight.recommendations
       : JSON.parse(aiInsight.recommendations || '[]');
 
-    if (parsed.length > 0) recommendations = parsed;
-  } catch (e) {}
+    if (parsed.length > 0) {
+     recommendations = [
+      ...new Set([
+        ...recommendations,
+        ...parsed
+      ])
+     ];
+    }
+  } catch (e) {
+    console.error(e);
+  }
 }
-
 recommendations.slice(0, 5).forEach((text, i) => {
   const y = 485 + i * 38;
 
@@ -1303,6 +1497,8 @@ drawFooter(5);
       console.error('PDF write error:', err);
       res.status(500).json({ error: 'Failed to generate PDF' });
     });
+
+
 
   } catch (error) {
     console.error('Report generation error:', error);
