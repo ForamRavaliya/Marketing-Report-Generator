@@ -114,7 +114,11 @@ const drawBarChart = (doc, data, options, currency = 'INR') => {
       .fontSize(9)
       .font('Helvetica-Bold')
       .text(
-        formatCurrency(value, currency),
+      valueKey === 'conversions'
+        ? `${formatNum(value)} leads`
+        : valueKey === 'efficiency'
+          ? `${formatNum(value * 100, 2)} leads / 100 spend`
+          : formatCurrency(value, currency),
         x + labelW + chartW + 12,
         rowY + 7,
         {
@@ -226,10 +230,20 @@ const drawLineChart = (doc, data, options, currency = 'INR') => {
       });
   });
 
-  doc.fillColor('#1E293B')
-    .fontSize(9)
-    .font('Helvetica-Bold')
-    .text(`Highest: ${formatCurrency(max, currency)}`, x, y + height - 10);
+const highestPoint = points.reduce((a, b) => (a.value > b.value ? a : b), points[0]);
+const lowestPoint = points.reduce((a, b) => (a.value < b.value ? a : b), points[0]);
+const avgValue = values.reduce((sum, v) => sum + v, 0) / values.length;
+
+doc.fillColor('#1E293B')
+  .fontSize(8.5)
+  .font('Helvetica-Bold')
+  .text(
+    `Highest: ${highestPoint.label} (${formatCurrency(highestPoint.value, currency)})   Lowest: ${lowestPoint.label} (${formatCurrency(lowestPoint.value, currency)})   Avg: ${formatCurrency(avgValue, currency)}`,
+    x,
+    y + height - 10,
+    { width: width - 20 }
+  );
+
 };
 
 //Pie chart
@@ -450,17 +464,22 @@ if (totalReports >= reportLimits[planName]) {
      ),
      db.query(
        `SELECT
-          COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign') as name,
-          pd.platform,
-          SUM(pd.spend) as spend,
-          SUM(pd.clicks) as clicks,
-          SUM(pd.conversions) as conversions
-        FROM performance_data pd
-        LEFT JOIN campaigns c ON pd.campaign_id = c.id
-        ${campaignWhereClause}
-        GROUP BY COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign'), pd.platform
-        ORDER BY SUM(pd.spend) DESC
-        LIMIT 10`,
+           COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign') as name,
+           pd.platform,
+           SUM(pd.spend) as spend,
+           SUM(pd.clicks) as clicks,
+           SUM(pd.conversions) as conversions,
+           CASE
+             WHEN SUM(pd.spend) > 0
+             THEN SUM(pd.conversions)::float / SUM(pd.spend)
+             ELSE 0
+           END as efficiency
+         FROM performance_data pd
+         LEFT JOIN campaigns c ON pd.campaign_id = c.id
+         ${campaignWhereClause}
+         GROUP BY COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign'), pd.platform
+         ORDER BY efficiency DESC
+         LIMIT 10`,
        params
      ),
       db.query(
@@ -482,23 +501,20 @@ if (totalReports >= reportLimits[planName]) {
     const hasCampaignChart = campaigns.length > 0;
     // const aiInsight = aiInsightResult.rows[0] || null;
 
-    const latestMonthResult = await db.query(
-      `SELECT MAX(report_month) AS latest_month
+    const monthResult = await db.query(
+      `SELECT DISTINCT report_month
        FROM performance_data
        WHERE client_id = $1
-       AND external_campaign_name = 'aggregate'`,
+       AND external_campaign_name = 'aggregate'
+       ORDER BY report_month DESC
+       LIMIT 2`,
       [clientId]
     );
 
-    const latestMonth = latestMonthResult.rows[0]?.latest_month
-      ? new Date(latestMonthResult.rows[0].latest_month)
-      : null;
-
     let previousSummary = null;
 
-    if (latestMonth) {
-      const previousMonth = new Date(latestMonth);
-      previousMonth.setMonth(previousMonth.getMonth() - 1);
+    if (monthResult.rows.length >= 2) {
+      const previousAvailableMonth = monthResult.rows[1].report_month;
 
       const previousResult = await db.query(
         `SELECT
@@ -523,14 +539,13 @@ if (totalReports >= reportLimits[planName]) {
          FROM performance_data
          WHERE client_id = $1
          AND external_campaign_name = 'aggregate'
-         AND DATE_TRUNC('month', report_month)
-         =
-         DATE_TRUNC('month', $2::date)`,
-        [clientId, previousMonth]
+         AND DATE_TRUNC('month', report_month) = DATE_TRUNC('month', $2::date)`,
+        [clientId, previousAvailableMonth]
       );
 
       previousSummary = previousResult.rows[0];
     }
+
 
     // Create PDF
     const outputDir = path.join(__dirname, '../../data/reports');
@@ -634,7 +649,7 @@ const growth = {
   roas: formatGrowth(calcChange(safeSummary.roas, previousSummary?.roas)),
 };
 
-const hasMetric = (value) => Number(value || 0) > 0;
+
 
 
 
@@ -655,15 +670,26 @@ const drawEmptyState = (x, y, w, h, title, message) => {
       lineGap: 3,
     });
 };
+const drawMiniMetricCards = (items, startX, startY) => {
+  items.forEach((item, i) => {
+    const x = startX + i * 112;
+    const y = startY;
 
-const hasData = (value) => Number(value || 0) > 0;
+    drawCard(x, y, 105, 72, item.bg, THEME.border);
 
-const displayClicks = safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A';
-const displayCtr = safeSummary.hasClicks ? formatPct(safeSummary.ctr) : 'N/A';
-const displayCpc = safeSummary.hasClicks ? formatCurrency(safeSummary.cpc, currency) : 'N/A';
-const displayRoas = safeSummary.hasRevenue ? `${formatNum(safeSummary.roas, 2)}x` : 'N/A';
+    doc.fillColor(item.color)
+      .fontSize(8)
+      .font('Helvetica-Bold')
+      .text(item.label.toUpperCase(), x + 12, y + 14, { width: 95 });
 
-const aiInsight = aiInsightResult.rows[0] || null;
+    doc.fillColor(THEME.text)
+      .fontSize(14)
+      .font('Helvetica-Bold')
+      .text(item.value, x + 12, y + 36, { width: 82 });
+  });
+};
+
+
 
 const reportSummaryText =
   `During the selected reporting period, ${client.name} generated ${formatNum(safeSummary.conversions)} leads/results with total ad spend of ${formatCurrency(safeSummary.spend, currency)}. ` +
@@ -709,13 +735,30 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
       drawCard(x, y, w, h, bg, '#DDE6F3');
 
       doc.circle(x + 18, y + 20, 6).fill(color);
-
       doc.fillColor(THEME.muted)
-        .fontSize(7)
+        .fontSize(8)
         .font('Helvetica-Bold')
-        .text(item.label.toUpperCase(), x + 32, y + 14, {
-          width: w - 42,
-        });
+        .text(item.label.toUpperCase(), x + 16, y + 14);
+
+     const growthText =
+       item.growth && item.growth.startsWith('-')
+         ? `▼ ${item.growth}`
+         : item.growth
+           ? `▲ ${item.growth}`
+           : item.note || '';
+
+     doc.fillColor(
+         item.growth
+           ? item.growth.startsWith('-')
+             ? THEME.rose
+             : THEME.emerald
+           : THEME.muted
+       )
+       .fontSize(7)
+       .font('Helvetica-Bold')
+       .text(growthText, x + 16, y + 54, {
+         width: w - 25,
+       });
 
       doc.fillColor(THEME.text)
         .fontSize(15)
@@ -726,12 +769,6 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
           ellipsis: true,
         });
 
-      doc.fillColor(THEME.muted)
-        .fontSize(7)
-        .font('Helvetica-Bold')
-        .text(item.growth || item.note || '', x + 16, y + 54, {
-          width: w - 25,
-        });
     };
 
 
@@ -864,8 +901,49 @@ doc.fillColor(THEME.muted)
 
 // KPI cards
 drawSectionTitle('Performance Dashboard', 50, 365, THEME.violet);
+let performanceScore = 0;
+
+if (safeSummary.conversions > 0) performanceScore += 30;
+
+if (safeSummary.cpa > 0 && safeSummary.cpa <= 100) performanceScore += 25;
+else if (safeSummary.cpa > 0 && safeSummary.cpa <= 500) performanceScore += 15;
+else if (safeSummary.cpa > 0) performanceScore += 8;
+
+if (safeSummary.hasClicks && safeSummary.ctr >= 2) performanceScore += 20;
+else if (safeSummary.hasClicks && safeSummary.ctr >= 1) performanceScore += 12;
+else if (safeSummary.hasClicks) performanceScore += 5;
+
+if (safeSummary.hasRevenue && safeSummary.roas >= 3) performanceScore += 25;
+else if (safeSummary.hasRevenue && safeSummary.roas >= 1) performanceScore += 15;
+else if (safeSummary.hasRevenue) performanceScore += 5;
+
+performanceScore = Math.min(100, performanceScore);
+
+
+let performanceGrade = 'F';
+
+if (performanceScore >= 90) performanceGrade = 'A+';
+else if (performanceScore >= 80) performanceGrade = 'A';
+else if (performanceScore >= 70) performanceGrade = 'B';
+else if (performanceScore >= 60) performanceGrade = 'C';
+else if (performanceScore >= 50) performanceGrade = 'D';
 
 const metrics = [
+{
+  label: 'Performance Score',
+  value: `${performanceScore}/100`,
+  growth: null,
+  color: THEME.emerald,
+  bg: THEME.softGreen,
+},
+{
+  label: 'Marketing Grade',
+  value: performanceGrade,
+  growth: null,
+  color: THEME.royal,
+  bg: THEME.softBlue,
+},
+
    {
      label: 'Total Spend',
      value: formatCurrency(safeSummary.spend, currency),
@@ -942,6 +1020,8 @@ const metrics = [
     bg: THEME.softBlue,
   },
 
+
+
  ];
 
 const cardW = 155;
@@ -1003,7 +1083,11 @@ if (campaigns.length > 0) {
     .fontSize(7)
     .font('Helvetica')
     .text(
-      `${formatNum(top.clicks)} Clicks | ${formatNum(top.conversions)} Leads`,
+      `${
+        Number(top.clicks || 0) > 0
+        ? formatNum(top.clicks)
+        : 'N/A'
+       } Clicks | ${formatNum(top.conversions)} Leads`,
       stripX + 315,
       stripY + 34,
       { width: 150, align: 'right', lineBreak: false }
@@ -1077,21 +1161,21 @@ if (trends.length > 0) {
 } else {
   drawEmptyState(
     35,
-    375,
+    120,
     525,
-    315,
-    'Campaign Breakdown Not Available',
-    'This upload contains only aggregate performance data. To show campaign-wise charts and campaign ranking, upload/export a report with individual campaign rows.'
+    185,
+    'Monthly Trend Data Not Available',
+    'No monthly performance data was available for the selected period.'
   );
 }
 
 
-drawCard(35, 315, 525, 95, THEME.softBlue, '#BFDBFE');
+drawCard(35, 430, 525, 95, THEME.softBlue, '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(14)
   .font('Helvetica-Bold')
-  .text('Data Availability Notes', 55, 335);
+  .text('Data Availability Notes', 55, 450);
 
 const dataNotes = [
   safeSummary.hasClicks
@@ -1108,20 +1192,20 @@ const dataNotes = [
 doc.fillColor(THEME.muted)
   .fontSize(8.5)
   .font('Helvetica')
-  .text(dataNotes.join('\n'), 55, 360, {
+  .text(dataNotes.join('\n'), 55, 475, {
     width: 480,
     lineGap: 4,
   });
 
 // Top campaign mini strip
 if (campaigns.length > 0) {
-  drawCard(35, 430, 525, 250, THEME.card, THEME.border);
-  drawSectionTitle('Top Campaigns Breakdown', 55, 450, THEME.violet);
+drawCard(35, 545, 525, 135, THEME.card, THEME.border);
+drawSectionTitle('Top Campaigns Breakdown', 55, 565, THEME.violet);
 
   const cHeaders = ['Campaign', 'Platform', 'Spend', 'Clicks', 'Conv.'];
   const cWidths = [200, 75, 95, 60, 55];
 
-  let cY = 490;
+  let cY = 605;
   let cX = 55;
 
   doc.roundedRect(55, cY, 485, 24, 7).fill(THEME.violet);
@@ -1136,7 +1220,7 @@ if (campaigns.length > 0) {
 
   cY += 28;
 
-  campaigns.slice(0, 10).forEach((row, idx) => {
+  campaigns.slice(0, 3).forEach((row, idx) => {
     const bg = idx % 2 === 0 ? '#F8FAFC' : '#F5F3FF';
     doc.roundedRect(55, cY, 485, 22, 5).fill(bg);
 
@@ -1144,7 +1228,9 @@ if (campaigns.length > 0) {
       (row.name || 'Unknown').substring(0, 30),
       (row.platform || 'Other').toUpperCase(),
       formatCurrency(row.spend, currency),
-      formatNum(row.clicks),
+      Number(row.clicks || 0) > 0
+       ? formatNum(row.clicks)
+       : 'N/A',
       formatNum(row.conversions),
     ];
 
@@ -1163,11 +1249,11 @@ if (campaigns.length > 0) {
 else {
 drawEmptyState(
   35,
-  430,
+  545,
   525,
-  250,
-  'Campaign Breakdown Not Available',
-  'This upload contains aggregate data only. Upload campaign-level export data to show campaign ranking, campaign spend and campaign-wise lead performance.'
+  135,
+  'Campaign-Level Export Not Included',
+  'This upload contains aggregate data only. To unlock campaign ranking, campaign spend comparison and campaign-wise lead analysis, export the report with individual campaign rows.'
 );
 }
 
@@ -1178,7 +1264,7 @@ drawFooter(pageNo++);
 // ===============================
 
 
-if (hasTrendChart || hasCampaignChart) {
+
   doc.addPage();
 
   doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
@@ -1213,6 +1299,16 @@ if (hasTrendChart || hasCampaignChart) {
       currency
     );
   }
+  else {
+    drawEmptyState(
+      35,
+      120,
+      525,
+      220,
+      'Trend Analysis Not Available',
+      'At least two reporting periods are required to generate a monthly trend chart.'
+    );
+  }
 
   if (hasCampaignChart) {
     drawCard(35, hasTrendChart ? 375 : 120, 525, 315, THEME.card, THEME.border);
@@ -1224,17 +1320,27 @@ if (hasTrendChart || hasCampaignChart) {
         x: 55,
         y: hasTrendChart ? 400 : 145,
         width: 480,
-        title: 'Top Campaigns by Spend',
-        labelKey: 'name',
-        valueKey: 'spend',
+       title: 'Campaign Efficiency Ranking',
+       valueKey: 'efficiency',
+       labelKey: 'name',
+
         color: THEME.violet,
       },
       currency
     );
   }
+  else {
+    drawEmptyState(
+      35,
+      375,
+      525,
+      315,
+      'Campaign Chart Not Available',
+      'Campaign-level data was not available in this upload. Export campaign-level rows to unlock campaign comparison charts.'
+    );
+  }
 
 drawFooter(pageNo++);
- }
 
 // ===============================
 // PAGE 4 - PLATFORM ANALYTICS
@@ -1255,11 +1361,19 @@ doc.fillColor('#CBD5E1')
   .font('Helvetica')
   .text('Platform-wise spend distribution and leads performance', 50, 62);
 
-// Top campaign mini strip
-const activePlatforms = platforms.filter(p => Number(p.spend || 0) > 0);
+const activePlatforms = platforms.filter(
+  (p) => Number(p.spend || 0) > 0
+);
+const topPlatform =
+  activePlatforms.length > 0
+    ? activePlatforms.reduce((best, current) =>
+        Number(current.conversions || 0) > Number(best.conversions || 0)
+          ? current
+          : best
+      )
+    : null;
 
 if (activePlatforms.length > 1) {
-
   drawCard(35, 120, 525, 240, THEME.card, THEME.border);
 
   drawPieChart(
@@ -1274,21 +1388,38 @@ if (activePlatforms.length > 1) {
     currency
   );
 
-  drawCard(
-    35,
-    415,
-    525,
-    230,
-    THEME.softGreen,
-    '#A7F3D0'
-  );
+if (topPlatform) {
+  const topPlatformCpl =
+    Number(topPlatform.conversions || 0) > 0
+      ? Number(topPlatform.spend || 0) / Number(topPlatform.conversions || 0)
+      : 0;
+
+  drawCard(35, 375, 525, 55, THEME.softBlue, '#BFDBFE');
+
+  doc.fillColor(THEME.royal)
+    .fontSize(8)
+    .font('Helvetica-Bold')
+    .text('BEST PERFORMING PLATFORM', 55, 390);
+
+  doc.fillColor(THEME.text)
+    .fontSize(12)
+    .font('Helvetica-Bold')
+    .text(
+      `${String(topPlatform.platform || 'Platform').toUpperCase()} generated ${formatNum(topPlatform.conversions)} leads at ${formatCurrency(topPlatformCpl, currency)} cost/lead.`,
+      55,
+      407,
+      { width: 485 }
+    );
+}
+
+ drawCard(35, 445, 525, 210, THEME.softGreen, '#A7F3D0');
 
   drawNumberBarChart(
     doc,
     activePlatforms,
     {
       x: 55,
-      y: 430,
+      y: 460,
       width: 480,
       title: 'Platform-wise Leads',
       labelKey: 'platform',
@@ -1296,51 +1427,83 @@ if (activePlatforms.length > 1) {
       color: THEME.emerald,
     }
   );
-
 } else if (activePlatforms.length === 1) {
+  const onlyPlatform = activePlatforms[0];
 
+  drawEmptyState(
+    35,
+    125,
+    525,
+    145,
+    'Single Platform Performance',
+    `${String(onlyPlatform.platform || 'Platform').toUpperCase()} is the only tracked platform in this report. Since there is no second platform to compare, this page focuses on spend, leads and cost efficiency.`
+  );
+
+  drawMiniMetricCards(
+    [
+      {
+        label: 'Platform',
+        value: String(onlyPlatform.platform || 'Meta').toUpperCase(),
+        color: THEME.royal,
+        bg: THEME.softBlue,
+      },
+      {
+        label: 'Spend',
+        value: formatCurrency(onlyPlatform.spend, currency),
+        color: THEME.violet,
+        bg: THEME.softPurple,
+      },
+      {
+        label: 'Leads',
+        value: formatNum(onlyPlatform.conversions),
+        color: THEME.emerald,
+        bg: THEME.softGreen,
+      },
+      {
+        label: 'Share',
+        value: '100%',
+        color: THEME.amber,
+        bg: THEME.softAmber,
+      },
+      {
+       label: 'Cost/Lead',
+       value: formatCurrency(
+         Number(onlyPlatform.spend || 0) /
+         Math.max(Number(onlyPlatform.conversions || 0),1),
+         currency
+       ),
+       color: THEME.rose,
+       bg: THEME.softRose
+      }
+    ],
+    35,
+    305
+  );
+
+  drawCard(35, 420, 525, 230, THEME.softGreen, '#A7F3D0');
+
+  drawNumberBarChart(
+    doc,
+    activePlatforms,
+    {
+      x: 55,
+      y: 440,
+      width: 480,
+      title: 'Platform-wise Leads',
+      labelKey: 'platform',
+      valueKey: 'conversions',
+      color: THEME.emerald,
+    }
+  );
+} else {
   drawEmptyState(
     35,
     150,
     525,
     220,
-    'Single Platform Report',
-    `${String(activePlatforms[0].platform || 'Platform').toUpperCase()} contributed 100% of the tracked spend. Platform distribution chart is hidden because there is no second platform to compare.`
+    'No Platform Data Available',
+    'The uploaded report does not contain platform-level spend or result data.'
   );
-
-  drawCard(
-    35,
-    415,
-    525,
-    230,
-    THEME.softGreen,
-    '#A7F3D0'
-  );
-
-  drawNumberBarChart(
-    doc,
-    activePlatforms,
-    {
-      x: 55,
-      y: 430,
-      width: 480,
-      title: 'Platform-wise Leads',
-      labelKey: 'platform',
-      valueKey: 'conversions',
-      color: THEME.emerald,
-    }
-  );
-
-} else {
-
-drawEmptyState(
-  35,
-  150,
-  525,
-  220,
-  'Single Platform Performance',
-  `${String(activePlatforms[0].platform || 'Platform').toUpperCase()} is the only tracked platform in this report. Since there is no second platform to compare, this section focuses on leads/results performance instead of a distribution chart.`
-);
 }
 
 drawFooter(pageNo++);
@@ -1364,6 +1527,19 @@ doc.fillColor('#CBD5E1')
   .fontSize(9)
   .font('Helvetica')
   .text('Business-oriented observations and next actions', 50, 62);
+
+  let availableFields = 0;
+
+  if (safeSummary.spend > 0) availableFields++;
+  if (safeSummary.reach > 0) availableFields++;
+  if (safeSummary.impressions > 0) availableFields++;
+  if (safeSummary.clicks > 0) availableFields++;
+  if (safeSummary.conversions > 0) availableFields++;
+  if (safeSummary.revenue > 0) availableFields++;
+
+  const completenessScore =
+    Math.round((availableFields / 6) * 100);
+
 // Insight stat cards
 const insightCards = [
   {
@@ -1387,42 +1563,52 @@ const insightCards = [
     bg: THEME.softAmber,
     color: THEME.amber,
   },
+  {
+    title: 'Data Quality',
+    value: `${completenessScore}%`,
+    desc: 'Completeness of uploaded report metrics.',
+    bg: THEME.softPurple,
+    color: THEME.violet,
+  },
 ];
 
 insightCards.forEach((card, i) => {
-  const x = 35 + i * 175;
-  const y = 125;
+  const col = i % 2;
+  const row = Math.floor(i / 2);
 
-  drawCard(x, y, 160, 105, card.bg, THEME.border);
+  const x = 35 + col * 270;
+  const y = 125 + row * 115;
+
+  drawCard(x, y, 250, 95, card.bg, THEME.border);
 
   doc.circle(x + 20, y + 22, 6).fill(card.color);
 
   doc.fillColor(THEME.muted)
     .fontSize(8)
     .font('Helvetica-Bold')
-    .text(card.title.toUpperCase(), x + 35, y + 17);
+    .text(card.title.toUpperCase(), x + 35, y + 17, { width: 190 });
 
   doc.fillColor(THEME.text)
     .fontSize(16)
     .font('Helvetica-Bold')
-    .text(card.value, x + 18, y + 45, { width: 130 });
+    .text(card.value, x + 18, y + 42, { width: 210 });
 
   doc.fillColor(THEME.muted)
     .fontSize(7.5)
     .font('Helvetica')
-    .text(card.desc, x + 18, y + 72, {
-      width: 125,
+    .text(card.desc, x + 18, y + 67, {
+      width: 210,
       lineGap: 2,
     });
 });
 
 // AI Summary
-drawCard(35, 260, 525, 145, THEME.card, THEME.border);
+drawCard(35, 360, 525, 120, THEME.card, THEME.border);
 
 doc.fillColor(THEME.text)
   .fontSize(16)
   .font('Helvetica-Bold')
-  .text('Executive Marketing Summary', 55, 282);
+  .text('Executive Marketing Summary', 55, 380);
 
 doc.fillColor(THEME.muted)
   .fontSize(9)
@@ -1430,7 +1616,7 @@ doc.fillColor(THEME.muted)
   .text(
     reportSummaryText,
     55,
-    315,
+    410,
     {
       width: 485,
       lineGap: 4,
@@ -1438,25 +1624,47 @@ doc.fillColor(THEME.muted)
   );
 
 // Observations
-drawCard(35, 430, 250, 260, THEME.card, THEME.border);
+drawCard(35, 505, 250, 230, THEME.card, THEME.border);
 
 doc.fillColor(THEME.text)
   .fontSize(15)
   .font('Helvetica-Bold')
-  .text('Key Observations', 55, 452);
+ .text('Key Observations', 55, 525);
+
+const spendTrend =
+  growth?.spend
+    ? `Advertising spend changed by ${growth.spend} versus the previous reporting period.`
+    : 'Previous spend comparison was unavailable.';
+
+const leadTrend =
+  growth?.conversions
+    ? `Lead volume changed by ${growth.conversions} compared with the previous reporting period.`
+    : 'Previous lead comparison was unavailable.';
 
 const observations = [
   `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results with total spend of ${formatCurrency(safeSummary.spend, currency)}.`,
   safeSummary.reach > 0 || safeSummary.impressions > 0
     ? `Reach was ${safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'not provided'} and impressions were ${safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'not provided'}.`
     : 'Reach and impression data were not available in the uploaded report.',
+  spendTrend,
+  leadTrend,
   safeSummary.hasClicks
     ? `CTR is ${formatPct(safeSummary.ctr)}, based on ${formatNum(safeSummary.clicks)} clicks.`
     : 'Click and CTR data were not available, so engagement rate cannot be evaluated from this upload.',
 ];
 
+const spendTrend =
+  growth?.spend
+    ? `Advertising spend changed by ${growth.spend} versus the previous reporting period.`
+    : 'Previous spend comparison was unavailable.';
+
+  const leadTrend =
+    growth?.conversions
+      ? `Lead volume changed by ${growth.conversions} compared with the previous reporting period.`
+      : 'Previous lead comparison was unavailable.';
+
 observations.forEach((text, i) => {
-  const y = 490 + i * 52;
+  const y = 558 + i * 32;
 
   doc.circle(60, y + 5, 7).fill(THEME.royal);
 
@@ -1475,69 +1683,61 @@ observations.forEach((text, i) => {
 });
 
 // Recommendations
-drawCard(310, 430, 250, 260, THEME.card, THEME.border);
+drawCard(310, 505, 250, 230, THEME.card, THEME.border);
 
 doc.fillColor(THEME.text)
   .fontSize(15)
   .font('Helvetica-Bold')
-  .text('Recommended Actions', 330, 452);
+  .text('Recommended Actions', 330, 525);
 
 let recommendations = [];
 
-const hasCampaignData = campaigns.length > 0;
-const topCampaign = hasCampaignData ? campaigns[0] : null;
-const topPlatform = activePlatforms.length > 0 ? activePlatforms[0] : null;
+if (safeSummary.cpa > 0) {
+  recommendations.push(
+    `The current cost per lead is ${formatCurrency(safeSummary.cpa, currency)}. Continue monitoring lead quality before increasing budget.`
+  );
+}
+
+if (safeSummary.hasRevenue && safeSummary.roas >= 1) {
+  recommendations.push(
+    `ROAS is ${formatNum(safeSummary.roas, 2)}x, meaning tracked revenue is slightly higher than ad spend. Improve conversion quality before scaling aggressively.`
+  );
+}
 
 if (!safeSummary.hasClicks) {
   recommendations.push(
-    'Click and CTR data were not available in the uploaded report. Include click metrics in future exports to evaluate engagement accurately.'
-  );
-} else if (safeSummary.ctr < 1) {
-  recommendations.push(
-    'CTR is below 1%. Test stronger creatives, clearer CTA copy, and better audience segmentation.'
-  );
-} else {
-  recommendations.push(
-    `CTR is ${formatPct(safeSummary.ctr)}, which indicates measurable engagement from the available click data.`
+    'Add click metrics in future exports to evaluate CTR, CPC and engagement quality.'
   );
 }
 
 if (!safeSummary.hasRevenue) {
   recommendations.push(
-    'Revenue and ROAS data were not available. Add purchase value, conversion value, or revenue columns to evaluate return on ad spend.'
-  );
-} else if (safeSummary.roas < 1) {
-  recommendations.push(
-    'ROAS is below 1x. Review offer quality, landing page conversion rate, audience targeting, and budget allocation.'
-  );
-} else {
-  recommendations.push(
-    `ROAS is ${formatNum(safeSummary.roas, 2)}x. Continue tracking revenue quality before increasing budget.`
+    'Add revenue, purchase value or ROAS columns to measure return on ad spend accurately.'
   );
 }
 
-if (safeSummary.conversions > 0) {
+if (activePlatforms.length === 1) {
   recommendations.push(
-    `The campaigns generated ${formatNum(safeSummary.conversions)} leads/results at ${formatCurrency(safeSummary.cpa, currency)} cost per result.`
+    `${String(activePlatforms[0].platform || 'Platform').toUpperCase()} generated all tracked results in this report. Test another platform only after current CPL and lead quality are stable.`
   );
 }
 
-if (topCampaign) {
+if (!hasCampaignChart) {
   recommendations.push(
-    `"${String(topCampaign.name || 'Top campaign').substring(0, 35)}" had the highest tracked spend. Review its creative, audience, and lead quality before scaling.`
+    'Use campaign-level export data in the next upload to identify top and low-performing campaigns.'
   );
 }
 
-if (topPlatform) {
+while (recommendations.length < 5) {
   recommendations.push(
-    `${String(topPlatform.platform || 'Platform').toUpperCase()} is the primary tracked platform in this report. Continue monitoring cost per lead and conversion quality.`
+    'Continue monitoring campaign performance and optimize based on lead quality.'
   );
 }
 
 recommendations = [...new Set(recommendations)].slice(0, 5);
 
 recommendations.slice(0, 5).forEach((text, i) => {
-  const y = 485 + i * 38;
+  const y = 558 + i * 32;
 
   doc.circle(335, y + 5, 5).fill(THEME.emerald);
 
