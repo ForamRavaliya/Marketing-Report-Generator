@@ -99,15 +99,21 @@ router.post('/generate/:clientId', async (req, res) => {
 
     const recommendations = [];
 
-    if (roas < 2) {
+    if (revenue > 0 && roas < 2) {
       recommendations.push(
-        'ROAS is below the ideal level. Review low-performing campaigns and improve audience targeting, creatives, and landing pages.'
+        'ROAS is below the ideal level. Review campaign targeting, offer quality, landing pages, and budget allocation.'
       );
     }
 
-    if (ctr < 1) {
+    if (clicks > 0 && ctr < 1) {
       recommendations.push(
-        'CTR is low or clicks data is not available. Test stronger headlines, clearer CTAs, short-form video creatives, and better audience segmentation.'
+        'CTR is low. Test stronger headlines, clearer CTAs, short-form creatives, and better audience segmentation.'
+      );
+    }
+
+    if (clicks === 0) {
+      recommendations.push(
+        'Click and CTR data were not available in the uploaded report. Include click metrics in future exports to evaluate engagement accurately.'
       );
     }
 
@@ -129,11 +135,11 @@ router.post('/generate/:clientId', async (req, res) => {
       );
     }
 
-    if (bestPlatform) {
-      recommendations.push(
-        `${String(bestPlatform.platform).toUpperCase()} is currently the strongest platform by ROAS. Allocate more budget there while monitoring CPA.`
-      );
-    }
+  if (bestPlatform && safeNum(bestPlatform.spend) > 0) {
+    recommendations.push(
+      `${String(bestPlatform.platform || 'Platform').toUpperCase()} had the highest tracked spend/performance in this report period. Continue monitoring CPA before scaling.`
+    );
+  }
 
     if (bestCampaign?.name) {
       recommendations.push(

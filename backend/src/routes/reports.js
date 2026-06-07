@@ -298,6 +298,8 @@ const drawPieChart = (doc, data, options, currency = 'INR') => {
 // Generate PDF report
 router.post('/generate', async (req, res) => {
   try {
+
+  let pageNo = 1;
     const {
       clientId,
       title,
@@ -334,7 +336,8 @@ const reportsCountResult = await db.query(
   [req.user.agency_id]
 );
 
-const totalReports = reportsCountResult.rows[0].total;
+const totalReports =
+ Number(reportsCountResult.rows[0]?.total || 0);
 
 const reportLimits = {
   free: 5,
@@ -474,7 +477,7 @@ if (totalReports >= reportLimits[planName]) {
     const trends = trendsResult.rows;
     const platforms = platformsResult.rows;
     const campaigns = campaignsResult.rows;
-    const aiInsight = aiInsightResult.rows[0] || null;
+    // const aiInsight = aiInsightResult.rows[0] || null;
 
     const latestMonthResult = await db.query(
       `SELECT MAX(report_month) AS latest_month
@@ -541,17 +544,7 @@ if (totalReports >= reportLimits[planName]) {
     const writeStream = fs.createWriteStream(filePath);
     doc.pipe(writeStream);
 
-    const PRIMARY = canUseAgencyBranding
-      ? agency?.primary_color || '#2563EB'
-      : '#2563EB';
 
-    const SECONDARY = canUseAgencyBranding
-      ? agency?.secondary_color || '#7C3AED'
-      : '#7C3AED';
-    const DARK = '#1E293B';
-    const GRAY = '#64748B';
-    const LIGHT = '#F1F5F9';
-    const WHITE = '#FFFFFF';
 
    /* // Helper: hex to rgb
     const hexToRgb = (hex) => {
@@ -1011,7 +1004,9 @@ if (campaigns.length > 0) {
       { width: 150, align: 'right', lineBreak: false }
     );
 }
-drawFooter(1);
+if (hasTrendChart || hasCampaignChart) {
+   drawFooter(pageNo++);
+}
 // ===============================
 // PAGE 2 - TABLES
 // ===============================
@@ -1146,87 +1141,74 @@ else {
 }
 
 
-drawFooter(2);
+if (hasTrendChart || hasCampaignChart) {
+   drawFooter(pageNo++);
+}
 // ===============================
 // PAGE 3 - CHARTS
 // ===============================
+const hasTrendChart = trends.length > 1;
+const hasCampaignChart = campaigns.length > 0;
 
-doc.addPage();
-doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
+if (hasTrendChart || hasCampaignChart) {
+  doc.addPage();
 
-doc.rect(0, 0, pageW, 95).fill(THEME.navy);
+  doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
+  doc.rect(0, 0, pageW, 95).fill(THEME.navy);
 
-doc.fillColor('#FFFFFF')
-  .fontSize(22)
-  .font('Helvetica-Bold')
-  .text('Charts & Platform Analytics', 50, 34);
+  doc.fillColor('#FFFFFF')
+    .fontSize(22)
+    .font('Helvetica-Bold')
+    .text('Charts & Campaign Analytics', 50, 34);
 
-doc.fillColor('#CBD5E1')
-  .fontSize(9)
-  .font('Helvetica')
-  .text('Visual analysis of spend and campaign performance', 50, 62);
+  doc.fillColor('#CBD5E1')
+    .fontSize(9)
+    .font('Helvetica')
+    .text('Visual analysis of spend and campaign performance', 50, 62);
 
-if (trends.length > 1) {
-  drawCard(35, 120, 525, 220, THEME.card, THEME.border);
+  if (hasTrendChart) {
+    drawCard(35, 120, 525, 220, THEME.card, THEME.border);
 
-  drawLineChart(
-    doc,
-    trends,
-    {
-      x: 55,
-      y: 145,
-      width: 480,
-      height: 160,
-      title: 'Monthly Spend Trend',
-      labelKey: 'month',
-      valueKey: 'spend',
-      color: THEME.royal,
-    },
-    currency
-  );
+    drawLineChart(
+      doc,
+      trends,
+      {
+        x: 55,
+        y: 145,
+        width: 480,
+        height: 160,
+        title: 'Monthly Spend Trend',
+        labelKey: 'month',
+        valueKey: 'spend',
+        color: THEME.royal,
+      },
+      currency
+    );
+  }
 
-} else {
-  drawEmptyState(
-    35,
-    120,
-    525,
-    220,
-    'Not enough monthly data',
-    'At least two months of data are required to display a meaningful spend trend chart.'
-  );
+  if (hasCampaignChart) {
+    drawCard(35, hasTrendChart ? 375 : 120, 525, 315, THEME.card, THEME.border);
+
+    drawBarChart(
+      doc,
+      campaigns,
+      {
+        x: 55,
+        y: hasTrendChart ? 400 : 145,
+        width: 480,
+        title: 'Top Campaigns by Spend',
+        labelKey: 'name',
+        valueKey: 'spend',
+        color: THEME.violet,
+      },
+      currency
+    );
+  }
+
+ if (hasTrendChart || hasCampaignChart) {
+    drawFooter(pageNo++);
+ }
 }
-
-if (campaigns.length > 0) {
-  drawCard(35, 375, 525, 315, THEME.card, THEME.border);
-
-  drawBarChart(
-    doc,
-    campaigns,
-    {
-      x: 55,
-      y: 400,
-      width: 480,
-      title: 'Top Campaigns by Spend',
-      labelKey: 'name',
-      valueKey: 'spend',
-      color: THEME.violet,
-    },
-    currency
-  );
-}
-else {
-  drawEmptyState(
-    35,
-    375,
-    525,
-    315,
-    'Campaign-level data not available',
-    'The uploaded report contains aggregate data only, so campaign-wise chart cannot be generated.'
-  );
-}
-
-drawFooter(3);
-
 // ===============================
 // PAGE 4 - PLATFORM ANALYTICS
 // ===============================
@@ -1247,39 +1229,96 @@ doc.fillColor('#CBD5E1')
   .text('Platform-wise spend distribution and leads performance', 50, 62);
 
 // Top campaign mini strip
-if (platforms.length > 0 && platforms.some(p => Number(p.spend || 0) > 0)) {
+const activePlatforms = platforms.filter(p => Number(p.spend || 0) > 0);
+
+if (activePlatforms.length > 1) {
+
   drawCard(35, 120, 525, 240, THEME.card, THEME.border);
 
-  drawPieChart(doc, platforms, {
-    x: 175,
-    y: 245,
-    radius: 65,
-    title: 'Platform Spend Distribution',
-  }, currency);
+  drawPieChart(
+    doc,
+    activePlatforms,
+    {
+      x: 175,
+      y: 245,
+      radius: 65,
+      title: 'Platform Spend Distribution',
+    },
+    currency
+  );
 
-  drawCard(35, 415, 525, 230, THEME.softGreen, '#A7F3D0');
+  drawCard(
+    35,
+    415,
+    525,
+    230,
+    THEME.softGreen,
+    '#A7F3D0'
+  );
 
-  drawNumberBarChart(doc, platforms, {
-    x: 55,
-    y: 430,
-    width: 480,
-    title: 'Platform-wise Leads',
-    labelKey: 'platform',
-    valueKey: 'conversions',
-    color: THEME.emerald,
-  });
-} else {
+  drawNumberBarChart(
+    doc,
+    activePlatforms,
+    {
+      x: 55,
+      y: 430,
+      width: 480,
+      title: 'Platform-wise Leads',
+      labelKey: 'platform',
+      valueKey: 'conversions',
+      color: THEME.emerald,
+    }
+  );
+
+} else if (activePlatforms.length === 1) {
+
   drawEmptyState(
     35,
-    160,
+    150,
     525,
-    260,
-    'Platform data not available',
-    'Platform-wise spend distribution cannot be shown because platform data is missing or zero.'
+    220,
+    'Single Platform Report',
+    `${String(activePlatforms[0].platform || 'Platform').toUpperCase()} contributed 100% of the tracked spend. Platform distribution chart is hidden because there is no second platform to compare.`
+  );
+
+  drawCard(
+    35,
+    415,
+    525,
+    230,
+    THEME.softGreen,
+    '#A7F3D0'
+  );
+
+  drawNumberBarChart(
+    doc,
+    activePlatforms,
+    {
+      x: 55,
+      y: 430,
+      width: 480,
+      title: 'Platform-wise Leads',
+      labelKey: 'platform',
+      valueKey: 'conversions',
+      color: THEME.emerald,
+    }
+  );
+
+} else {
+
+  drawEmptyState(
+    35,
+    150,
+    525,
+    220,
+    'No Platform Data',
+    'Platform-level data was not available in the uploaded report.'
   );
 }
 
-drawFooter(4);
+if (hasTrendChart || hasCampaignChart) {
+   drawFooter(pageNo++);
+}
 
 // ===============================
 // PAGE 5 - INSIGHTS
@@ -1438,24 +1477,7 @@ if (safeSummary.conversions > 0) {
 
 recommendations.push('Continue monitoring spend, leads/results, and cost per result before scaling budget.');
 
-if (aiInsight?.recommendations) {
-  try {
-    const parsed = Array.isArray(aiInsight.recommendations)
-      ? aiInsight.recommendations
-      : JSON.parse(aiInsight.recommendations || '[]');
 
-    if (parsed.length > 0) {
-     recommendations = [
-      ...new Set([
-        ...recommendations,
-        ...parsed
-      ])
-     ];
-    }
-  } catch (e) {
-    console.error(e);
-  }
-}
 recommendations.slice(0, 5).forEach((text, i) => {
   const y = 485 + i * 38;
 
@@ -1469,7 +1491,9 @@ recommendations.slice(0, 5).forEach((text, i) => {
       lineGap: 3,
     });
 });
-drawFooter(5);
+if (hasTrendChart || hasCampaignChart) {
+   drawFooter(pageNo++);
+}
 // ===============================
 // PREMIUM REPORT DESIGN END
 // ===============================
