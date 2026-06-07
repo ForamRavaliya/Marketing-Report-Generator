@@ -1653,15 +1653,7 @@ const observations = [
     : 'Click and CTR data were not available, so engagement rate cannot be evaluated from this upload.',
 ];
 
-const spendTrend =
-  growth?.spend
-    ? `Advertising spend changed by ${growth.spend} versus the previous reporting period.`
-    : 'Previous spend comparison was unavailable.';
 
-  const leadTrend =
-    growth?.conversions
-      ? `Lead volume changed by ${growth.conversions} compared with the previous reporting period.`
-      : 'Previous lead comparison was unavailable.';
 
 observations.forEach((text, i) => {
   const y = 558 + i * 32;
