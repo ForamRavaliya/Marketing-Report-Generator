@@ -1210,7 +1210,7 @@ if (hasTrendChart || hasCampaignChart) {
 
 drawFooter(pageNo++);
  }
-}
+
 // ===============================
 // PAGE 4 - PLATFORM ANALYTICS
 // ===============================
@@ -1421,13 +1421,13 @@ doc.fillColor(THEME.text)
   .text('Key Observations', 55, 452);
 
 const observations = [
-  `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results.`,
-  `Total reach was ${formatNum(safeSummary.reach)} with ${formatNum(
-    safeSummary.impressions
-  )} impressions.`,
-  safeSummary.clicks > 0
+  `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results with total spend of ${formatCurrency(safeSummary.spend, currency)}.`,
+  safeSummary.reach > 0 || safeSummary.impressions > 0
+    ? `Reach was ${safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'not provided'} and impressions were ${safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'not provided'}.`
+    : 'Reach and impression data were not available in the uploaded report.',
+  safeSummary.hasClicks
     ? `CTR is ${formatPct(safeSummary.ctr)}, based on ${formatNum(safeSummary.clicks)} clicks.`
-    : 'Click/CTR data was not available in the uploaded report, so engagement rate cannot be evaluated.',
+    : 'Click and CTR data were not available, so engagement rate cannot be evaluated from this upload.',
 ];
 
 observations.forEach((text, i) => {
@@ -1459,24 +1459,57 @@ doc.fillColor(THEME.text)
 
 let recommendations = [];
 
+const hasCampaignData = campaigns.length > 0;
+const topCampaign = hasCampaignData ? campaigns[0] : null;
+const topPlatform = activePlatforms.length > 0 ? activePlatforms[0] : null;
+
 if (!safeSummary.hasClicks) {
-  recommendations.push('Click and CTR data were not available in the uploaded report. Include click metrics in future exports to evaluate engagement.');
+  recommendations.push(
+    'Click and CTR data were not available in the uploaded report. Include click metrics in future exports to evaluate engagement accurately.'
+  );
 } else if (safeSummary.ctr < 1) {
-  recommendations.push('CTR is low. Test stronger CTA headlines, creative variations, and audience segments.');
+  recommendations.push(
+    'CTR is below 1%. Test stronger creatives, clearer CTA copy, and better audience segmentation.'
+  );
+} else {
+  recommendations.push(
+    `CTR is ${formatPct(safeSummary.ctr)}, which indicates measurable engagement from the available click data.`
+  );
 }
 
 if (!safeSummary.hasRevenue) {
-  recommendations.push('Revenue and ROAS data were not available. Add revenue or ROAS columns to evaluate return on ad spend.');
+  recommendations.push(
+    'Revenue and ROAS data were not available. Add purchase value, conversion value, or revenue columns to evaluate return on ad spend.'
+  );
 } else if (safeSummary.roas < 1) {
-  recommendations.push('ROAS is below 1x. Review campaign targeting, offer quality, landing page, and budget allocation.');
+  recommendations.push(
+    'ROAS is below 1x. Review offer quality, landing page conversion rate, audience targeting, and budget allocation.'
+  );
+} else {
+  recommendations.push(
+    `ROAS is ${formatNum(safeSummary.roas, 2)}x. Continue tracking revenue quality before increasing budget.`
+  );
 }
 
 if (safeSummary.conversions > 0) {
-  recommendations.push(`Campaigns generated ${formatNum(safeSummary.conversions)} leads/results at ${formatCurrency(safeSummary.cpa, currency)} cost per result.`);
+  recommendations.push(
+    `The campaigns generated ${formatNum(safeSummary.conversions)} leads/results at ${formatCurrency(safeSummary.cpa, currency)} cost per result.`
+  );
 }
 
-recommendations.push('Continue monitoring spend, leads/results, and cost per result before scaling budget.');
+if (topCampaign) {
+  recommendations.push(
+    `"${String(topCampaign.name || 'Top campaign').substring(0, 35)}" had the highest tracked spend. Review its creative, audience, and lead quality before scaling.`
+  );
+}
 
+if (topPlatform) {
+  recommendations.push(
+    `${String(topPlatform.platform || 'Platform').toUpperCase()} is the primary tracked platform in this report. Continue monitoring cost per lead and conversion quality.`
+  );
+}
+
+recommendations = [...new Set(recommendations)].slice(0, 5);
 
 recommendations.slice(0, 5).forEach((text, i) => {
   const y = 485 + i * 38;
