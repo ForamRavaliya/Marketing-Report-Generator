@@ -1442,85 +1442,74 @@ if (topPlatform) {
     }
   );
 } else if (activePlatforms.length === 1) {
-  const onlyPlatform = activePlatforms[0];
+   const onlyPlatform = activePlatforms[0];
 
-  drawEmptyState(
-    35,
-    125,
-    525,
-    145,
-    'Single Platform Performance',
-    `${String(onlyPlatform.platform || 'Platform').toUpperCase()} is the only tracked platform in this report. Since there is no second platform to compare, this page focuses on spend, leads and cost efficiency.`
-  );
+   drawEmptyState(
+     35,
+     125,
+     525,
+     145,
+     'Single Platform Performance',
+     `${String(onlyPlatform.platform || 'Platform').toUpperCase()} is the only tracked platform in this report. Since there is no second platform to compare, this page focuses on spend, leads and cost efficiency.`
+   );
 
-  drawMiniMetricCards(
-    [
-      {
-        label: 'Platform',
-        value: String(onlyPlatform.platform || 'Meta').toUpperCase(),
-        color: THEME.royal,
-        bg: THEME.softBlue,
-      },
-      {
-        label: 'Spend',
-        value: formatCurrency(onlyPlatform.spend, currency),
-        color: THEME.violet,
-        bg: THEME.softPurple,
-      },
-      {
-        label: 'Leads',
-        value: formatNum(onlyPlatform.conversions),
-        color: THEME.emerald,
-        bg: THEME.softGreen,
-      },
-      {
-        label: 'Share',
-        value: '100%',
-        color: THEME.amber,
-        bg: THEME.softAmber,
-      },
-      {
-       label: 'Cost/Lead',
-       value: formatCurrency(
-         Number(onlyPlatform.spend || 0) /
-         Math.max(Number(onlyPlatform.conversions || 0),1),
-         currency
-       ),
-       color: THEME.rose,
-       bg: THEME.softRose
-      }
-    ],
-    35,
-    305
-    if(metric.subtitle){
-       doc.fillColor(metric.color)
-          .fontSize(8)
-          .text(metric.subtitle,...)
-    }
+   drawMiniMetricCards(
+     [
+       {
+         label: 'Platform',
+         value: String(onlyPlatform.platform || 'Meta').toUpperCase(),
+         color: THEME.royal,
+         bg: THEME.softBlue,
+       },
+       {
+         label: 'Spend',
+         value: formatCurrency(onlyPlatform.spend, currency),
+         color: THEME.violet,
+         bg: THEME.softPurple,
+       },
+       {
+         label: 'Leads',
+         value: formatNum(onlyPlatform.conversions),
+         color: THEME.emerald,
+         bg: THEME.softGreen,
+       },
+       {
+         label: 'Share',
+         value: '100%',
+         color: THEME.amber,
+         bg: THEME.softAmber,
+       },
+       {
+         label: 'Cost/Lead',
+         value: formatCurrency(
+           Number(onlyPlatform.spend || 0) /
+             Math.max(Number(onlyPlatform.conversions || 0), 1),
+           currency
+         ),
+         color: THEME.rose,
+         bg: THEME.softRose,
+       },
+     ],
+     35,
+     305
+   );
 
-    if(metric.description){
-       doc.fillColor(THEME.muted)
-          .fontSize(7)
-          .text(metric.description,...)
-    }
-  );
+   drawCard(35, 420, 525, 230, THEME.softGreen, '#A7F3D0');
 
-  drawCard(35, 420, 525, 230, THEME.softGreen, '#A7F3D0');
-
-  drawNumberBarChart(
-    doc,
-    activePlatforms,
-    {
-      x: 55,
-      y: 440,
-      width: 480,
-      title: 'Platform-wise Leads',
-      labelKey: 'platform',
-      valueKey: 'conversions',
-      color: THEME.emerald,
-    }
-  );
-} else {
+   drawNumberBarChart(
+     doc,
+     activePlatforms,
+     {
+       x: 55,
+       y: 440,
+       width: 480,
+       title: 'Platform-wise Leads',
+       labelKey: 'platform',
+       valueKey: 'conversions',
+       color: THEME.emerald,
+     }
+   );
+ }else {
   drawEmptyState(
     35,
     150,
