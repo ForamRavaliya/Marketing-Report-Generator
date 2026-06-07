@@ -474,9 +474,12 @@ if (totalReports >= reportLimits[planName]) {
     ]);
 
     const summary = summaryResult.rows[0];
+
     const trends = trendsResult.rows;
     const platforms = platformsResult.rows;
     const campaigns = campaignsResult.rows;
+    const hasTrendChart = trends.length > 1;
+    const hasCampaignChart = campaigns.length > 0;
     // const aiInsight = aiInsightResult.rows[0] || null;
 
     const latestMonthResult = await db.query(
@@ -660,11 +663,16 @@ const displayCtr = safeSummary.hasClicks ? formatPct(safeSummary.ctr) : 'N/A';
 const displayCpc = safeSummary.hasClicks ? formatCurrency(safeSummary.cpc, currency) : 'N/A';
 const displayRoas = safeSummary.hasRevenue ? `${formatNum(safeSummary.roas, 2)}x` : 'N/A';
 
+const aiInsight = aiInsightResult.rows[0] || null;
+
 const reportSummaryText =
-  `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results. ` +
-  `Total spend was ${formatCurrency(safeSummary.spend, currency)} with CPA ${formatCurrency(safeSummary.cpa, currency)}. ` +
-  `${safeSummary.hasClicks ? `Clicks were ${formatNum(safeSummary.clicks)} and CTR was ${formatPct(safeSummary.ctr)}. ` : 'Click/CTR data was not available in the uploaded report. '}` +
-  `${safeSummary.hasRevenue ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue/ROAS data was not available.'}`;
+  aiInsight?.summary ||
+  (
+    `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results. ` +
+    `Total spend was ${formatCurrency(safeSummary.spend, currency)} with CPA ${formatCurrency(safeSummary.cpa, currency)}. ` +
+    `${safeSummary.hasClicks ? `Clicks were ${formatNum(safeSummary.clicks)} and CTR was ${formatPct(safeSummary.ctr)}. ` : 'Click/CTR data was not available in the uploaded report. '}` +
+    `${safeSummary.hasRevenue ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue/ROAS data was not available.'}`
+  );
 
 const reportTitle = customTitle || title || 'Marketing Performance Report';
 
@@ -1004,9 +1012,7 @@ if (campaigns.length > 0) {
       { width: 150, align: 'right', lineBreak: false }
     );
 }
-if (hasTrendChart || hasCampaignChart) {
-   drawFooter(pageNo++);
-}
+drawFooter(pageNo++);
 // ===============================
 // PAGE 2 - TABLES
 // ===============================
@@ -1141,14 +1147,11 @@ else {
 }
 
 
-if (hasTrendChart || hasCampaignChart) {
-   drawFooter(pageNo++);
-}
+drawFooter(pageNo++);
 // ===============================
 // PAGE 3 - CHARTS
 // ===============================
-const hasTrendChart = trends.length > 1;
-const hasCampaignChart = campaigns.length > 0;
+
 
 if (hasTrendChart || hasCampaignChart) {
   doc.addPage();
@@ -1205,8 +1208,7 @@ if (hasTrendChart || hasCampaignChart) {
     );
   }
 
- if (hasTrendChart || hasCampaignChart) {
-    drawFooter(pageNo++);
+drawFooter(pageNo++);
  }
 }
 // ===============================
@@ -1316,9 +1318,7 @@ if (activePlatforms.length > 1) {
   );
 }
 
-if (hasTrendChart || hasCampaignChart) {
-   drawFooter(pageNo++);
-}
+drawFooter(pageNo++);
 
 // ===============================
 // PAGE 5 - INSIGHTS
@@ -1491,9 +1491,7 @@ recommendations.slice(0, 5).forEach((text, i) => {
       lineGap: 3,
     });
 });
-if (hasTrendChart || hasCampaignChart) {
-   drawFooter(pageNo++);
-}
+drawFooter(pageNo++);
 // ===============================
 // PREMIUM REPORT DESIGN END
 // ===============================

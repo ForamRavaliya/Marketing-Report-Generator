@@ -382,16 +382,17 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
       );
     }
 
-    await processFileWithMapping(
-      uploadRow.id,
-      uploadRow.file_type,
-      uploadRow.file_path,
-      uploadRow.client_id,
-      uploadRow.platform,
-      uploadRow.date_range_start,
-      uploadRow.date_range_end,
-      mapping
-    );
+  await processFileWithMapping(
+    uploadRow.id,
+    uploadRow.file_type,
+    uploadRow.file_path,
+    uploadRow.file_name,
+    uploadRow.client_id,
+    uploadRow.platform,
+    uploadRow.date_range_start,
+    uploadRow.date_range_end,
+    mapping
+  );
 
     res.json({
       success: true,
@@ -493,6 +494,7 @@ async function processFileWithMapping(
   uploadId,
   fileType,
   filePath,
+  originalFileName,
   clientId,
   platform,
   dateStart,
@@ -663,104 +665,315 @@ async function processFileWithMapping(
   }
 }
 
-async function processFile(uploadId, fileType, filePath, clientId, platform, dateStart, dateEnd) {
+async function processFileWithMapping(
+  uploadId,
+  fileType,
+  filePath,
+  originalFileName,
+  clientId,
+  platform,
+  dateStart,
+  dateEnd,
+  mapping
+) {
   try {
-    let result;
+    const records = await buildRecordsFromMappedFile(filePath, fileType);
 
-    if (fileType === 'csv') result = await extractFromCSV(filePath);
-    else if (fileType === 'excel') result = await extractFromExcel(filePath);
-    else if (fileType === 'pdf') result = await extractFromPDF(filePath);
-    else if (fileType === 'image') result = await extractFromImage(filePath);
-    else throw new Error('Unsupported file type');
+    const inferDateRangeFromFileName = (fileName = '') => {
+      const text = String(fileName);
 
-    const { metrics, campaigns } = result;
+      const monthMap = {
+        jan: 0, january: 0,
+        feb: 1, february: 1,
+        mar: 2, march: 2,
+        apr: 3, april: 3,
+        may: 4,
+        jun: 5, june: 5,
+        jul: 6, july: 6,
+        aug: 7, august: 7,
+        sep: 8, sept: 8, september: 8,
+        oct: 9, october: 9,
+        nov: 10, november: 10,
+        dec: 11, december: 11,
+      };
 
-    const reportMonth = dateStart ? new Date(dateStart) : new Date();
-    reportMonth.setDate(1);
-
-    if (
-      metrics.spend ||
-      metrics.impressions ||
-      metrics.clicks ||
-      metrics.conversions ||
-      metrics.reach ||
-      metrics.followers
-    ) {
-      await db.query(
-        `INSERT INTO performance_data
-          (client_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
-           spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, raw_data)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-         ON CONFLICT (client_id, platform, external_campaign_name, report_month)
-         DO UPDATE SET
-           upload_id = EXCLUDED.upload_id,
-           spend = EXCLUDED.spend,
-           impressions = EXCLUDED.impressions,
-           clicks = EXCLUDED.clicks,
-           ctr = EXCLUDED.ctr,
-           cpc = EXCLUDED.cpc,
-           conversions = EXCLUDED.conversions,
-           cpa = EXCLUDED.cpa,
-           roas = EXCLUDED.roas,
-           revenue = EXCLUDED.revenue,
-           reach = EXCLUDED.reach,
-           followers = EXCLUDED.followers,
-           raw_data = EXCLUDED.raw_data,
-           updated_at = NOW()`,
-        [
-          clientId,
-          uploadId,
-          platform || 'meta',
-          'aggregate',
-          reportMonth,
-          dateStart || null,
-          dateEnd || null,
-          metrics.spend || 0,
-          metrics.impressions || 0,
-          metrics.clicks || 0,
-          metrics.ctr || 0,
-          metrics.cpc || 0,
-          metrics.conversions || 0,
-          metrics.cpa || 0,
-          metrics.roas || 0,
-          metrics.revenue || 0,
-          metrics.reach || 0,
-          metrics.followers || 0,
-          JSON.stringify(metrics),
-        ]
+      const match = text.match(
+        /(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)[-\s_]*(\d{1,2})[-\s_,]*(\d{4}).*?(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)[-\s_]*(\d{1,2})[-\s_,]*(\d{4})/i
       );
-    }
 
-    for (const camp of campaigns) {
-      if (
-        !camp.spend &&
-        !camp.impressions &&
-        !camp.clicks &&
-        !camp.conversions &&
-        !camp.reach &&
-        !camp.followers
-      ) {
-        continue;
+      if (!match) return null;
+
+      const startMonth = monthMap[match[1].toLowerCase()];
+      const startDay = Number(match[2]);
+      const startYear = Number(match[3]);
+
+      const endMonth = monthMap[match[4].toLowerCase()];
+      const endDay = Number(match[5]);
+      const endYear = Number(match[6]);
+
+      return {
+        start: new Date(startYear, startMonth, startDay),
+        end: new Date(endYear, endMonth, endDay),
+      };
+    };
+
+    const inferredRange = inferDateRangeFromFileName(originalFileName);
+
+    const finalDateStart = dateStart || inferredRange?.start || null;
+    const finalDateEnd = dateEnd || inferredRange?.end || null;
+
+    const reportMonth = finalDateStart ? new Date(finalDateStart) : new Date();
+    reportMonth.setDate(1);
+    reportMonth.setHours(0, 0, 0, 0);
+
+    const normalizedPlatform = platform || 'meta';
+
+    const getRawValue = (record, field) => {
+      const col = mapping[field];
+      if (!col || col === 'ignore') return '';
+
+      if (record[col] !== undefined && record[col] !== null) {
+        return record[col];
       }
 
+      const wanted = normalizeHeader(col);
+
+      const actualKey = Object.keys(record).find(
+        (key) => normalizeHeader(key) === wanted
+      );
+
+      if (!actualKey) return '';
+
+      return record[actualKey];
+    };
+
+    const getValue = (record, field) => {
+      return parseNum(getRawValue(record, field));
+    };
+
+    const getText = (record, field) => {
+      return String(getRawValue(record, field) || '').trim();
+    };
+
+    const isSummaryRow = (name) => {
+      const n = normalizeHeader(name);
+
+      return (
+        !n ||
+        n === 'all' ||
+        n === 'total' ||
+        n === 'overall' ||
+        n === 'aggregate' ||
+        n.includes('total results') ||
+        n.includes('account total')
+      );
+    };
+
+    const normalizeCampaignMetric = (record) => {
+      const spend = getValue(record, 'spend');
+      const impressions = getValue(record, 'impressions');
+
+      let clicks = getValue(record, 'clicks');
+
+      const ctrValue = getValue(record, 'ctr');
+      const cpcValue = getValue(record, 'cpc');
+
+      let conversions = getValue(record, 'conversions');
+      const cpaValue = getValue(record, 'cpa');
+
+      let revenue = getValue(record, 'revenue');
+      const roasValue = getValue(record, 'roas');
+
+      const reach = getValue(record, 'reach');
+      const followers = getValue(record, 'followers');
+
+      if (!clicks) {
+        if (impressions > 0 && ctrValue > 0) {
+          clicks = (impressions * ctrValue) / 100;
+        } else if (spend > 0 && cpcValue > 0) {
+          clicks = spend / cpcValue;
+        }
+      }
+
+      if (!conversions && spend > 0 && cpaValue > 0) {
+        conversions = spend / cpaValue;
+      }
+
+      if (!revenue && spend > 0 && roasValue > 0) {
+        revenue = spend * roasValue;
+      }
+
+      const ctr = impressions > 0 && clicks > 0 ? (clicks / impressions) * 100 : 0;
+      const cpc = clicks > 0 ? spend / clicks : 0;
+      const cpa = conversions > 0 ? spend / conversions : 0;
+      const roas = spend > 0 && revenue > 0 ? revenue / spend : 0;
+
+      return {
+        spend,
+        impressions,
+        clicks,
+        ctr,
+        cpc,
+        conversions,
+        cpa,
+        roas,
+        revenue,
+        reach,
+        followers,
+      };
+    };
+
+    const campaignRows = [];
+    const summaryRows = [];
+
+    for (const record of records) {
+      const campaignName =
+        getText(record, 'campaignName') ||
+        getText(record, 'campaign') ||
+        'Unknown Campaign';
+
+      const metrics = normalizeCampaignMetric(record);
+
+      const hasAnyData =
+        metrics.spend ||
+        metrics.impressions ||
+        metrics.clicks ||
+        metrics.conversions ||
+        metrics.revenue ||
+        metrics.reach ||
+        metrics.followers;
+
+      if (!hasAnyData) continue;
+
+      if (isSummaryRow(campaignName)) {
+        summaryRows.push({
+          name: 'aggregate',
+          metrics,
+          rawData: record,
+        });
+      } else {
+        campaignRows.push({
+          name: campaignName,
+          metrics,
+          rawData: record,
+        });
+      }
+    }
+
+    const rowsForAggregate = summaryRows.length > 0 ? summaryRows : campaignRows;
+
+    const aggregate = rowsForAggregate.reduce(
+      (acc, row) => {
+        acc.spend += row.metrics.spend;
+        acc.impressions += row.metrics.impressions;
+        acc.clicks += row.metrics.clicks;
+        acc.conversions += row.metrics.conversions;
+        acc.revenue += row.metrics.revenue;
+        acc.reach += row.metrics.reach;
+        acc.followers += row.metrics.followers;
+        return acc;
+      },
+      {
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        revenue: 0,
+        reach: 0,
+        followers: 0,
+      }
+    );
+
+    aggregate.ctr =
+      aggregate.impressions > 0 && aggregate.clicks > 0
+        ? (aggregate.clicks / aggregate.impressions) * 100
+        : 0;
+
+    aggregate.cpc =
+      aggregate.clicks > 0 ? aggregate.spend / aggregate.clicks : 0;
+
+    aggregate.cpa =
+      aggregate.conversions > 0 ? aggregate.spend / aggregate.conversions : 0;
+
+    aggregate.roas =
+      aggregate.spend > 0 && aggregate.revenue > 0
+        ? aggregate.revenue / aggregate.spend
+        : 0;
+
+    await db.query(
+      `INSERT INTO performance_data
+        (client_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
+         spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, raw_data)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+       ON CONFLICT (client_id, platform, external_campaign_name, report_month)
+       DO UPDATE SET
+         upload_id = EXCLUDED.upload_id,
+         spend = EXCLUDED.spend,
+         impressions = EXCLUDED.impressions,
+         clicks = EXCLUDED.clicks,
+         ctr = EXCLUDED.ctr,
+         cpc = EXCLUDED.cpc,
+         conversions = EXCLUDED.conversions,
+         cpa = EXCLUDED.cpa,
+         roas = EXCLUDED.roas,
+         revenue = EXCLUDED.revenue,
+         reach = EXCLUDED.reach,
+         followers = EXCLUDED.followers,
+         raw_data = EXCLUDED.raw_data,
+         updated_at = NOW()`,
+      [
+        clientId,
+        uploadId,
+        normalizedPlatform,
+        'aggregate',
+        reportMonth,
+        finalDateStart,
+        finalDateEnd,
+        aggregate.spend,
+        aggregate.impressions,
+        aggregate.clicks,
+        aggregate.ctr,
+        aggregate.cpc,
+        aggregate.conversions,
+        aggregate.cpa,
+        aggregate.roas,
+        aggregate.revenue,
+        aggregate.reach,
+        aggregate.followers,
+        JSON.stringify({
+          ...aggregate,
+          mapping,
+          source: summaryRows.length > 0 ? 'summary_row' : 'campaign_sum',
+        }),
+      ]
+    );
+
+    for (const row of campaignRows) {
+      const campaignName = row.name || 'Unknown Campaign';
+      const m = row.metrics;
+
       let campaignId = null;
-      const campaignName = camp.name || 'Unknown Campaign';
 
       const campResult = await db.query(
         `INSERT INTO campaigns (client_id, name, platform)
          VALUES ($1,$2,$3)
          ON CONFLICT DO NOTHING
          RETURNING id`,
-        [clientId, campaignName, camp.platform || platform || 'other']
+        [clientId, campaignName, normalizedPlatform]
       );
 
       if (campResult.rows.length) {
         campaignId = campResult.rows[0].id;
       } else {
         const existing = await db.query(
-          'SELECT id FROM campaigns WHERE client_id = $1 AND name = $2',
+          `SELECT id
+           FROM campaigns
+           WHERE client_id = $1
+           AND name = $2
+           LIMIT 1`,
           [clientId, campaignName]
         );
+
         campaignId = existing.rows[0]?.id || null;
       }
 
@@ -790,35 +1003,42 @@ async function processFile(uploadId, fileType, filePath, clientId, platform, dat
           clientId,
           campaignId,
           uploadId,
-          camp.platform || platform || 'other',
+          normalizedPlatform,
           campaignName,
           reportMonth,
-          dateStart || null,
-          dateEnd || null,
-          camp.spend || 0,
-          camp.impressions || 0,
-          camp.clicks || 0,
-          camp.ctr || 0,
-          camp.cpc || 0,
-          camp.conversions || 0,
-          camp.cpa || 0,
-          camp.roas || 0,
-          camp.revenue || 0,
-          camp.reach || 0,
-          camp.followers || 0,
-          JSON.stringify(camp.rawData || {}),
+          finalDateStart,
+          finalDateEnd,
+          m.spend,
+          m.impressions,
+          m.clicks,
+          m.ctr,
+          m.cpc,
+          m.conversions,
+          m.cpa,
+          m.roas,
+          m.revenue,
+          m.reach,
+          m.followers,
+          JSON.stringify({
+            ...m,
+            campaignName,
+            mapping,
+            rawData: row.rawData,
+          }),
         ]
       );
     }
 
     await db.query(
       `UPDATE report_uploads
-       SET extraction_status = 'completed'
+       SET extraction_status = 'completed',
+           date_range_start = COALESCE(date_range_start, $2),
+           date_range_end = COALESCE(date_range_end, $3)
        WHERE id = $1`,
-      [uploadId]
+      [uploadId, finalDateStart, finalDateEnd]
     );
   } catch (error) {
-    console.error('File processing error:', error);
+    console.error('Mapping import error:', error);
 
     await db.query(
       `UPDATE report_uploads
@@ -827,134 +1047,8 @@ async function processFile(uploadId, fileType, filePath, clientId, platform, dat
        WHERE id = $2`,
       [error.message, uploadId]
     );
-  }
-}
 
-router.get('/client/:clientId', async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT ru.*, u.full_name AS uploaded_by_name
-       FROM report_uploads ru
-       LEFT JOIN users u ON ru.uploaded_by = u.id
-       WHERE ru.client_id = $1
-       ORDER BY ru.created_at DESC
-       LIMIT 50`,
-      [req.params.clientId]
-    );
-
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch uploads' });
-  }
-});
-
-router.get('/:id/status', async (req, res) => {
-  try {
-    const result = await db.query(
-      'SELECT id, extraction_status, extraction_error FROM report_uploads WHERE id = $1',
-      [req.params.id]
-    );
-
-    if (!result.rows.length) {
-      return res.status(404).json({ error: 'Upload not found' });
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to get status' });
-  }
-});
-
-router.post('/manual', async (req, res) => {
-  try {
-    const { clientId, platform, reportMonth, metrics, campaignName } = req.body;
-
-    if (!clientId || !platform || !reportMonth) {
-      return res.status(400).json({
-        error: 'clientId, platform, and reportMonth required',
-      });
-    }
-
-    const clientCheck = await db.query(
-      'SELECT id FROM clients WHERE id = $1 AND agency_id = $2',
-      [clientId, req.user.agency_id]
-    );
-
-    if (!clientCheck.rows.length) {
-      return res.status(403).json({ error: 'Client not found' });
-    }
-
-    const month = new Date(reportMonth);
-    month.setDate(1);
-
-    let campaignId = null;
-    const externalCampaignName = campaignName || 'manual_entry';
-
-    if (campaignName) {
-      const campResult = await db.query(
-        `INSERT INTO campaigns (client_id, name, platform)
-         VALUES ($1,$2,$3)
-         ON CONFLICT DO NOTHING
-         RETURNING id`,
-        [clientId, campaignName, platform]
-      );
-
-      if (campResult.rows.length) {
-        campaignId = campResult.rows[0].id;
-      } else {
-        const existing = await db.query(
-          'SELECT id FROM campaigns WHERE client_id = $1 AND name = $2',
-          [clientId, campaignName]
-        );
-        campaignId = existing.rows[0]?.id || null;
-      }
-    }
-
-    const result = await db.query(
-      `INSERT INTO performance_data
-        (client_id, campaign_id, platform, external_campaign_name, report_month,
-         spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-       ON CONFLICT (client_id, platform, external_campaign_name, report_month)
-       DO UPDATE SET
-         campaign_id = EXCLUDED.campaign_id,
-         spend = EXCLUDED.spend,
-         impressions = EXCLUDED.impressions,
-         clicks = EXCLUDED.clicks,
-         ctr = EXCLUDED.ctr,
-         cpc = EXCLUDED.cpc,
-         conversions = EXCLUDED.conversions,
-         cpa = EXCLUDED.cpa,
-         roas = EXCLUDED.roas,
-         revenue = EXCLUDED.revenue,
-         reach = EXCLUDED.reach,
-         followers = EXCLUDED.followers,
-         updated_at = NOW()
-       RETURNING *`,
-      [
-        clientId,
-        campaignId,
-        platform,
-        externalCampaignName,
-        month,
-        metrics.spend || 0,
-        metrics.impressions || 0,
-        metrics.clicks || 0,
-        metrics.ctr || 0,
-        metrics.cpc || 0,
-        metrics.conversions || 0,
-        metrics.cpa || 0,
-        metrics.roas || 0,
-        metrics.revenue || 0,
-        metrics.reach || 0,
-        metrics.followers || 0,
-      ]
-    );
-
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Manual entry error:', error);
-    res.status(500).json({ error: 'Failed to save data' });
+    throw error;
   }
 });
 
