@@ -160,7 +160,10 @@ router.get('/comparison/:clientId', async (req, res) => {
     const [curr, prev] = await Promise.all([getMonthData(current), getMonthData(previous)]);
 
     const calcChange = (curr, prev) => {
-      if (!prev || prev === 0) return curr > 0 ? 100 : 0;
+      if (prev === null || prev === undefined || Number(prev) === 0) {
+        return null;
+      }
+
       return ((curr - prev) / Math.abs(prev)) * 100;
     };
 
@@ -171,7 +174,13 @@ router.get('/comparison/:clientId', async (req, res) => {
       comparison[metric] = {
         current: parseFloat(curr[metric]) || 0,
         previous: parseFloat(prev[metric]) || 0,
-        change: calcChange(parseFloat(curr[metric]) || 0, parseFloat(prev[metric]) || 0),
+        change: calcChange(
+          parseFloat(curr?.[metric]) || 0,
+          prev?.[metric] === null || prev?.[metric] === undefined
+            ? null
+            : parseFloat(prev[metric])
+        ),
+        hasPreviousData: prev?.[metric] !== null && prev?.[metric] !== undefined && Number(prev[metric]) !== 0,
       };
     });
 
