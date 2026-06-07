@@ -730,64 +730,47 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
   doc.roundedRect(x, y, w, h, 12).fillAndStroke(bg, border);
 };
 
-const drawKpiCard = (x, y, w, h, item, color, bg) => {
-  drawCard(x, y, w, h, bg, '#DDE6F3');
 
-  doc.circle(x + 17, y + 19, 8).fill(color);
 
-  doc.fillColor(THEME.muted)
-    .fontSize(7)
-    .font('Helvetica-Bold')
-    .text(item.label.toUpperCase(), x + 32, y + 13, {
-      width: w - 40,
-      lineBreak: false,
-    });
 
-  doc.fillColor(THEME.text)
-    .fontSize(13)
-    .font('Helvetica-Bold')
-    .text(item.value, x + 32, y + 31, {
-      width: w - 40,
-      height: 18,
-      ellipsis: true,
-    });
+ const drawKpiCard = (x, y, w, h, item, color, bg) => {
+   drawCard(x, y, w, h, bg, '#DDE6F3');
 
-  if (item.subtitle) {
-    doc.roundedRect(x + 32, y + 50, 70, 12, 6).fill('#DBEAFE');
+   doc.circle(x + 18, y + 18, 8).fill(color);
 
-    doc.fillColor(color)
-      .fontSize(6.5)
-      .font('Helvetica-Bold')
-      .text(item.subtitle, x + 36, y + 53, {
-        width: 62,
-        align: 'center',
-        lineBreak: false,
-      });
-    return;
-  }
+   doc.fillColor(THEME.muted)
+     .fontSize(7)
+     .font('Helvetica-Bold')
+     .text(item.label.toUpperCase(), x + 34, y + 12, {
+       width: w - 42,
+       lineBreak: false,
+     });
 
-  const smallText =
-    item.growth && item.growth.startsWith('-')
-      ? `▼ ${item.growth}`
-      : item.growth
-        ? `▲ ${item.growth}`
-        : item.note || item.description || '';
+   doc.fillColor(THEME.text)
+     .fontSize(13)
+     .font('Helvetica-Bold')
+     .text(item.value, x + 34, y + 30, {
+       width: w - 42,
+       height: 18,
+       ellipsis: true,
+     });
 
-  doc.fillColor(
-      item.growth
-        ? item.growth.startsWith('-')
-          ? THEME.rose
-          : THEME.emerald
-        : THEME.muted
-    )
-    .fontSize(6.5)
-    .font('Helvetica-Bold')
-    .text(smallText, x + 32, y + 51, {
-      width: w - 40,
-      lineBreak: false,
-    });
-};
+   const bottomText =
+     item.subtitle ||
+     item.note ||
+     item.description ||
+     item.growth ||
+     '';
 
+   doc.fillColor(item.subtitle ? color : THEME.muted)
+     .fontSize(6.3)
+     .font('Helvetica-Bold')
+     .text(bottomText, x + 34, y + 49, {
+       width: w - 42,
+       lineBreak: false,
+       ellipsis: true,
+     });
+ };
 
  const drawAgencyLogo = () => {
    try {
@@ -819,7 +802,7 @@ const drawKpiCard = (x, y, w, h, item, color, bg) => {
      .text(
        `Prepared for ${client.name} • Generated with Marketing Report Generator`,
        50,
-       775,
+       790,
        {
          width: 500,
          align: 'center',
@@ -827,12 +810,12 @@ const drawKpiCard = (x, y, w, h, item, color, bg) => {
        }
      );
 
-   doc.roundedRect(515, 770, 26, 18, 5).fill(THEME.royal);
+   doc.roundedRect(515, 785, 26, 18, 5).fill(THEME.royal);
 
    doc.fillColor('#FFFFFF')
      .fontSize(8)
      .font('Helvetica-Bold')
-     .text(String(pageNo), 515, 775, {
+     .text(String(pageNo), 515, 790, {
        width: 26,
        align: 'center',
        lineBreak: false,
@@ -985,7 +968,7 @@ doc.fillColor(THEME.muted)
 // KPI CARDS
 // ===============================
 
-drawSectionTitle('Performance Dashboard', 50, 355, THEME.violet);
+drawSectionTitle('Performance Dashboard', 50, 348, THEME.violet);
 
 const metrics = [
   {
@@ -1077,11 +1060,11 @@ const metrics = [
 ];
 
 const cardW = 155;
-const cardH = 58;
+const cardH = 56;
 const gapX = 15;
-const gapY = 8;
+const gapY = 9;
 const startX = 50;
-const startY = 380;
+const startY = 385;
 
 
 metrics.forEach((m, i) => {
@@ -1116,12 +1099,12 @@ if (!safeSummary.hasRevenue) {
   missingMetrics.push('ROAS');
 }
 
-drawCard(35, 660, 525, 42, '#F8FAFC', '#BFDBFE');
+drawCard(35, 655, 525, 45, '#F8FAFC', '#BFDBFE');
 
 doc.fillColor(THEME.royal)
   .fontSize(8)
   .font('Helvetica-Bold')
-  .text('DATA AVAILABILITY', 55, 672, {
+  .text('DATA AVAILABILITY', 55, 668, {
     width: 120,
     lineBreak: false,
   });
@@ -1129,7 +1112,7 @@ doc.fillColor(THEME.royal)
 doc.fillColor(THEME.emerald)
   .fontSize(7.5)
   .font('Helvetica-Bold')
-  .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 672, {
+  .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 668, {
     width: 170,
     lineBreak: false,
   });
@@ -1137,11 +1120,10 @@ doc.fillColor(THEME.emerald)
 doc.fillColor(THEME.rose)
   .fontSize(7.5)
   .font('Helvetica-Bold')
-  .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 672, {
+  .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 668, {
     width: 180,
     lineBreak: false,
   });
-
 drawFooter(pageNo++);
 // ===============================
 // PAGE 2 - TABLES
