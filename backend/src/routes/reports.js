@@ -827,6 +827,36 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
      console.log('Logo render skipped:', e.message);
    }
  };
+ const drawFooter = (pageNo) => {
+   doc.save();
+
+   doc.fillColor('#94A3B8')
+     .fontSize(8)
+     .font('Helvetica')
+     .text(
+       `Prepared for ${client.name} • Generated with Marketing Report Generator`,
+       50,
+       775,
+       {
+         width: 500,
+         align: 'center',
+         lineBreak: false,
+       }
+     );
+
+   doc.roundedRect(515, 770, 26, 18, 5).fill(THEME.royal);
+
+   doc.fillColor('#FFFFFF')
+     .fontSize(8)
+     .font('Helvetica-Bold')
+     .text(String(pageNo), 515, 775, {
+       width: 26,
+       align: 'center',
+       lineBreak: false,
+     });
+
+   doc.restore();
+ };
 // ===============================
 // PAGE 1 - COVER + DASHBOARD
 // ===============================
