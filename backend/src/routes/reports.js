@@ -462,26 +462,26 @@ if (totalReports >= reportLimits[planName]) {
         ORDER BY SUM(spend) DESC`,
        params
      ),
-     db.query(
-       `SELECT
-           COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign') as name,
-           pd.platform,
-           SUM(pd.spend) as spend,
-           SUM(pd.clicks) as clicks,
-           SUM(pd.conversions) as conversions,
-           CASE
-             WHEN SUM(pd.spend) > 0
-             THEN SUM(pd.conversions)::float / SUM(pd.spend)
-             ELSE 0
-           END as efficiency
-         FROM performance_data pd
-         LEFT JOIN campaigns c ON pd.campaign_id = c.id
-         ${campaignWhereClause}
-         GROUP BY COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign'), pd.platform
-         ORDER BY efficiency DESC
-         LIMIT 10`,
-       params
-     ),
+    db.query(
+      `SELECT
+          COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign') as name,
+          pd.platform,
+          SUM(pd.spend) as spend,
+          SUM(pd.clicks) as clicks,
+          SUM(pd.conversions) as conversions,
+          CASE
+            WHEN SUM(pd.spend) > 0
+            THEN SUM(pd.conversions)::float / SUM(pd.spend)
+            ELSE 0
+          END as efficiency
+        FROM performance_data pd
+        LEFT JOIN campaigns c ON pd.campaign_id = c.id
+        ${campaignWhereClause}
+        GROUP BY COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign'), pd.platform
+        ORDER BY efficiency DESC
+        LIMIT 10`,
+      params
+    ),
       db.query(
         `SELECT summary, recommendations, created_at
          FROM ai_insights
@@ -806,6 +806,27 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
        });
    }
  };
+ const drawAgencyLogo = () => {
+   try {
+     if (!canUseAgencyBranding || !agency?.logo_url) return;
+
+     const logoPath = path.join(
+       __dirname,
+       '../../',
+       agency.logo_url.replace('/data/', 'data/')
+     );
+
+     if (fs.existsSync(logoPath)) {
+       doc.image(logoPath, 50, 38, {
+         width: 42,
+         height: 42,
+         fit: [42, 42],
+       });
+     }
+   } catch (e) {
+     console.log('Logo render skipped:', e.message);
+   }
+ };
 // ===============================
 // PAGE 1 - COVER + DASHBOARD
 // ===============================
@@ -1081,7 +1102,7 @@ if (!safeSummary.hasRevenue) {
   missingMetrics.push('ROAS');
 }
 
-drawCard(35, 730, 525, 40, '#F8FAFC', '#BFDBFE');
+drawCard(35, 700, 525, 40, '#F8FAFC', '#BFDBFE');
 
 doc.fillColor(THEME.royal)
   .fontSize(8)
