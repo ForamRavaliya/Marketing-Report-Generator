@@ -666,13 +666,11 @@ const displayRoas = safeSummary.hasRevenue ? `${formatNum(safeSummary.roas, 2)}x
 const aiInsight = aiInsightResult.rows[0] || null;
 
 const reportSummaryText =
-  aiInsight?.summary ||
-  (
-    `Campaigns generated ${formatNum(safeSummary.conversions)} leads/results. ` +
-    `Total spend was ${formatCurrency(safeSummary.spend, currency)} with CPA ${formatCurrency(safeSummary.cpa, currency)}. ` +
-    `${safeSummary.hasClicks ? `Clicks were ${formatNum(safeSummary.clicks)} and CTR was ${formatPct(safeSummary.ctr)}. ` : 'Click/CTR data was not available in the uploaded report. '}` +
-    `${safeSummary.hasRevenue ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue/ROAS data was not available.'}`
-  );
+  `During the selected reporting period, ${client.name} generated ${formatNum(safeSummary.conversions)} leads/results with total ad spend of ${formatCurrency(safeSummary.spend, currency)}. ` +
+  `The average cost per lead/result was ${formatCurrency(safeSummary.cpa, currency)}. ` +
+  `${safeSummary.reach > 0 ? `The campaigns reached ${formatNum(safeSummary.reach)} people and delivered ${formatNum(safeSummary.impressions)} impressions. ` : ''}` +
+  `${safeSummary.hasClicks ? `Click data was available, with ${formatNum(safeSummary.clicks)} clicks and CTR of ${formatPct(safeSummary.ctr)}. ` : 'Click and CTR data were not present in the uploaded report, so engagement performance cannot be evaluated from this export. '}` +
+  `${safeSummary.hasRevenue ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS of ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue and ROAS were not included in the uploaded report, so return on ad spend cannot be evaluated from this export.'}`;
 
 const reportTitle = customTitle || title || 'Marketing Performance Report';
 
@@ -731,7 +729,7 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
       doc.fillColor(THEME.muted)
         .fontSize(7)
         .font('Helvetica-Bold')
-        .text(item.growth || 'Not enough comparison data', x + 16, y + 54, {
+        .text(item.growth || item.note || '', x + 16, y + 54, {
           width: w - 25,
         });
     };
@@ -889,20 +887,12 @@ const metrics = [
      label: 'Impressions',
      value: safeSummary.hasImpressions
        ? formatNum(safeSummary.impressions)
-       : 'N/A',
+       : 'Not Available',
      growth: growth.impressions,
      color: THEME.cyan,
      bg: '#ECFEFF',
    },
-   {
-     label: 'Clicks',
-     value: safeSummary.hasClicks
-       ? formatNum(safeSummary.clicks)
-       : 'N/A',
-     growth: growth.clicks,
-     color: THEME.amber,
-     bg: THEME.softAmber,
-   },
+
    {
      label: 'Leads / Results',
      value: formatNum(safeSummary.conversions),
@@ -910,24 +900,8 @@ const metrics = [
      color: THEME.emerald,
      bg: THEME.softGreen,
    },
-   {
-     label: 'CTR',
-     value: safeSummary.hasClicks
-       ? formatPct(safeSummary.ctr)
-       : 'N/A',
-     growth: growth.ctr,
-     color: THEME.violet,
-     bg: THEME.softPurple,
-   },
-   {
-     label: 'CPC',
-     value: safeSummary.hasClicks
-       ? formatCurrency(safeSummary.cpc, currency)
-       : 'N/A',
-     growth: growth.cpc,
-     color: THEME.rose,
-     bg: THEME.softRose,
-   },
+
+
    {
      label: 'Cost / Lead',
      value: formatCurrency(safeSummary.cpa, currency),
@@ -935,15 +909,38 @@ const metrics = [
      color: THEME.amber,
      bg: THEME.softAmber,
    },
-   {
-     label: 'ROAS',
-     value: safeSummary.hasRevenue
-       ? `${formatNum(safeSummary.roas, 2)}x`
-       : 'N/A',
-     growth: growth.roas,
-     color: THEME.royal,
-     bg: THEME.softBlue,
-   },
+  {
+    label: 'Clicks',
+    value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'Not Available',
+    note: safeSummary.hasClicks ? growth.clicks : 'Not in source file',
+    growth: safeSummary.hasClicks ? growth.clicks : null,
+    color: THEME.amber,
+    bg: THEME.softAmber,
+  },
+  {
+    label: 'CTR',
+    value: safeSummary.hasClicks ? formatPct(safeSummary.ctr) : 'Not Available',
+    note: safeSummary.hasClicks ? growth.ctr : 'Requires clicks',
+    growth: safeSummary.hasClicks ? growth.ctr : null,
+    color: THEME.violet,
+    bg: THEME.softPurple,
+  },
+  {
+    label: 'CPC',
+    value: safeSummary.hasClicks ? formatCurrency(safeSummary.cpc, currency) : 'Not Available',
+    note: safeSummary.hasClicks ? growth.cpc : 'Requires clicks',
+    growth: safeSummary.hasClicks ? growth.cpc : null,
+    color: THEME.rose,
+    bg: THEME.softRose,
+  },
+  {
+    label: 'ROAS',
+    value: safeSummary.hasRevenue ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available',
+    note: safeSummary.hasRevenue ? growth.roas : 'Requires revenue',
+    growth: safeSummary.hasRevenue ? growth.roas : null,
+    color: THEME.royal,
+    bg: THEME.softBlue,
+  },
 
  ];
 
@@ -1080,23 +1077,51 @@ if (trends.length > 0) {
 } else {
   drawEmptyState(
     35,
-    120,
+    375,
     525,
-    220,
-    'Not enough monthly data',
-    'No monthly performance data is available for the selected report period.'
+    315,
+    'Campaign Breakdown Not Available',
+    'This upload contains only aggregate performance data. To show campaign-wise charts and campaign ranking, upload/export a report with individual campaign rows.'
   );
 }
 
+
+drawCard(35, 315, 525, 95, THEME.softBlue, '#BFDBFE');
+
+doc.fillColor(THEME.text)
+  .fontSize(14)
+  .font('Helvetica-Bold')
+  .text('Data Availability Notes', 55, 335);
+
+const dataNotes = [
+  safeSummary.hasClicks
+    ? 'Click, CTR and CPC metrics are available.'
+    : 'Click, CTR and CPC metrics are unavailable because click data was not included in the source file.',
+  safeSummary.hasRevenue
+    ? 'Revenue and ROAS metrics are available.'
+    : 'Revenue and ROAS metrics are unavailable because revenue data was not included in the source file.',
+  hasTrendChart
+    ? 'Trend analysis is available.'
+    : 'Trend chart requires at least two reporting months.'
+];
+
+doc.fillColor(THEME.muted)
+  .fontSize(8.5)
+  .font('Helvetica')
+  .text(dataNotes.join('\n'), 55, 360, {
+    width: 480,
+    lineGap: 4,
+  });
+
 // Top campaign mini strip
 if (campaigns.length > 0) {
-  drawCard(35, 335, 525, 345, THEME.card, THEME.border);
-  drawSectionTitle('Top Campaigns Breakdown', 55, 355, THEME.violet);
+  drawCard(35, 430, 525, 250, THEME.card, THEME.border);
+  drawSectionTitle('Top Campaigns Breakdown', 55, 450, THEME.violet);
 
   const cHeaders = ['Campaign', 'Platform', 'Spend', 'Clicks', 'Conv.'];
   const cWidths = [200, 75, 95, 60, 55];
 
-  let cY = 395;
+  let cY = 490;
   let cX = 55;
 
   doc.roundedRect(55, cY, 485, 24, 7).fill(THEME.violet);
@@ -1136,14 +1161,14 @@ if (campaigns.length > 0) {
   });
 }
 else {
-  drawEmptyState(
-    35,
-    375,
-    525,
-    315,
-    'Campaign-level data not available',
-    'The uploaded report contains aggregate data only, so campaign-wise chart cannot be generated.'
-  );
+drawEmptyState(
+  35,
+  430,
+  525,
+  250,
+  'Campaign Breakdown Not Available',
+  'This upload contains aggregate data only. Upload campaign-level export data to show campaign ranking, campaign spend and campaign-wise lead performance.'
+);
 }
 
 
@@ -1308,14 +1333,14 @@ if (activePlatforms.length > 1) {
 
 } else {
 
-  drawEmptyState(
-    35,
-    150,
-    525,
-    220,
-    'No Platform Data',
-    'Platform-level data was not available in the uploaded report.'
-  );
+drawEmptyState(
+  35,
+  150,
+  525,
+  220,
+  'Single Platform Performance',
+  `${String(activePlatforms[0].platform || 'Platform').toUpperCase()} is the only tracked platform in this report. Since there is no second platform to compare, this section focuses on leads/results performance instead of a distribution chart.`
+);
 }
 
 drawFooter(pageNo++);
@@ -1397,7 +1422,7 @@ drawCard(35, 260, 525, 145, THEME.card, THEME.border);
 doc.fillColor(THEME.text)
   .fontSize(16)
   .font('Helvetica-Bold')
-  .text('AI Marketing Summary', 55, 282);
+  .text('Executive Marketing Summary', 55, 282);
 
 doc.fillColor(THEME.muted)
   .fontSize(9)
