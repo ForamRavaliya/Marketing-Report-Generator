@@ -59,18 +59,16 @@ router.put('/', upload.single('logo'), async (req, res) => {
         [req.user.agency_id]
       );
 
-      if (currentAgency.rows[0]?.logo_public_id) {
-        await cloudinary.uploader.destroy(currentAgency.rows[0].logo_public_id);
-      }
+      //if (currentAgency.rows[0]?.logo_public_id) {
+        //await cloudinary.uploader.destroy(currentAgency.rows[0].logo_public_id);
+      //}
 
       const uploadResult = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          {
-            folder: 'marketing-report-generator/agency-logos',
-            public_id: `agency-${req.user.agency_id}`,
-            overwrite: true,
-            resource_type: 'image',
-          },
+         {
+           folder: 'marketing-report-generator/agency-logos',
+           resource_type: 'image',
+         },
           (error, result) => {
             if (error) reject(error);
             else resolve(result);
