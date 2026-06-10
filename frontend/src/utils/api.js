@@ -129,7 +129,8 @@ export const getIntegrationLogs = () =>
 
 // Agency
 export const getAgency = () => api.get('/agency').then(r => r.data);
-export const updateAgency = (formData) =>
-  api.put('/agency', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
-
+export const updateAgency = async (data) => {
+  const res = await api.put('/agency', data);
+  return res.data;
+};
 export default api;
