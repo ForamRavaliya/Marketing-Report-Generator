@@ -78,18 +78,18 @@ useEffect(() => {
       <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
          {agency?.logo_url ? (
-           <img
-             src={`https://marketing-report-generator-p9wj.onrender.com${agency.logo_url}`}
-             alt="logo"
-             style={{
-               height: 32,
-               width: 32,
-               objectFit: 'contain',
-               borderRadius: 8,
-               background: '#fff',
-               padding: 2
-             }}
-           />
+      <img
+        src={`${agency.logo_url}?t=${Date.now()}`}
+        alt="logo"
+        style={{
+          height: 32,
+          width: 32,
+          objectFit: 'contain',
+          borderRadius: 8,
+          background: '#fff',
+          padding: 2
+        }}
+      />
          ) : (
             <div style={{ width: 30, height: 30, background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BarChart3 size={16} color="#fff" />

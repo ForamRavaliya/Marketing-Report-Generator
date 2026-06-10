@@ -14,6 +14,7 @@ export default function Settings() {
 
   useEffect(() => {
     getAgency().then(a => {
+         console.log("Agency Data:", a);
       setAgency(a);
       setForm({
         name: a.name || '',
@@ -21,9 +22,12 @@ export default function Settings() {
         secondaryColor: a.secondary_color || '#7C3AED'
       });
 
-      const API_BASE = 'https://marketing-report-generator-p9wj.onrender.com';
-      if (a.logo_url) setLogoPreview(`${API_BASE}${a.logo_url}`);
-    }).catch(() => {});
+     if (a.logo_url) {
+       setLogoPreview(`${a.logo_url}?t=${Date.now()}`);
+     }
+    }).catch((err) => {
+      console.error('Failed to load agency:', err);
+    });
   }, []);
 
   const handleLogoChange = (e) => {
@@ -33,23 +37,33 @@ export default function Settings() {
     setLogoPreview(URL.createObjectURL(file));
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const fd = new FormData();
-      fd.append('name', form.name);
-      fd.append('primaryColor', form.primaryColor);
-      fd.append('secondaryColor', form.secondaryColor);
-      if (logo) fd.append('logo', logo);
-      await updateAgency(fd);
-      toast.success('Settings saved!');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to save');
-    } finally {
-      setSaving(false);
-    }
-  };
+const handleSave = async () => {
+  setSaving(true);
 
+  try {
+    const fd = new FormData();
+    fd.append('name', form.name);
+    fd.append('primaryColor', form.primaryColor);
+    fd.append('secondaryColor', form.secondaryColor);
+
+    if (logo) fd.append('logo', logo);
+
+    const updatedAgency = await updateAgency(fd);
+
+    setAgency(updatedAgency);
+
+   if (updatedAgency.logo_url) {
+     setLogoPreview(`${updatedAgency.logo_url}?t=${Date.now()}`);
+   }
+
+    setLogo(null);
+    toast.success('Settings saved!');
+  } catch (err) {
+    toast.error(err.response?.data?.error || 'Failed to save');
+  } finally {
+    setSaving(false);
+  }
+};
   return (
     <div className="fade-in">
       <div className="page-header">
