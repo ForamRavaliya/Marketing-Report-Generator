@@ -120,12 +120,13 @@ const handleConfirmMapping = async () => {
       mappingData
     );
 
-    toast.success('Data imported successfully');
+ toast.success('Data imported successfully');
 
-    setMappingModal(false);
-    setPreviewUploadId(null);
-    setMappingHeaders([]);
-    setMappingData({});
+     setMappingModal(false);
+     setPreviewUploadId(null);
+     setMappingHeaders([]);
+     setMappingData({});
+
 
     if (selectedClient) {
       const latestUploads = await getUploads(selectedClient);
@@ -133,8 +134,7 @@ const handleConfirmMapping = async () => {
     }
   } catch (err) {
     toast.error(
-      err.response?.data?.error ||
-      'Import failed'
+      err.response?.data?.error || 'Import failed'
     );
   } finally {
     setUploading(false);
