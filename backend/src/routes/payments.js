@@ -115,17 +115,22 @@ router.post('/verify', async (req, res) => {
     const orderResult = await db.query(
       `SELECT *
        FROM payment_orders
-       WHERE provider_order_id = $1`,
-      [razorpay_order_id]
+       WHERE provider_order_id = $1
+       AND agency_id = $2`,
+      [razorpay_order_id, req.user.agency_id]
     );
 
-    const order = orderResult.rows[0];
-
-    if (!order) {
-      return res.status(404).json({
-        error: 'Order not found',
+    if (order.status === 'paid') {
+      return res.status(409).json({
+        error: 'Payment already verified',
       });
     }
+
+  if (order.status === 'paid') {
+    return res.status(409).json({
+      error: 'Payment already verified',
+    });
+  }
 
     // Save payment
     const paymentResult = await db.query(
@@ -150,8 +155,8 @@ router.post('/verify', async (req, res) => {
         'razorpay',
         razorpay_payment_id,
         razorpay_order_id,
-        planName,
-        billingCycle || order.billing_cycle || 'monthly',
+        order.plan_name,
+        order.billing_cycle || 'monthly',
         order.amount,
         'INR',
         'success',
@@ -162,7 +167,7 @@ router.post('/verify', async (req, res) => {
 
 const expiresAt = new Date();
 
-if (billingCycle === 'yearly') {
+if ((order.billing_cycle || 'monthly') === 'yearly'){
   expiresAt.setDate(expiresAt.getDate() + 365);
 } else {
   expiresAt.setDate(expiresAt.getDate() + 30);
@@ -182,8 +187,8 @@ if (billingCycle === 'yearly') {
         updated_at = CURRENT_TIMESTAMP
        WHERE agency_id = $4`,
       [
-        planName,
-        billingCycle,
+        order.plan_name,
+        order.billing_cycle || 'monthly',
         payment.id,
         req.user.agency_id,
         expiresAt,
