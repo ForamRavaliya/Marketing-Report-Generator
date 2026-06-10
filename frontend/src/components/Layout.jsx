@@ -79,7 +79,7 @@ useEffect(() => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
          {agency?.logo_url ? (
       <img
-        src={`${agency.logo_url}?t=${Date.now()}`}
+        src={agency.logo_url}
         alt="logo"
         style={{
           height: 32,
