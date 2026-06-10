@@ -634,19 +634,19 @@ async function processFileWithMapping(
       const cpa = conversions > 0 ? spend / conversions : 0;
       const roas = spend > 0 && revenue > 0 ? revenue / spend : 0;
 
-      return {
-        spend,
-        impressions,
-        clicks,
-        ctr,
-        cpc,
-        conversions,
-        cpa,
-        roas,
-        revenue,
-        reach,
-        followers,
-      };
+    return {
+      spend,
+      impressions: Math.round(impressions || 0),
+      clicks: Math.round(clicks || 0),
+      ctr,
+      cpc,
+      conversions: Math.round(conversions || 0),
+      cpa,
+      roas,
+      revenue,
+      reach: Math.round(reach || 0),
+      followers: Math.round(followers || 0),
+    };
     };
 
     const campaignRows = [];
