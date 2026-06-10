@@ -5,8 +5,25 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
+const https = require('https');
 
 router.use(authenticate);
+const getImageBufferFromUrl = (url) => {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (response) => {
+        const chunks = [];
+
+        response.on('data', (chunk) => chunks.push(chunk));
+
+        response.on('end', () => {
+          resolve(Buffer.concat(chunks));
+        });
+      })
+      .on('error', reject);
+  });
+};
+
 const CURRENCY_SYMBOLS = {
   INR: 'INR',
   USD: '$',
@@ -379,7 +396,24 @@ if (totalReports >= reportLimits[planName]) {
     const client = clientResult.rows[0];
     const agency = agencyResult.rows[0];
     if (!client) return res.status(404).json({ error: 'Client not found' });
+let agencyLogoBuffer = null;
 
+if (
+  canUseAgencyBranding &&
+  agency?.logo_url &&
+  agency.logo_url.startsWith('https://')
+) {
+  try {
+    agencyLogoBuffer = await getImageBufferFromUrl(
+      agency.logo_url
+    );
+  } catch (error) {
+    console.log(
+      'Logo download skipped:',
+      error.message
+    );
+  }
+}
     // Fetch metrics
    let whereClause = `
      WHERE pd.client_id = $1
@@ -772,27 +806,19 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
      });
  };
 
- const drawAgencyLogo = () => {
-   try {
-     if (!canUseAgencyBranding || !agency?.logo_url) return;
+const drawAgencyLogo = () => {
+  try {
+    if (!canUseAgencyBranding || !agencyLogoBuffer) return;
 
-     const logoPath = path.join(
-       __dirname,
-       '../../',
-       agency.logo_url.replace('/data/', 'data/')
-     );
-
-     if (fs.existsSync(logoPath)) {
-       doc.image(logoPath, 50, 38, {
-         width: 42,
-         height: 42,
-         fit: [42, 42],
-       });
-     }
-   } catch (e) {
-     console.log('Logo render skipped:', e.message);
-   }
- };
+    doc.image(agencyLogoBuffer, 50, 38, {
+      width: 42,
+      height: 42,
+      fit: [42, 42],
+    });
+  } catch (e) {
+    console.log('Logo render skipped:', e.message);
+  }
+};
  const drawFooter = (pageNo) => {
    doc.save();
 
@@ -971,20 +997,20 @@ doc.fillColor(THEME.muted)
 drawSectionTitle('Performance Dashboard', 50, 348, THEME.violet);
 
 const metrics = [
-  {
-    label: 'Performance Score',
-    value: `${performanceScore}/100`,
-    subtitle: scoreLabel,
-    color: THEME.emerald,
-    bg: THEME.softGreen,
-  },
-  {
-    label: 'Marketing Grade',
-    value: performanceGrade,
-    subtitle: scoreLabel,
-    color: THEME.royal,
-    bg: THEME.softBlue,
-  },
+ {
+   label: 'Performance Score',
+   value: `${performanceScore}/100`,
+   note: 'Overall score',
+   color: THEME.emerald,
+   bg: THEME.softGreen,
+ },
+ {
+   label: 'Marketing Grade',
+   value: performanceGrade,
+   note: 'Based on available data',
+   color: THEME.royal,
+   bg: THEME.softBlue,
+ },
   {
     label: 'Total Spend',
     value: formatCurrency(safeSummary.spend, currency),
