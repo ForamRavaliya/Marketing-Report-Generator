@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getClients, createClient, deleteClient, getSubscriptio } from '../utils/api';
+import {
+  getClients,
+  createClient,
+  deleteClient,
+  getSubscription
+} from '../utils/api';
 import toast from 'react-hot-toast';
 import { Plus, Search, Trash2, ArrowRight, Building2, X } from 'lucide-react';
 
@@ -20,15 +25,18 @@ const [subscription, setSubscription] = useState(null);
    setLoading(true);
 
    try {
-     const [clientsData, subscriptionData] = await Promise.all([
-       getClients(),
-       getSubscription(),
-     ]);
-
+     const clientsData = await getClients();
      setClients(clientsData);
-     setSubscription(subscriptionData);
    } catch (error) {
      toast.error('Failed to load clients');
+   }
+
+   try {
+     const subscriptionData = await getSubscription();
+     setSubscription(subscriptionData);
+   } catch (error) {
+     console.log('Subscription load failed:', error.response?.data || error.message);
+     setSubscription(null);
    } finally {
      setLoading(false);
    }
