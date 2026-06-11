@@ -36,31 +36,43 @@ router.get('/overview', async (req, res) => {
 
       // Top Clients
       db.query(
-        `SELECT c.id, c.name,
-          SUM(pd.spend) as total_spend,
-          SUM(pd.conversions) as total_conversions,
-          CASE WHEN SUM(pd.spend) > 0 THEN SUM(pd.revenue) / SUM(pd.spend) ELSE 0 END as roas
+        `SELECT
+           c.id,
+           c.name,
+           SUM(COALESCE(pd.spend, 0)) as total_spend,
+           SUM(COALESCE(pd.conversions, 0)) as total_conversions,
+           CASE
+             WHEN SUM(COALESCE(pd.spend, 0)) > 0
+             THEN SUM(COALESCE(pd.revenue, 0)) / SUM(COALESCE(pd.spend, 0))
+             ELSE 0
+           END as roas
          FROM clients c
-         LEFT JOIN performance_data pd ON pd.client_id = c.id
-         WHERE c.agency_id = $1 AND c.is_active=TRUE
+         LEFT JOIN performance_data pd
+           ON pd.client_id = c.id
+           AND pd.external_campaign_name = 'aggregate'
+         WHERE c.agency_id = $1
+         AND c.is_active = TRUE
          GROUP BY c.id, c.name
-         ORDER BY SUM(pd.spend) DESC NULLS LAST LIMIT 5`,
+         ORDER BY SUM(COALESCE(pd.spend, 0)) DESC NULLS LAST
+         LIMIT 5`,
         [agencyId]
       ),
 
       // 🔥 KPI SUMMARY QUERY
-      db.query(
-        `SELECT
-          SUM(spend) as spend,
-          SUM(impressions) as impressions,
-          SUM(clicks) as clicks,
-          SUM(conversions) as conversions,
-          SUM(revenue) as revenue
-         FROM performance_data pd
-         JOIN clients c ON pd.client_id = c.id
-         WHERE c.agency_id = $1`,
-        [agencyId]
-      )
+     db.query(
+       `SELECT
+         SUM(COALESCE(pd.spend, 0)) as spend,
+         SUM(COALESCE(pd.impressions, 0)) as impressions,
+         SUM(COALESCE(pd.clicks, 0)) as clicks,
+         SUM(COALESCE(pd.conversions, 0)) as conversions,
+         SUM(COALESCE(pd.revenue, 0)) as revenue
+        FROM performance_data pd
+        JOIN clients c ON pd.client_id = c.id
+        WHERE c.agency_id = $1
+        AND c.is_active = TRUE
+        AND pd.external_campaign_name = 'aggregate'`,
+       [agencyId]
+     )
     ]);
 
     // 🔥 SUMMARY DATA
@@ -85,12 +97,17 @@ router.get('/overview', async (req, res) => {
       recentActivity: recentDataResult.rows,
       topClients: topClientsResult.rows,
 
-      // 🔥 KPI DATA
+      spend,
+      impressions,
+      clicks,
+      conversions,
+      revenue,
+
       ctr,
       cpc,
       cpl,
       conversionRate,
-      roas
+      roas,
     });
 
   } catch (error) {
