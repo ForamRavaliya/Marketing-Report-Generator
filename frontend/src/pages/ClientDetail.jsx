@@ -260,18 +260,20 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                   change={comparison?.comparison?.ctr?.change}
                 />
 
-                <MetricCard
-                  label="CPC"
-                  value={fmtCur(summary?.cpc)}
-                  color="#7C3AED"
-                  change={comparison?.comparison?.cpc?.change}
-                />
+             <MetricCard
+               label="CPC"
+               value={fmtCur(summary?.cpc)}
+               color="#7C3AED"
+               change={comparison?.comparison?.cpc?.change}
+               changeType="negative-good"
+             />
 
                 <MetricCard
                   label="CPA"
                   value={fmtCur(summary?.cpa)}
                   color="#DC2626"
                   change={comparison?.comparison?.cpa?.change}
+                  changeType="negative-good"
                 />
 
                 <MetricCard

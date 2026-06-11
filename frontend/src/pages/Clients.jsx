@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getClients, createClient, deleteClient } from '../utils/api';
+import { getClients, createClient, deleteClient, getSubscriptio } from '../utils/api';
 import toast from 'react-hot-toast';
 import { Plus, Search, Trash2, ArrowRight, Building2, X } from 'lucide-react';
 
@@ -14,11 +14,25 @@ export default function Clients() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', industry: '', website: '', contactEmail: '', notes: '' });
   const [saving, setSaving] = useState(false);
+const [subscription, setSubscription] = useState(null);
 
-  const load = () => {
-    setLoading(true);
-    getClients().then(setClients).catch(() => toast.error('Failed to load clients')).finally(() => setLoading(false));
-  };
+ const load = async () => {
+   setLoading(true);
+
+   try {
+     const [clientsData, subscriptionData] = await Promise.all([
+       getClients(),
+       getSubscription(),
+     ]);
+
+     setClients(clientsData);
+     setSubscription(subscriptionData);
+   } catch (error) {
+     toast.error('Failed to load clients');
+   } finally {
+     setLoading(false);
+   }
+ };
 
   useEffect(() => { load(); }, []);
 
@@ -66,7 +80,7 @@ export default function Clients() {
            {clients.length} client{clients.length !== 1 ? 's' : ''} in your agency
          </div>
 
-         {clients.length >= 2 && (
+         {subscription?.plan_name === 'free' && clients.length >= 2 && (
            <div
              style={{
                marginTop: 8,
