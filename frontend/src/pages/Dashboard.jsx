@@ -199,7 +199,7 @@ export default function Dashboard() {
                marginBottom: 6,
              }}
            >
-             PERFORMANCE OVERVIEW
+             Agency Performance Overview
            </div>
 
            <div
@@ -210,7 +210,7 @@ export default function Dashboard() {
                marginBottom: 6,
              }}
            >
-             {loading ? '—' : fmtCur(data?.totalSpend || 0)}
+            {loading ? '—' : fmtCur(data?.spend || 0)}
            </div>
 
            <div
@@ -221,7 +221,7 @@ export default function Dashboard() {
                lineHeight: 1.6,
              }}
            >
-             Total advertising spend tracked across all connected clients and marketing platforms.
+             Combined performance metrics across all active clients in this agency.
            </div>
          </div>
 
@@ -235,17 +235,17 @@ export default function Dashboard() {
            {[
              {
                label: 'Total Leads',
-               value: fmt(data?.totalConversions || 0),
+               value: fmt(data?.conversions || 0),
                color: '#10B981',
              },
              {
                label: 'Total Clicks',
-               value: fmt(data?.totalClicks || 0),
+              value: fmt(data?.clicks || 0),
                color: '#2563EB',
              },
              {
                label: 'Impressions',
-               value: fmt(data?.totalImpressions || 0),
+              value: fmt(data?.impressions || 0),
                color: '#7C3AED',
              },
            ].map((item) => (
