@@ -319,7 +319,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                           const d = comparison.comparison[key];
                           if (!d) return null;
                           const up = d.change > 0;
-                          const isGoodUp = !['cpc', 'cpa', 'spend'].includes(key);
+                          const isGoodUp = !['cpc', 'cpa'].includes(key);
                           const positive = (up && isGoodUp) || (!up && !isGoodUp);
                           return (
                             <tr key={key}>

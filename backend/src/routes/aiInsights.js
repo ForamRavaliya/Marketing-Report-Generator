@@ -99,6 +99,24 @@ router.post('/generate/:clientId', async (req, res) => {
 
     const recommendations = [];
 
+    if (revenue === 0) {
+      recommendations.push(
+        'Revenue data is missing in the uploaded reports, so ROAS cannot be calculated accurately. Map or upload revenue values to enable profit-based performance analysis.'
+      );
+    }
+
+    if (roas === 0) {
+      recommendations.push(
+        'ROAS is currently 0.00x because revenue is not available. Once revenue data is added, the system can identify high-return campaigns and budget scaling opportunities.'
+      );
+    }
+
+    if (platformResult.rows.length === 1) {
+      recommendations.push(
+        'Only one advertising platform has tracked spend. Upload Google Ads, LinkedIn Ads, or other platform data to compare budget allocation and channel performance.'
+      );
+    }
+
     if (revenue > 0 && roas < 2) {
       recommendations.push(
         'ROAS is below the ideal level. Review campaign targeting, offer quality, landing pages, and budget allocation.'
@@ -137,7 +155,7 @@ router.post('/generate/:clientId', async (req, res) => {
 
   if (bestPlatform && safeNum(bestPlatform.spend) > 0) {
     recommendations.push(
-      `${String(bestPlatform.platform || 'Platform').toUpperCase()} had the highest tracked spend/performance in this report period. Continue monitoring CPA before scaling.`
+      `${String(bestPlatform.platform || 'Platform').toUpperCase()} is the top tracked platform by spend. Review its CTR, CPA, and conversion quality before increasing budget.`
     );
   }
 
@@ -151,7 +169,7 @@ router.post('/generate/:clientId', async (req, res) => {
       'Retarget existing website visitors and engaged users to improve conversion efficiency and ROAS.'
     );
 
-    const finalRecommendations = recommendations.slice(0, 5);
+    const finalRecommendations = recommendations.slice(0, 6);
     const performanceLevel = getPerformanceLevel(roas, ctr, conversions);
 
     const clickText =
@@ -161,11 +179,17 @@ router.post('/generate/:clientId', async (req, res) => {
 
     const summary =
       `Campaigns generated ${clickText}, ` +
-      `${conversions.toLocaleString()} conversions, and revenue of INR ${revenue.toLocaleString('en-IN', {
+      `${conversions.toLocaleString()} conversions, and total spend of INR ${spend.toLocaleString('en-IN', {
         maximumFractionDigits: 2,
       })}. ` +
-      `Overall performance is ${performanceLevel} with CTR ${ctr.toFixed(2)}%, ` +
-      `CPA INR ${cpa.toFixed(2)}, and ROAS ${roas.toFixed(2)}x.`;
+      `CTR is ${ctr.toFixed(2)}%, CPC is INR ${cpc.toFixed(2)}, and CPA is INR ${cpa.toFixed(2)}. ` +
+      (
+        revenue > 0
+          ? `Revenue is INR ${revenue.toLocaleString('en-IN', {
+              maximumFractionDigits: 2,
+            })} with ROAS ${roas.toFixed(2)}x. Overall performance is ${performanceLevel}.`
+          : `Revenue data is not available, so ROAS cannot be evaluated yet. Overall lead-generation performance is ${performanceLevel}.`
+      );
 
     const saved = await db.query(
       `INSERT INTO ai_insights
