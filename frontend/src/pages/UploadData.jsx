@@ -65,7 +65,11 @@ export default function UploadData() {
   const handleUpload = async () => {
     if (!selectedClient) { toast.error('Please select a client'); return; }
     if (!acceptedFiles.length) { toast.error('Please select a file'); return; }
+    const ok = window.confirm(
+      `You selected "${platform.toUpperCase()}" as the platform.\n\nIs this file really from ${platform.toUpperCase()} Ads?`
+    );
 
+    if (!ok) return;
     setUploading(true);
     setProgress(0);
     const fd = new FormData();
@@ -185,6 +189,9 @@ const handleConfirmMapping = async () => {
               </div>
               <div className="form-group">
                 <label className="form-label">Platform *</label>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
+                  Select the correct ad platform before upload. This affects platform charts and comparisons.
+                </div>
                 <select className="form-select" value={platform} onChange={e => setPlatform(e.target.value)}>
                   {PLATFORMS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)} {p === 'meta' ? 'Ads' : p === 'google' ? 'Ads' : ''}</option>)}
                 </select>

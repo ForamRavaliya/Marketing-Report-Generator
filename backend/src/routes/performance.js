@@ -128,24 +128,131 @@ router.get('/comparison/:clientId', async (req, res) => {
     const { clientId } = req.params;
     const { currentMonth, previousMonth, platform } = req.query;
 
-    const current = currentMonth ? new Date(currentMonth) : new Date();
-    current.setDate(1);
-    const previous = previousMonth ? new Date(previousMonth) : new Date(current);
-    if (!previousMonth) previous.setMonth(previous.getMonth() - 1);
+    const platformFilter =
+      platform && platform !== 'all'
+        ? ` AND platform = $2`
+        : '';
+
+    const latestMonthParams =
+      platform && platform !== 'all'
+        ? [clientId, platform]
+        : [clientId];
+
+    let current;
+
+    if (currentMonth) {
+      current = new Date(currentMonth);
+      current.setDate(1);
+      current.setHours(0, 0, 0, 0);
+    } else {
+      const latestMonthResult = await db.query(
+        `SELECT MAX(report_month) AS latest_month
+         FROM performance_data
+         WHERE client_id = $1
+         AND external_campaign_name = 'aggregate'
+         ${platformFilter}`,
+        latestMonthParams
+      );
+
+      if (!latestMonthResult.rows[0]?.latest_month) {
+        return res.json({
+          currentMonth: null,
+          previousMonth: null,
+          comparison: {},
+        });
+      }
+
+      current = new Date(latestMonthResult.rows[0].latest_month);
+      current.setDate(1);
+      current.setHours(0, 0, 0, 0);
+    }
+
+    let previous;
+
+    if (previousMonth) {
+      previous = new Date(previousMonth);
+      previous.setDate(1);
+      previous.setHours(0, 0, 0, 0);
+    } else {
+      const prevParams =
+        platform && platform !== 'all'
+          ? [clientId, current, platform]
+          : [clientId, current];
+
+      const prevPlatformFilter =
+        platform && platform !== 'all'
+          ? ` AND platform = $3`
+          : '';
+
+      const previousMonthResult = await db.query(
+        `SELECT MAX(report_month) AS previous_month
+         FROM performance_data
+         WHERE client_id = $1
+         AND external_campaign_name = 'aggregate'
+         AND report_month < $2
+         ${prevPlatformFilter}`,
+        prevParams
+      );
+
+      previous = previousMonthResult.rows[0]?.previous_month
+        ? new Date(previousMonthResult.rows[0].previous_month)
+        : null;
+    }
 
     const getMonthData = async (month) => {
-      let query = `SELECT 
-          SUM(spend) as spend, SUM(impressions) as impressions, SUM(clicks) as clicks,
-          CASE WHEN SUM(impressions) > 0 THEN SUM(clicks)::float / SUM(impressions) * 100 ELSE 0 END as ctr,
-          CASE WHEN SUM(clicks) > 0 THEN SUM(spend) / SUM(clicks) ELSE 0 END as cpc,
-          SUM(conversions) as conversions,
-          CASE WHEN SUM(conversions) > 0 THEN SUM(spend) / SUM(conversions) ELSE 0 END as cpa,
-          CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas,
-          SUM(revenue) as revenue
+      if (!month) {
+        return {
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          ctr: 0,
+          cpc: 0,
+          conversions: 0,
+          cpa: 0,
+          roas: 0,
+          revenue: 0,
+        };
+      }
+
+      let query = `
+        SELECT
+          SUM(COALESCE(spend, 0)) as spend,
+          SUM(COALESCE(impressions, 0)) as impressions,
+          SUM(COALESCE(clicks, 0)) as clicks,
+
+          CASE
+            WHEN SUM(COALESCE(impressions, 0)) > 0
+            THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100
+            ELSE 0
+          END as ctr,
+
+          CASE
+            WHEN SUM(COALESCE(clicks, 0)) > 0
+            THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(clicks, 0))
+            ELSE 0
+          END as cpc,
+
+          SUM(COALESCE(conversions, 0)) as conversions,
+
+          CASE
+            WHEN SUM(COALESCE(conversions, 0)) > 0
+            THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0))
+            ELSE 0
+          END as cpa,
+
+          CASE
+            WHEN SUM(COALESCE(spend, 0)) > 0
+            THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
+            ELSE 0
+          END as roas,
+
+          SUM(COALESCE(revenue, 0)) as revenue
         FROM performance_data
         WHERE client_id = $1
         AND report_month = $2
-        AND external_campaign_name = 'aggregate'`;
+        AND external_campaign_name = 'aggregate'
+      `;
+
       const params = [clientId, month];
 
       if (platform && platform !== 'all') {
@@ -154,39 +261,54 @@ router.get('/comparison/:clientId', async (req, res) => {
       }
 
       const result = await db.query(query, params);
-      return result.rows[0];
+      return result.rows[0] || {};
     };
 
-    const [curr, prev] = await Promise.all([getMonthData(current), getMonthData(previous)]);
+    const [curr, prev] = await Promise.all([
+      getMonthData(current),
+      getMonthData(previous),
+    ]);
 
-    const calcChange = (curr, prev) => {
-      if (prev === null || prev === undefined || Number(prev) === 0) {
+    const calcChange = (currValue, prevValue) => {
+      const currentNum = Number(currValue || 0);
+      const previousNum = Number(prevValue || 0);
+
+      if (previousNum === 0) {
         return null;
       }
 
-      return ((curr - prev) / Math.abs(prev)) * 100;
+      return ((currentNum - previousNum) / Math.abs(previousNum)) * 100;
     };
 
-    const metrics = ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'conversions', 'cpa', 'roas', 'revenue'];
+    const metrics = [
+      'spend',
+      'impressions',
+      'clicks',
+      'ctr',
+      'cpc',
+      'conversions',
+      'cpa',
+      'roas',
+      'revenue',
+    ];
+
     const comparison = {};
 
-    metrics.forEach(metric => {
+    metrics.forEach((metric) => {
+      const currentValue = parseFloat(curr?.[metric]) || 0;
+      const previousValue = parseFloat(prev?.[metric]) || 0;
+
       comparison[metric] = {
-        current: parseFloat(curr[metric]) || 0,
-        previous: parseFloat(prev[metric]) || 0,
-        change: calcChange(
-          parseFloat(curr?.[metric]) || 0,
-          prev?.[metric] === null || prev?.[metric] === undefined
-            ? null
-            : parseFloat(prev[metric])
-        ),
-        hasPreviousData: prev?.[metric] !== null && prev?.[metric] !== undefined && Number(prev[metric]) !== 0,
+        current: currentValue,
+        previous: previousValue,
+        change: calcChange(currentValue, previousValue),
+        hasPreviousData: previousValue !== 0,
       };
     });
 
     res.json({
-      currentMonth: current.toISOString(),
-      previousMonth: previous.toISOString(),
+      currentMonth: current ? current.toISOString() : null,
+      previousMonth: previous ? previous.toISOString() : null,
       comparison,
     });
   } catch (error) {
@@ -246,29 +368,63 @@ router.get('/platforms/:clientId', async (req, res) => {
       WHERE client_id = $1
       AND external_campaign_name = 'aggregate'
     `;
+
     const params = [clientId];
     let idx = 2;
 
-    if (startDate) { whereClause += ` AND report_month >= $${idx++}`; params.push(new Date(startDate)); }
-    if (endDate) { whereClause += ` AND report_month <= $${idx++}`; params.push(new Date(endDate)); }
+    if (startDate) {
+      whereClause += ` AND report_month >= $${idx++}`;
+      params.push(new Date(startDate));
+    }
+
+    if (endDate) {
+      whereClause += ` AND report_month <= $${idx++}`;
+      params.push(new Date(endDate));
+    }
 
     const result = await db.query(
-      `SELECT 
+      `SELECT
         platform,
-        SUM(spend) as spend,
-        SUM(impressions) as impressions,
-        SUM(clicks) as clicks,
-        SUM(conversions) as conversions,
-        SUM(revenue) as revenue,
-        CASE WHEN SUM(impressions) > 0 THEN SUM(clicks)::float / SUM(impressions) * 100 ELSE 0 END as ctr,
-        CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas
-       FROM performance_data ${whereClause}
-       GROUP BY platform ORDER BY SUM(spend) DESC`,
+        SUM(COALESCE(spend, 0)) as spend,
+        SUM(COALESCE(impressions, 0)) as impressions,
+        SUM(COALESCE(clicks, 0)) as clicks,
+        SUM(COALESCE(conversions, 0)) as conversions,
+        SUM(COALESCE(revenue, 0)) as revenue,
+
+        CASE
+          WHEN SUM(COALESCE(impressions, 0)) > 0
+          THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100
+          ELSE 0
+        END as ctr,
+
+        CASE
+          WHEN SUM(COALESCE(clicks, 0)) > 0
+          THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(clicks, 0))
+          ELSE 0
+        END as cpc,
+
+        CASE
+          WHEN SUM(COALESCE(conversions, 0)) > 0
+          THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0))
+          ELSE 0
+        END as cpa,
+
+        CASE
+          WHEN SUM(COALESCE(spend, 0)) > 0
+          THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
+          ELSE 0
+        END as roas
+       FROM performance_data
+       ${whereClause}
+       GROUP BY platform
+       HAVING SUM(COALESCE(spend, 0)) > 0
+       ORDER BY SUM(COALESCE(spend, 0)) DESC`,
       params
     );
 
     res.json(result.rows);
   } catch (error) {
+    console.error('Platform data error:', error);
     res.status(500).json({ error: 'Failed to fetch platform data' });
   }
 });

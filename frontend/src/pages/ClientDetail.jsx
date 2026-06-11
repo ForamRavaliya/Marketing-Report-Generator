@@ -96,6 +96,17 @@ const [adForm, setAdForm] = useState({
 
   const platformData = platforms.map(p => ({ name: p.platform, value: parseFloat(p.spend || 0) }));
 
+const totalPlatformSpend = platforms.reduce(
+  (sum, p) => sum + parseFloat(p.spend || 0),
+  0
+);
+
+const topPlatform = platforms.length
+  ? [...platforms].sort(
+      (a, b) => parseFloat(b.spend || 0) - parseFloat(a.spend || 0)
+    )[0]
+  : null;
+
   if (!client && !loading) return (
     <div style={{ textAlign: 'center', padding: 60 }}>
       <p>Client not found</p>
@@ -378,12 +389,15 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                 <div className="table-wrap">
                   <table>
                     <thead>
+
                       <tr>
                         <th>Campaign</th><th>Platform</th><th>Spend</th>
                         <th>Clicks</th><th>CTR</th><th>CPC</th><th>Conv.</th><th>CPA</th><th>ROAS</th>
+
                       </tr>
                     </thead>
                     <tbody>
+
                       {campaigns.map((c, i) => (
                         <tr key={i}>
                           <td style={{ maxWidth: 200 }}><span className="truncate" style={{ display: 'block', fontWeight: 600 }}>{c.campaign_name || 'Unknown'}</span></td>
@@ -404,50 +418,197 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
             </div>
           )}
 
-          {/* Platforms Tab */}
-          {activeTab === 'platforms' && (
-            <div className="grid grid-2" style={{ gap: 20 }}>
-              <div className="card card-pad">
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Budget Allocation by Platform</div>
-                {platformData.length === 0 ? (
-                  <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)' }}>No platform data available</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie data={platformData} cx="50%" cy="50%" outerRadius={90} dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
-                        {platformData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={v => fmtCur(v)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
+            {/* Platforms Tab */}
+            {activeTab === 'platforms' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+                <div className="grid grid-3" style={{ gap: 16 }}>
+                  <div className="card card-pad">
+                    <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                      ACTIVE PLATFORMS
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 800, marginTop: 8 }}>
+                      {platforms.length}
+                    </div>
+                  </div>
+
+                  <div className="card card-pad">
+                    <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                      TOP SPEND PLATFORM
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 800, marginTop: 8, textTransform: 'capitalize' }}>
+                      {topPlatform?.platform || 'N/A'}
+                    </div>
+                  </div>
+
+                  <div className="card card-pad">
+                    <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                      TOTAL PLATFORM SPEND
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 800, marginTop: 8 }}>
+                      {fmtCur(totalPlatformSpend)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-2" style={{ gap: 20 }}>
+                  <div className="card card-pad">
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
+                      Budget Allocation by Platform
+                    </div>
+
+                    {platformData.length === 0 ? (
+                      <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)' }}>
+                        No platform data available
+                      </div>
+                    ) : platformData.length === 1 ? (
+                      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div
+                          style={{
+                            padding: 20,
+                            borderRadius: 12,
+                            background: '#EFF6FF',
+                            border: '1px solid #BFDBFE',
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 18,
+                              fontWeight: 700,
+                              marginBottom: 8,
+                              textTransform: 'capitalize',
+                            }}
+                          >
+                            {platformData[0].name}
+                          </div>
+
+                          <div style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6 }}>
+                            This client currently spends <strong>100%</strong> of the tracked budget on this platform.
+                            Add Google, LinkedIn, or other platform data to compare performance.
+                          </div>
+                        </div>
+
+                        <div className="grid grid-2">
+                          <div className="card card-pad">
+                            <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                              SPEND
+                            </div>
+                            <div style={{ fontWeight: 800, marginTop: 8 }}>
+                              {fmtCur(platforms[0]?.spend)}
+                            </div>
+                          </div>
+
+                          <div className="card card-pad">
+                            <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                              CONVERSIONS
+                            </div>
+                            <div style={{ fontWeight: 800, marginTop: 8 }}>
+                              {fmt(platforms[0]?.conversions)}
+                            </div>
+                          </div>
+
+                          <div className="card card-pad">
+                            <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                              CLICKS
+                            </div>
+                            <div style={{ fontWeight: 800, marginTop: 8 }}>
+                              {fmt(platforms[0]?.clicks)}
+                            </div>
+                          </div>
+
+                          <div className="card card-pad">
+                            <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                              CPA
+                            </div>
+                            <div style={{ fontWeight: 800, marginTop: 8 }}>
+                              {fmtCur(platforms[0]?.cpa)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={250}>
+                        <PieChart>
+                          <Pie
+                            data={platformData}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={90}
+                            dataKey="value"
+                            nameKey="name"
+                          >
+                            {platformData.map((_, i) => (
+                              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                            ))}
+                          </Pie>
+
+                          <Tooltip formatter={v => fmtCur(v)} />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  <div className="card card-pad">
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
+                      Platform Breakdown
+                    </div>
+
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Platform</th>
+                          <th>Spend</th>
+                          <th>Share</th>
+                          <th>Clicks</th>
+                          <th>Conv.</th>
+                          <th>CPA</th>
+                          <th>ROAS</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {platforms.map((p, i) => {
+                          const spend = parseFloat(p.spend || 0);
+                          const share = totalPlatformSpend > 0
+                            ? (spend / totalPlatformSpend) * 100
+                            : 0;
+
+                          return (
+                            <tr key={i}>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <div
+                                    style={{
+                                      width: 8,
+                                      height: 8,
+                                      borderRadius: '50%',
+                                      background: COLORS[i % COLORS.length],
+                                    }}
+                                  />
+                                  <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>
+                                    {p.platform}
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td>{fmtCur(p.spend)}</td>
+                              <td>{fmt(share, 1)}%</td>
+                              <td>{fmt(p.clicks)}</td>
+                              <td>{fmt(p.conversions)}</td>
+                              <td>{fmtCur(p.cpa)}</td>
+                              <td style={{ fontWeight: 700 }}>{fmt(p.roas, 2)}x</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-              <div className="card card-pad">
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Platform Breakdown</div>
-                <table>
-                  <thead><tr><th>Platform</th><th>Spend</th><th>Clicks</th><th>Conv.</th><th>ROAS</th></tr></thead>
-                  <tbody>
-                    {platforms.map((p, i) => (
-                      <tr key={i}>
-                        <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[i % COLORS.length] }} />
-                          <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{p.platform}</span>
-                        </div></td>
-                        <td>{fmtCur(p.spend)}</td>
-                        <td>{fmt(p.clicks)}</td>
-                        <td>{fmt(p.conversions)}</td>
-                        <td style={{ fontWeight: 700 }}>{fmt(p.roas, 2)}x</td>
-                      </tr>
-                    ))}
+            )}
 
-
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-{/* AI Insights Tab */}
+             {/* AI Insights Tab */}
 {activeTab === 'ai insights' && (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
