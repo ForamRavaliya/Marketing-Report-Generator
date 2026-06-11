@@ -93,8 +93,10 @@ export const confirmUploadMapping = (uploadId, mapping) =>
   api.post(`/uploads/${uploadId}/confirm-mapping`, { mapping })
     .then(res => res.data);
  // Subscription
-    export const getSubscription = () =>
-      api.get('/subscription').then(r => r.data);
+    export const getSubscription = async () => {
+      const res = await api.get('/subscription/current');
+      return res.data;
+    };
 
     export const updateSubscriptionPlan = (planName) =>
       api.put('/subscription/plan', { planName }).then(r => r.data);
