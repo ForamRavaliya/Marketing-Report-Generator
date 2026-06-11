@@ -330,6 +330,47 @@ function validateMapping(mapping) {
   return errors;
 }
 
+router.get('/client/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    const clientCheck = await db.query(
+      `SELECT id
+       FROM clients
+       WHERE id = $1 AND agency_id = $2`,
+      [clientId, req.user.agency_id]
+    );
+
+    if (!clientCheck.rows.length) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    const result = await db.query(
+      `SELECT
+         id,
+         file_name,
+         file_type,
+         file_size,
+         platform,
+         extraction_status,
+         extraction_error,
+         created_at,
+         date_range_start,
+         date_range_end
+       FROM report_uploads
+       WHERE client_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [clientId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get uploads error:', error);
+    res.status(500).json({ error: 'Failed to fetch uploads' });
+  }
+});
+
 router.post('/:uploadId/confirm-mapping', async (req, res) => {
   try {
     const { uploadId } = req.params;
