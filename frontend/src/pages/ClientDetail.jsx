@@ -54,7 +54,7 @@ const [adForm, setAdForm] = useState({
   const load = useCallback(() => {
     setLoading(true);
     const params = { platform: platform !== 'all' ? platform : undefined };
-    Promise.all([
+    Promise.allSettled([
       getClient(id),
       getSummary(id, params),
       getTrends(id, { ...params, months: 6 }),
@@ -63,24 +63,41 @@ const [adForm, setAdForm] = useState({
       getPlatforms(id, params),
       getSubscription(),
       getAIInsights(id),
-    ]).then(([c, s, t, cmp, camp, plat, sub, ai]) => {
-      setClient(c); setSummary(s); setAiInsight(ai);
+    ]).then((results) => {
+      const [c, s, t, cmp, camp, plat, sub, ai] = results;
 
+      if (c.status === 'fulfilled') setClient(c.value);
+      else throw new Error('Client failed');
 
-      // Aggregate trends by month
+      setSummary(s.status === 'fulfilled' ? s.value : null);
+      const trendsData = t.status === 'fulfilled' ? t.value : [];
+      setComparison(cmp.status === 'fulfilled' ? cmp.value : null);
+      setCampaigns(camp.status === 'fulfilled' ? camp.value : []);
+      setPlatforms(plat.status === 'fulfilled' ? plat.value : []);
+      setSubscription(sub.status === 'fulfilled' ? sub.value : null);
+      setAiInsight(ai.status === 'fulfilled' ? ai.value : null);
+
       const byMonth = {};
-      t.forEach(row => {
-        if (!byMonth[row.month]) byMonth[row.month] = { month: row.month, spend: 0, clicks: 0, conversions: 0, impressions: 0 };
+      trendsData.forEach(row => {
+        if (!byMonth[row.month]) {
+          byMonth[row.month] = {
+            month: row.month,
+            spend: 0,
+            clicks: 0,
+            conversions: 0,
+            impressions: 0
+          };
+        }
+
         byMonth[row.month].spend += parseFloat(row.spend || 0);
         byMonth[row.month].clicks += parseFloat(row.clicks || 0);
         byMonth[row.month].conversions += parseFloat(row.conversions || 0);
         byMonth[row.month].impressions += parseFloat(row.impressions || 0);
       });
+
       setTrends(Object.values(byMonth).sort((a, b) => a.month.localeCompare(b.month)));
-      setComparison(cmp);
-      setCampaigns(camp);
-      setPlatforms(plat);
-      setSubscription(sub);
+      setClient(c); setSummary(s); setAiInsight(ai);
+
 
       getAdAccounts(id)
         .then(setAdAccounts)
