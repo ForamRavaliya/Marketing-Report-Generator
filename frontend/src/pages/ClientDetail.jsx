@@ -51,65 +51,76 @@ const [adForm, setAdForm] = useState({
   adAccountId: '',
   accessToken: '',
 });
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     setLoading(true);
-    const params = { platform: platform !== 'all' ? platform : undefined };
 
-    Promise.all([
-      getClient(id),
-      getSummary(id, params),
-      getTrends(id, { ...params, months: 6 }),
-      getComparison(id, params),
-      getCampaigns(id, params),
-      getPlatforms(id, params),
-      getAIInsights(id),
-    ])
-      .then(([c, s, t, cmp, camp, plat, ai]) => {
-        setClient(c);
-        setSummary(s);
-        setComparison(cmp);
-        setCampaigns(camp);
-        setPlatforms(plat);
-        setAiInsight(ai);
+    const params = {
+      platform: platform !== 'all' ? platform : undefined,
+    };
 
-        const byMonth = {};
-        t.forEach(row => {
-          if (!byMonth[row.month]) {
-            byMonth[row.month] = {
-              month: row.month,
-              spend: 0,
-              clicks: 0,
-              conversions: 0,
-              impressions: 0,
-            };
-          }
+    try {
+      const clientData = await getClient(id);
+      setClient(clientData);
 
-          byMonth[row.month].spend += parseFloat(row.spend || 0);
-          byMonth[row.month].clicks += parseFloat(row.clicks || 0);
-          byMonth[row.month].conversions += parseFloat(row.conversions || 0);
-          byMonth[row.month].impressions += parseFloat(row.impressions || 0);
-        });
+      const summaryData = await getSummary(id, params);
+      setSummary(summaryData);
 
-        setTrends(
-          Object.values(byMonth).sort((a, b) =>
-            a.month.localeCompare(b.month)
-          )
-        );
+      const trendsData = await getTrends(id, { ...params, months: 6 });
+      const byMonth = {};
 
-        getSubscription()
-          .then(setSubscription)
-          .catch(() => setSubscription(null));
+      trendsData.forEach(row => {
+        if (!byMonth[row.month]) {
+          byMonth[row.month] = {
+            month: row.month,
+            spend: 0,
+            clicks: 0,
+            conversions: 0,
+            impressions: 0,
+          };
+        }
 
-        getAdAccounts(id)
-          .then(setAdAccounts)
-          .catch(() => {});
+        byMonth[row.month].spend += parseFloat(row.spend || 0);
+        byMonth[row.month].clicks += parseFloat(row.clicks || 0);
+        byMonth[row.month].conversions += parseFloat(row.conversions || 0);
+        byMonth[row.month].impressions += parseFloat(row.impressions || 0);
+      });
 
-        getSyncLogs(id)
-          .then(setSyncLogs)
-          .catch(() => {});
-      })
-      .catch(() => toast.error('Failed to load data'))
-      .finally(() => setLoading(false));
+      setTrends(
+        Object.values(byMonth).sort((a, b) =>
+          a.month.localeCompare(b.month)
+        )
+      );
+
+      const comparisonData = await getComparison(id, params);
+      setComparison(comparisonData);
+
+      const campaignData = await getCampaigns(id, params);
+      setCampaigns(campaignData);
+
+      const platformData = await getPlatforms(id, params);
+      setPlatforms(platformData);
+
+      getSubscription()
+        .then(setSubscription)
+        .catch(() => setSubscription(null));
+
+      getAIInsights(id)
+        .then(setAiInsight)
+        .catch(() => setAiInsight(null));
+
+      getAdAccounts(id)
+        .then(setAdAccounts)
+        .catch(() => {});
+
+      getSyncLogs(id)
+        .then(setSyncLogs)
+        .catch(() => {});
+    } catch (error) {
+      console.error('Client detail load error:', error.response?.data || error.message);
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   }, [id, platform]);
 
   useEffect(() => { load(); }, [load]);
