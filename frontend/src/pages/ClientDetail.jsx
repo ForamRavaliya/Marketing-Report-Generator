@@ -106,13 +106,17 @@ const topPlatform = platforms.length
       (a, b) => parseFloat(b.spend || 0) - parseFloat(a.spend || 0)
     )[0]
   : null;
-
+const totalCampaignSpend = campaigns.reduce(
+  (sum, c) => sum + parseFloat(c.spend || 0),
+  0
+);
   if (!client && !loading) return (
     <div style={{ textAlign: 'center', padding: 60 }}>
       <p>Client not found</p>
       <button className="btn btn-primary" onClick={() => navigate('/clients')}>Back to Clients</button>
     </div>
   );
+
 
   const TABS = [
     'overview',
@@ -249,14 +253,42 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                   change={comparison?.comparison?.conversions?.change} />
               </div>
               <div className="grid grid-4" style={{ marginBottom: 20 }}>
-                <MetricCard label="CTR" value={fmtPct(summary?.ctr)} color="#0891B2"
-                  change={comparison?.comparison?.ctr?.change} />
-                <MetricCard label="CPC" value={fmtCur(summary?.cpc)} color="#7C3AED"
-                  change={comparison?.comparison?.cpc?.change} />
-                <MetricCard label="CPA" value={fmtCur(summary?.cpa)} color="#DC2626"
-                  change={comparison?.comparison?.cpa?.change} />
-                <MetricCard label="ROAS" value={`${fmt(summary?.roas, 2)}x`} color="#059669"
-                  change={comparison?.comparison?.roas?.change} />
+                <MetricCard
+                  label="CTR"
+                  value={fmtPct(summary?.ctr)}
+                  color="#0891B2"
+                  change={comparison?.comparison?.ctr?.change}
+                />
+
+                <MetricCard
+                  label="CPC"
+                  value={fmtCur(summary?.cpc)}
+                  color="#7C3AED"
+                  change={comparison?.comparison?.cpc?.change}
+                />
+
+                <MetricCard
+                  label="CPA"
+                  value={fmtCur(summary?.cpa)}
+                  color="#DC2626"
+                  change={comparison?.comparison?.cpa?.change}
+                />
+
+                <MetricCard
+                  label="Revenue"
+                  value={fmtCur(summary?.revenue)}
+                  color="#16A34A"
+                  change={comparison?.comparison?.revenue?.change}
+                />
+              </div>
+
+              <div className="grid grid-4" style={{ marginBottom: 20 }}>
+                <MetricCard
+                  label="ROAS"
+                  value={`${fmt(summary?.roas, 2)}x`}
+                  color="#059669"
+                  change={comparison?.comparison?.roas?.change}
+                />
               </div>
 
               {/* MoM Comparison */}
@@ -389,26 +421,75 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                 <div className="table-wrap">
                   <table>
                     <thead>
-
                       <tr>
-                        <th>Campaign</th><th>Platform</th><th>Spend</th>
-                        <th>Clicks</th><th>CTR</th><th>CPC</th><th>Conv.</th><th>CPA</th><th>ROAS</th>
-
+                        <th>Campaign</th>
+                        <th>Platform</th>
+                        <th>Spend</th>
+                        <th>Share</th>
+                        <th>Clicks</th>
+                        <th>CTR</th>
+                        <th>CPC</th>
+                        <th>Conv.</th>
+                        <th>CPA</th>
+                        <th>ROAS</th>
                       </tr>
                     </thead>
                     <tbody>
-
                       {campaigns.map((c, i) => (
                         <tr key={i}>
-                          <td style={{ maxWidth: 200 }}><span className="truncate" style={{ display: 'block', fontWeight: 600 }}>{c.campaign_name || 'Unknown'}</span></td>
-                          <td><span className={`badge badge-${c.platform === 'meta' ? 'blue' : c.platform === 'google' ? 'yellow' : 'gray'}`}>{c.platform}</span></td>
+                          <td style={{ maxWidth: 200 }}>
+                            <span
+                              className="truncate"
+                              style={{ display: 'block', fontWeight: 600 }}
+                            >
+                              {c.campaign_name || 'Unknown'}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span
+                              className={`badge badge-${
+                                c.platform === 'meta'
+                                  ? 'blue'
+                                  : c.platform === 'google'
+                                  ? 'yellow'
+                                  : 'gray'
+                              }`}
+                            >
+                              {c.platform}
+                            </span>
+                          </td>
+
                           <td style={{ fontWeight: 600 }}>{fmtCur(c.spend)}</td>
+
+                          <td>
+                            {totalCampaignSpend > 0
+                              ? (
+                                  (parseFloat(c.spend || 0) / totalCampaignSpend) *
+                                  100
+                                ).toFixed(1)
+                              : 0}
+                            %
+                          </td>
+
                           <td>{fmt(c.clicks)}</td>
                           <td>{fmtPct(c.ctr)}</td>
                           <td>{fmtCur(c.cpc)}</td>
                           <td>{fmt(c.conversions)}</td>
                           <td>{fmtCur(c.cpa)}</td>
-                          <td><span style={{ fontWeight: 700, color: parseFloat(c.roas) >= 2 ? 'var(--success)' : 'var(--text)' }}>{fmt(c.roas, 2)}x</span></td>
+                          <td>
+                            <span
+                              style={{
+                                fontWeight: 700,
+                                color:
+                                  parseFloat(c.roas) >= 2
+                                    ? 'var(--success)'
+                                    : 'var(--text)',
+                              }}
+                            >
+                              {fmt(c.roas, 2)}x
+                            </span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -432,14 +513,33 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                     </div>
                   </div>
 
-                  <div className="card card-pad">
-                    <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
-                      TOP SPEND PLATFORM
-                    </div>
-                    <div style={{ fontSize: 22, fontWeight: 800, marginTop: 8, textTransform: 'capitalize' }}>
-                      {topPlatform?.platform || 'N/A'}
-                    </div>
-                  </div>
+                 <div className="card card-pad">
+                   <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                     TOP SPEND PLATFORM
+                   </div>
+
+                   <div
+                     style={{
+                       fontSize: 22,
+                       fontWeight: 800,
+                       marginTop: 8,
+                       textTransform: 'capitalize',
+                     }}
+                   >
+                     {topPlatform?.platform || 'N/A'}
+                   </div>
+
+                   <div
+                     style={{
+                       marginTop: 8,
+                       fontSize: 13,
+                       color: 'var(--text3)',
+                     }}
+                   >
+                     {topPlatform ? fmtCur(topPlatform.spend) : 'INR 0.00'}
+                   </div>
+                 </div>
+
 
                   <div className="card card-pad">
                     <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
@@ -561,8 +661,9 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                           <th>Spend</th>
                           <th>Share</th>
                           <th>Clicks</th>
-                          <th>Conv.</th>
-                          <th>CPA</th>
+                        <th>Conv.</th>
+                        <th>CTR</th>
+                        <th>CPA</th>
                           <th>ROAS</th>
                         </tr>
                       </thead>
@@ -596,6 +697,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                               <td>{fmt(share, 1)}%</td>
                               <td>{fmt(p.clicks)}</td>
                               <td>{fmt(p.conversions)}</td>
+                              <td>{fmtPct(p.ctr)}</td>
                               <td>{fmtCur(p.cpa)}</td>
                               <td style={{ fontWeight: 700 }}>{fmt(p.roas, 2)}x</td>
                             </tr>

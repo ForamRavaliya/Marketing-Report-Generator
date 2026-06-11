@@ -347,6 +347,7 @@ router.get('/campaigns/:clientId', async (req, res) => {
        LEFT JOIN campaigns c ON pd.campaign_id = c.id
        ${whereClause}
        GROUP BY c.name, pd.platform
+       HAVING SUM(pd.spend) > 1
        ORDER BY SUM(pd.spend) DESC
        LIMIT 20`,
       params
@@ -407,6 +408,11 @@ router.get('/platforms/:clientId', async (req, res) => {
           WHEN SUM(COALESCE(conversions, 0)) > 0
           THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0))
           ELSE 0
+        END as cpa,
+
+        CASE WHEN SUM(conversions) > 0
+        THEN SUM(spend) / SUM(conversions)
+        ELSE 0
         END as cpa,
 
         CASE
