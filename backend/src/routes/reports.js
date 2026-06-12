@@ -917,9 +917,9 @@ doc.fillColor('#FFFFFF')
 
 // Title
 doc.fillColor('#FFFFFF')
-  .fontSize(28)
+  .fontSize(26)
   .font('Helvetica-Bold')
-  .text(reportTitle, 50, 72, {
+  .text(reportTitle, 50, 92, {
     width: 430,
     lineGap: 3,
   });
@@ -927,11 +927,11 @@ doc.fillColor('#FFFFFF')
 doc.fillColor('#DBEAFE')
   .fontSize(13)
   .font('Helvetica')
-  .text(client.name, 50, 143);
+  .text(client.name, 50, 158);
 
 doc.fillColor('#BFDBFE')
   .fontSize(9)
-  .text(dateLabel, 50, 172);
+  .text(dateLabel, 50, 184);
 
 // ===============================
 // PERFORMANCE SCORE + GRADE
@@ -1626,7 +1626,7 @@ funnelItems.forEach((item, i) => {
     doc.fillColor('#94A3B8')
       .fontSize(18)
       .font('Helvetica-Bold')
-      .text('↓', 285, y + 82, {
+      .text('v', 285, y + 82, {
         width: 20,
         align: 'center',
       });
@@ -1938,69 +1938,12 @@ insightCards.forEach((card, i) => {
 // AI Summary
 drawCard(35, 360, 525, 120, THEME.card, THEME.border);
 
-drawSectionTitle(
-  'Performance Snapshot',
-  55,
-  250,
-  THEME.emerald
-);
 
-const snapshotCards = [
-  {
-    title: 'Spend',
-    value: formatCurrency(safeSummary.spend, currency),
-    bg: THEME.softBlue,
-    color: THEME.royal,
-  },
-  {
-    title: 'Leads',
-    value: formatNum(safeSummary.conversions),
-    bg: THEME.softGreen,
-    color: THEME.emerald,
-  },
-  {
-    title: 'CTR',
-    value: safeSummary.hasClicks
-      ? formatPct(safeSummary.ctr)
-      : 'N/A',
-    bg: THEME.softPurple,
-    color: THEME.violet,
-  },
-  {
-    title: 'CPL',
-    value: formatCurrency(safeSummary.cpa, currency),
-    bg: THEME.softAmber,
-    color: THEME.amber,
-  },
-];
-
-snapshotCards.forEach((card, i) => {
-  const x = 55 + i * 122;
-
-  drawCard(
-    x,
-    275,
-    110,
-    70,
-    card.bg,
-    THEME.border
-  );
-
-  doc.fillColor(card.color)
-    .fontSize(8)
-    .font('Helvetica-Bold')
-    .text(card.title.toUpperCase(), x + 12, 290);
-
-  doc.fillColor(THEME.text)
-    .fontSize(14)
-    .font('Helvetica-Bold')
-    .text(card.value, x + 12, 312);
-});
 
 doc.fillColor(THEME.text)
   .fontSize(16)
   .font('Helvetica-Bold')
-  .text('Executive Marketing Summary', 55, 375);
+  .text('Executive Marketing Summary', 55, 380);
 
 doc.fillColor(THEME.muted)
   .fontSize(9)
@@ -2008,7 +1951,7 @@ doc.fillColor(THEME.muted)
   .text(
     reportSummaryText,
     55,
-    405,
+    410,
     {
       width: 485,
       lineGap: 4,
@@ -2049,7 +1992,7 @@ const drawInsightBox = (x, y, title, items, color, bg) => {
     doc.fillColor(color)
       .fontSize(9)
       .font('Helvetica-Bold')
-      .text('✓', x + 22, y + 48 + i * 22);
+     .text('•', x + 22, y + 48 + i * 22);
 
     doc.fillColor(THEME.text)
       .fontSize(8.5)
@@ -2063,7 +2006,7 @@ const drawInsightBox = (x, y, title, items, color, bg) => {
 
 drawInsightBox(
   35,
-  515,
+  505,
   "What's Working",
   whatsWorking,
   THEME.emerald,
