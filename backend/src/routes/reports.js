@@ -133,8 +133,8 @@ const drawBarChart = (doc, data, options, currency = 'INR') => {
       .text(
       valueKey === 'conversions'
         ? `${formatNum(value)} leads`
-        : valueKey === 'efficiency'
-          ? `${formatNum(value * 100, 2)} leads / 100 spend`
+        : valueKey === 'spendShare'
+          ? `${formatNum(value, 1)}%`
           : formatCurrency(value, currency),
         x + labelW + chartW + 12,
         rowY + 7,
@@ -358,6 +358,12 @@ const planName =
  (subscriptionResult.rows[0]?.plan_name || 'free')
    .toLowerCase();;
 const canUseAgencyBranding = planName !== 'free';
+const isFreePlan = planName === 'free';
+const isProPlan = planName === 'pro';
+const isAgencyPlan = planName === 'agency';
+
+const canUseExecutivePages = isProPlan || isAgencyPlan;
+const canUseAdvancedBranding = isAgencyPlan;
 
 // Total generated reports
 const reportsCountResult = await db.query(
@@ -522,7 +528,7 @@ if (
         LEFT JOIN campaigns c ON pd.campaign_id = c.id
         ${campaignWhereClause}
         GROUP BY COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign'), pd.platform
-        HAVING SUM(COALESCE(pd.spend, 0)) >= 1
+        HAVING SUM(COALESCE(pd.spend, 0)) >= 100
         ORDER BY SUM(COALESCE(pd.spend, 0)) DESC
         LIMIT 8`,
       params
@@ -682,6 +688,9 @@ const formatGrowth = (change) => {
     return null;
   }
 
+  if (change >= 300) return 'Significant increase';
+  if (change <= -300) return 'Significant decrease';
+
   const sign = change > 0 ? '+' : '';
   return `${sign}${formatNum(change, 1)}%`;
 };
@@ -720,11 +729,14 @@ const drawEmptyState = (x, y, w, h, title, message) => {
     });
 };
 const drawMiniMetricCards = (items, startX, startY) => {
+  const cardWidth = items.length === 4 ? 120 : 105;
+  const gap = items.length === 4 ? 130 : 112;
+
   items.forEach((item, i) => {
-    const x = startX + i * 112;
+    const x = startX + i * gap;
     const y = startY;
 
-    drawCard(x, y, 105, 72, item.bg, THEME.border);
+   drawCard(x, y, cardWidth, 72, item.bg, THEME.border);
 
     doc.fillColor(item.color)
       .fontSize(8)
@@ -734,7 +746,7 @@ const drawMiniMetricCards = (items, startX, startY) => {
     doc.fillColor(THEME.text)
       .fontSize(14)
       .font('Helvetica-Bold')
-      .text(item.value, x + 12, y + 36, { width: 82 });
+      .text(item.value, x + 12, y + 36, { width: cardWidth - 20 });
   });
 };
 
@@ -765,6 +777,13 @@ const dateLabel =
         day: 'numeric',
         year: 'numeric',
       })}`;
+
+      const planLabel =
+        isFreePlan
+          ? 'Free Plan Report'
+          : isProPlan
+          ? 'Pro Plan Report'
+          : 'Agency White-Label Report';
 
 const drawSectionTitle = (title, x, y, color = THEME.royal) => {
   doc.fillColor(THEME.text)
@@ -806,21 +825,36 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
 
 const bottomText =
   item.growth
-    ? `${item.growth} vs previous`
+  ? `${item.growth} vs previous period`
     : item.subtitle ||
       item.note ||
       item.description ||
       '';
 
-   doc.fillColor(item.subtitle ? color : THEME.muted)
-     .fontSize(6.3)
-     .font('Helvetica-Bold')
-     .text(bottomText, x + 34, y + 49, {
-       width: w - 42,
-       lineBreak: false,
-       ellipsis: true,
-     });
- };
+  const badIncreaseMetrics = ['Cost / Lead', 'CPC'];
+  const isBadIncrease =
+    badIncreaseMetrics.includes(item.label) &&
+    item.growth &&
+    item.growth.startsWith('+');
+
+  const growthColor = item.growth
+    ? isBadIncrease
+      ? THEME.rose
+      : THEME.emerald
+    : item.subtitle
+    ? color
+    : THEME.muted;
+
+  doc.fillColor(growthColor)
+    .fontSize(6.3)
+    .font('Helvetica-Bold')
+    .text(bottomText, x + 34, y + 49, {
+          width: w - 42,
+          lineBreak: false,
+          ellipsis: true,
+        });
+     };
+    }
 
 const drawAgencyLogo = () => {
   try {
@@ -840,10 +874,15 @@ const drawAgencyLogo = () => {
 const drawFooter = (pageNo) => {
   doc.save();
 
-  const footerBrand =
-    canUseAgencyBranding
-      ? `Prepared for ${client.name} • ${agency?.name || 'Agency Report'}`
-      : `Prepared for ${client.name} • Generated with Marketing Report Generator`;
+let footerBrand = '';
+
+if (isAgencyPlan) {
+  footerBrand = `${agency?.name || 'Agency Report'} • ${client.name}`;
+} else if (isProPlan) {
+  footerBrand = `Prepared for ${client.name} • ${agency?.name || 'Agency Report'}`;
+} else {
+  footerBrand = `Prepared for ${client.name} • Generated with Marketing Report Generator`;
+}
 
   doc.moveTo(50, 755)
     .lineTo(545, 755)
@@ -932,6 +971,11 @@ doc.fillColor('#DBEAFE')
 doc.fillColor('#BFDBFE')
   .fontSize(9)
   .text(dateLabel, 50, 184);
+
+  doc.fillColor('#DBEAFE')
+    .fontSize(8)
+    .font('Helvetica-Bold')
+    .text(planLabel, 50, 198);
 
 // ===============================
 // PERFORMANCE SCORE + GRADE
@@ -1183,6 +1227,23 @@ doc.fillColor(THEME.rose)
     width: 180,
     lineBreak: false,
   });
+  if (isFreePlan) {
+    drawCard(35, 710, 525, 32, '#FFF7ED', '#FDBA74');
+
+    doc.fillColor('#C2410C')
+      .fontSize(8)
+      .font('Helvetica-Bold')
+      .text(
+        'Upgrade to Pro to add your agency logo, remove product branding and unlock executive PDF pages.',
+        55,
+        722,
+        {
+          width: 485,
+          align: 'center',
+          lineBreak: false,
+        }
+      );
+  }
 drawFooter(pageNo++);
 // ===============================
 // PAGE 2 - TABLES
@@ -1287,13 +1348,13 @@ doc.fillColor(THEME.muted)
     lineGap: 4,
   });
 
-// Top campaign mini strip
+// Major campaign mini strip
 if (campaigns.length > 0) {
-drawCard(35, 545, 525, 135, THEME.card, THEME.border);
-drawSectionTitle('Top Campaigns Breakdown', 55, 565, THEME.violet);
+  drawCard(35, 545, 525, 135, THEME.card, THEME.border);
+  drawSectionTitle('Major Campaigns Breakdown', 55, 565, THEME.violet);
 
-  const cHeaders = ['Campaign', 'Platform', 'Spend', 'Share', 'Conv.'];
-  const cWidths = [190, 70, 90, 65, 70];
+  const cHeaders = ['Campaign', 'Spend', 'Share', 'Leads', 'CPL'];
+  const cWidths = [210, 95, 60, 55, 65];
 
   let cY = 605;
   let cX = 55;
@@ -1319,12 +1380,17 @@ drawSectionTitle('Top Campaigns Breakdown', 55, 565, THEME.violet);
         ? `${formatNum((Number(row.spend || 0) / totalCampaignSpend) * 100, 1)}%`
         : 'N/A';
 
+    const cpl =
+      Number(row.conversions || 0) > 0
+        ? formatCurrency(Number(row.spend || 0) / Number(row.conversions || 0), currency)
+        : 'N/A';
+
     const vals = [
-      (row.name || 'Unknown').substring(0, 28),
-      (row.platform || 'Other').toUpperCase(),
+      (row.name || 'Unknown').substring(0, 30),
       formatCurrency(row.spend, currency),
       spendShare,
       formatNum(row.conversions),
+      cpl,
     ];
 
     cX = 55;
@@ -1338,16 +1404,15 @@ drawSectionTitle('Top Campaigns Breakdown', 55, 565, THEME.violet);
 
     cY += 22;
   });
-}
-else {
-drawEmptyState(
-  35,
-  545,
-  525,
-  135,
-  'Campaign-Level Export Not Included',
-  'This upload contains aggregate data only. To unlock campaign ranking, campaign spend comparison and campaign-wise lead analysis, export the report with individual campaign rows.'
-);
+} else {
+  drawEmptyState(
+    35,
+    545,
+    525,
+    135,
+    'Major Campaign Data Not Available',
+    'This upload contains aggregate data only. Export campaign-level rows to unlock campaign ranking, campaign spend share and lead efficiency analysis.'
+  );
 }
 
 
@@ -1415,7 +1480,7 @@ drawFooter(pageNo++);
         x: 55,
         y: hasTrendChart ? 400 : 145,
         width: 480,
-       title: 'Top Campaigns by Budget Share',
+       title: 'Major Campaigns by Spend',
        valueKey: 'spend',
        labelKey: 'name',
 
@@ -1752,46 +1817,40 @@ if (topPlatform) {
      `${String(onlyPlatform.platform || 'Platform').toUpperCase()} is the only tracked platform in this report. Since there is no second platform to compare, this page focuses on spend, leads and cost efficiency.`
    );
 
-   drawMiniMetricCards(
-     [
-       {
-         label: 'Platform',
-         value: String(onlyPlatform.platform || 'Meta').toUpperCase(),
-         color: THEME.royal,
-         bg: THEME.softBlue,
-       },
-       {
-         label: 'Spend',
-         value: formatCurrency(onlyPlatform.spend, currency),
-         color: THEME.violet,
-         bg: THEME.softPurple,
-       },
-       {
-         label: 'Leads',
-         value: formatNum(onlyPlatform.conversions),
-         color: THEME.emerald,
-         bg: THEME.softGreen,
-       },
-       {
-         label: 'Share',
-         value: '100%',
-         color: THEME.amber,
-         bg: THEME.softAmber,
-       },
-       {
-         label: 'Cost/Lead',
-         value: formatCurrency(
-           Number(onlyPlatform.spend || 0) /
-             Math.max(Number(onlyPlatform.conversions || 0), 1),
-           currency
-         ),
-         color: THEME.rose,
-         bg: THEME.softRose,
-       },
-     ],
-     35,
-     305
-   );
+drawMiniMetricCards(
+  [
+    {
+      label: 'Platform',
+      value: String(onlyPlatform.platform || 'Meta').toUpperCase(),
+      color: THEME.royal,
+      bg: THEME.softBlue,
+    },
+    {
+      label: 'Spend',
+      value: formatCurrency(onlyPlatform.spend, currency),
+      color: THEME.violet,
+      bg: THEME.softPurple,
+    },
+    {
+      label: 'Leads',
+      value: formatNum(onlyPlatform.conversions),
+      color: THEME.emerald,
+      bg: THEME.softGreen,
+    },
+    {
+      label: 'Cost/Lead',
+      value: formatCurrency(
+        Number(onlyPlatform.spend || 0) /
+          Math.max(Number(onlyPlatform.conversions || 0), 1),
+        currency
+      ),
+      color: THEME.rose,
+      bg: THEME.softRose,
+    },
+  ],
+  55,
+  305
+);
 
 drawCard(35, 395, 525, 80, '#F8FAFC', '#BFDBFE');
 
@@ -1992,7 +2051,7 @@ const drawInsightBox = (x, y, title, items, color, bg) => {
     doc.fillColor(color)
       .fontSize(9)
       .font('Helvetica-Bold')
-     .text('•', x + 22, y + 48 + i * 22);
+     .text('-', x + 22, y + 48 + i * 22);
 
     doc.fillColor(THEME.text)
       .fontSize(8.5)
@@ -2024,6 +2083,7 @@ drawInsightBox(
 
 drawFooter(pageNo++);
 
+if (canUseExecutivePages) {
 // ===============================
 // PAGE 8 - ACTION PLAN
 // ===============================
@@ -2087,7 +2147,7 @@ actionItems.forEach((item, i) => {
   doc.fillColor('#FFFFFF')
     .fontSize(11)
     .font('Helvetica-Bold')
-    .text(String(i + 1), 59, y + 29, {
+    .text(String(i + 1), 59, y + 28, {
       width: 12,
       align: 'center',
     });
@@ -2129,7 +2189,9 @@ doc.fillColor(THEME.muted)
   );
 
 drawFooter(pageNo++);
+}
 
+if (canUseExecutivePages) {
 // ===============================
 // FINAL PAGE - EXECUTIVE SUMMARY
 // ===============================
@@ -2266,7 +2328,7 @@ doc.fillColor(THEME.muted)
   );
 
 drawFooter(pageNo++);
-
+}
 // ===============================
 // PREMIUM REPORT DESIGN END
 // ===============================
