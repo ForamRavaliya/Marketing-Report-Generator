@@ -854,7 +854,7 @@ const bottomText =
           ellipsis: true,
         });
      };
-    }
+
 
 const drawAgencyLogo = () => {
   try {
