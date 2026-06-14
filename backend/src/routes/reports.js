@@ -758,8 +758,8 @@ doc.fillColor(THEME.text)
     height: 26,
     ellipsis: true,
   });
-};
-
+    });
+  };
 
 
 const reportSummaryText =
