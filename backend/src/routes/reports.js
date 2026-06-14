@@ -1438,73 +1438,124 @@ drawFooter(pageNo++);
     .font('Helvetica')
     .text('Visual analysis of spend and campaign performance', 50, 62);
 
-  if (hasTrendChart) {
-    drawCard(35, 120, 525, 220, THEME.card, THEME.border);
+ if (hasTrendChart) {
+   drawCard(35, 120, 525, 220, THEME.card, THEME.border);
 
-    drawLineChart(
-      doc,
-      trends,
-      {
-        x: 55,
-        y: 145,
-        width: 480,
-        height: 160,
-        title: 'Monthly Spend Trend',
-        labelKey: 'month',
-        valueKey: 'spend',
-        color: THEME.royal,
-      },
-      currency
-    );
+   drawLineChart(
+     doc,
+     trends,
+     {
+       x: 55,
+       y: 145,
+       width: 480,
+       height: 160,
+       title: 'Monthly Spend Trend',
+       labelKey: 'month',
+       valueKey: 'spend',
+       color: THEME.royal,
+     },
+     currency
+   );
+ } else {
+   drawEmptyState(
+     35,
+     120,
+     525,
+     220,
+     'Trend Analysis Not Available',
+     'At least two reporting periods are required to generate a monthly trend chart.'
+   );
+ }
 
+ if (campaigns.length > 1) {
+   drawCard(35, hasTrendChart ? 375 : 375, 525, 315, THEME.card, THEME.border);
 
-  }
-  else {
-    drawEmptyState(
-      35,
-      120,
-      525,
-      220,
-      'Trend Analysis Not Available',
-      'At least two reporting periods are required to generate a monthly trend chart.'
-    );
-  }
+   drawBarChart(
+     doc,
+     campaigns,
+     {
+       x: 55,
+       y: 400,
+       width: 480,
+       title: 'Major Campaigns by Spend',
+       valueKey: 'spend',
+       labelKey: 'name',
+       color: THEME.violet,
+     },
+     currency
+   );
+ } else if (campaigns.length === 1) {
+   const campaign = campaigns[0];
 
-  if (hasCampaignChart) {
-    drawCard(35, hasTrendChart ? 375 : 120, 525, 315, THEME.card, THEME.border);
+   drawCard(35, 375, 525, 315, THEME.card, THEME.border);
 
-   drawCard(35, 700, 525, 42, '#F8FAFC', '#BFDBFE');
+   drawSectionTitle(
+     'Campaign Performance Summary',
+     55,
+     400,
+     THEME.violet
+   );
+
+   drawMiniMetricCards(
+     [
+       {
+         label: 'Campaign',
+         value: campaign.name?.substring(0, 12) || 'Campaign',
+         color: THEME.royal,
+         bg: THEME.softBlue,
+       },
+       {
+         label: 'Spend',
+         value: formatCurrency(campaign.spend, currency),
+         color: THEME.violet,
+         bg: THEME.softPurple,
+       },
+       {
+         label: 'Leads',
+         value: formatNum(campaign.conversions),
+         color: THEME.emerald,
+         bg: THEME.softGreen,
+       },
+       {
+         label: 'CTR',
+         value: formatPct(campaign.ctr || 0),
+         color: THEME.amber,
+         bg: THEME.softAmber,
+       },
+     ],
+     55,
+     450
+   );
+
+   drawCard(55, 560, 485, 80, '#F8FAFC', '#BFDBFE');
 
    doc.fillColor(THEME.text)
-     .fontSize(12)
+     .fontSize(13)
      .font('Helvetica-Bold')
-     .text('Executive Verdict', 55, 713);
+     .text('Campaign Summary', 75, 580);
 
    doc.fillColor(THEME.muted)
-     .fontSize(8.5)
+     .fontSize(9)
      .font('Helvetica')
      .text(
-       safeSummary.hasRevenue
-         ? 'Continue optimizing campaigns based on CPL, ROAS and lead quality before scaling budget.'
-         : 'Campaigns are generating leads, but revenue tracking must be added before final ROI decisions.',
-       190,
-       713,
+       `${campaign.name} generated 100% of tracked campaign spend and results during the selected reporting period.`,
+       75,
+       605,
        {
-         width: 345,
-         lineGap: 2,
+         width: 430,
+         lineGap: 4,
        }
      );
-  }
-  else {
-    drawEmptyState(
-      35,
-      375,
-      525,
-      315,
-      'Campaign Chart Not Available',
-      'Campaign-level data was not available in this upload. Export campaign-level rows to unlock campaign comparison charts.'
-    );
-  }
+ } else {
+   drawEmptyState(
+     35,
+     375,
+     525,
+     315,
+     'Major Campaign Chart Not Available',
+     'Campaign-level data was not available in this upload. Export campaign-level rows to unlock campaign comparison charts.'
+   );
+ }
 
 drawFooter(pageNo++);
 
@@ -2333,6 +2384,27 @@ doc.fillColor(THEME.muted)
     }
   );
 
+drawCard(35, 700, 525, 42, '#F8FAFC', '#BFDBFE');
+
+doc.fillColor(THEME.text)
+  .fontSize(12)
+  .font('Helvetica-Bold')
+  .text('Executive Verdict', 55, 713);
+
+doc.fillColor(THEME.muted)
+  .fontSize(8.5)
+  .font('Helvetica')
+  .text(
+    safeSummary.hasRevenue
+      ? 'Continue optimizing campaigns based on CPL, ROAS and lead quality before scaling budget.'
+      : 'Campaigns are generating leads, but revenue tracking must be added before final ROI decisions.',
+    190,
+    713,
+    {
+      width: 345,
+      lineGap: 2,
+    }
+  );
 drawFooter(pageNo++);
 }
 // ===============================
