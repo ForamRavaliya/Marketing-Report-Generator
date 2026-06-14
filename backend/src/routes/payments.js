@@ -120,17 +120,19 @@ router.post('/verify', async (req, res) => {
       [razorpay_order_id, req.user.agency_id]
     );
 
+    const order = orderResult.rows[0];
+
+    if (!order) {
+      return res.status(404).json({
+        error: 'Payment order not found',
+      });
+    }
+
     if (order.status === 'paid') {
       return res.status(409).json({
         error: 'Payment already verified',
       });
     }
-
-  if (order.status === 'paid') {
-    return res.status(409).json({
-      error: 'Payment already verified',
-    });
-  }
 
     // Save payment
     const paymentResult = await db.query(
