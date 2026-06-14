@@ -1496,36 +1496,60 @@ drawFooter(pageNo++);
      THEME.violet
    );
 
-   drawMiniMetricCards(
-     [
-       {
-         label: 'Campaign',
-         value: campaign.name?.substring(0, 12) || 'Campaign',
-         color: THEME.royal,
-         bg: THEME.softBlue,
-       },
-       {
-         label: 'Spend',
-         value: formatCurrency(campaign.spend, currency),
-         color: THEME.violet,
-         bg: THEME.softPurple,
-       },
-       {
-         label: 'Leads',
-         value: formatNum(campaign.conversions),
-         color: THEME.emerald,
-         bg: THEME.softGreen,
-       },
-       {
-         label: 'CTR',
-         value: formatPct(campaign.ctr || 0),
-         color: THEME.amber,
-         bg: THEME.softAmber,
-       },
-     ],
-     55,
-     450
-   );
+  const campaignMiniCards = [
+    {
+      label: 'Campaign',
+     value: campaign.name?.substring(0, 11) || 'Unknown',
+      color: THEME.royal,
+      bg: THEME.softBlue,
+    },
+    {
+      label: 'Spend',
+      value: formatCurrency(campaign.spend, currency),
+      color: THEME.violet,
+      bg: THEME.softPurple,
+    },
+    {
+      label: 'Leads',
+      value: formatNum(campaign.conversions),
+      color: THEME.emerald,
+      bg: THEME.softGreen,
+    },
+    {
+      label: 'CTR',
+      value: formatPct(campaign.ctr || 0),
+      color: THEME.amber,
+      bg: THEME.softAmber,
+    },
+  ];
+
+  const miniW = 108;
+  const miniGap = 12;
+  const miniStartX = 55;
+  const miniY = 450;
+
+  campaignMiniCards.forEach((item, i) => {
+    const x = miniStartX + i * (miniW + miniGap);
+
+    drawCard(x, miniY, miniW, 72, item.bg, THEME.border);
+
+    doc.fillColor(item.color)
+      .fontSize(7.2)
+      .font('Helvetica-Bold')
+      .text(item.label.toUpperCase(), x + 12, miniY + 14, {
+        width: miniW - 20,
+        lineBreak: false,
+      });
+
+    doc.fillColor(THEME.text)
+      .fontSize(12)
+      .font('Helvetica-Bold')
+      .text(item.value, x + 12, miniY + 36, {
+        width: miniW - 20,
+        height: 28,
+        ellipsis: true,
+      });
+  });
 
    drawCard(55, 560, 485, 80, '#F8FAFC', '#BFDBFE');
 
@@ -1538,7 +1562,7 @@ drawFooter(pageNo++);
      .fontSize(9)
      .font('Helvetica')
      .text(
-       `${campaign.name} generated 100% of tracked campaign spend and results during the selected reporting period.`,
+       `${campaign.name || 'This campaign'} generated 100% of tracked campaign spend and results during the selected reporting period.`,
        75,
        605,
        {
@@ -1641,20 +1665,67 @@ doc.fillColor('#FFFFFF')
   doc.fillColor(THEME.text)
     .fontSize(14)
     .font('Helvetica-Bold')
-    .text('What This Means', 55, 540);
+    .text('Lead Efficiency Scorecard', 55, 540);
 
-  doc.fillColor(THEME.muted)
-    .fontSize(9)
-    .font('Helvetica')
-    .text(
-      `Your campaigns generated ${formatNum(safeSummary.conversions)} leads from a spend of ${formatCurrency(safeSummary.spend, currency)}. The average cost per lead was ${formatCurrency(safeSummary.cpa, currency)}. This page helps non-technical stakeholders understand how efficiently advertising spend is turning into leads.`,
-      55,
-      565,
-      {
-        width: 480,
-        lineGap: 4,
-      }
-    );
+  const leadScoreItems = [
+    {
+      label: 'Lead Volume',
+      value:
+        safeSummary.conversions >= 1000
+          ? 'Strong'
+          : safeSummary.conversions >= 300
+          ? 'Good'
+          : 'Needs Work',
+      color: THEME.emerald,
+    },
+    {
+      label: 'Cost Efficiency',
+      value:
+        safeSummary.cpa <= 100
+          ? 'Good'
+          : safeSummary.cpa <= 500
+          ? 'Average'
+          : 'High CPL',
+      color: THEME.amber,
+    },
+    {
+      label: 'Engagement',
+      value:
+        safeSummary.ctr >= 2
+          ? 'Strong'
+          : safeSummary.ctr >= 1
+          ? 'Average'
+          : 'Low',
+      color: THEME.violet,
+    },
+    {
+      label: 'Tracking',
+      value: safeSummary.hasRevenue ? 'Complete' : 'Revenue Missing',
+      color: safeSummary.hasRevenue ? THEME.emerald : THEME.rose,
+    },
+  ];
+
+  leadScoreItems.forEach((item, i) => {
+    const x = 55 + i * 118;
+
+    doc.circle(x + 45, 585, 8).fill(item.color);
+
+    doc.fillColor(THEME.muted)
+      .fontSize(7)
+      .font('Helvetica-Bold')
+      .text(item.label.toUpperCase(), x, 605, {
+        width: 95,
+        align: 'center',
+      });
+
+    doc.fillColor(THEME.text)
+      .fontSize(10)
+      .font('Helvetica-Bold')
+      .text(item.value, x, 625, {
+        width: 95,
+        align: 'center',
+      });
+  });
 
   drawFooter(pageNo++);
 
