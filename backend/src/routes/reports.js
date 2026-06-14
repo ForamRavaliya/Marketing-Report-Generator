@@ -1473,21 +1473,27 @@ drawFooter(pageNo++);
   if (hasCampaignChart) {
     drawCard(35, hasTrendChart ? 375 : 120, 525, 315, THEME.card, THEME.border);
 
-    drawBarChart(
-      doc,
-      campaigns,
-      {
-        x: 55,
-        y: hasTrendChart ? 400 : 145,
-        width: 480,
-       title: 'Major Campaigns by Spend',
-       valueKey: 'spend',
-       labelKey: 'name',
+   drawCard(35, 700, 525, 42, '#F8FAFC', '#BFDBFE');
 
-        color: THEME.violet,
-      },
-      currency
-    );
+   doc.fillColor(THEME.text)
+     .fontSize(12)
+     .font('Helvetica-Bold')
+     .text('Executive Verdict', 55, 713);
+
+   doc.fillColor(THEME.muted)
+     .fontSize(8.5)
+     .font('Helvetica')
+     .text(
+       safeSummary.hasRevenue
+         ? 'Continue optimizing campaigns based on CPL, ROAS and lead quality before scaling budget.'
+         : 'Campaigns are generating leads, but revenue tracking must be added before final ROI decisions.',
+       190,
+       713,
+       {
+         width: 345,
+         lineGap: 2,
+       }
+     );
   }
   else {
     drawEmptyState(
