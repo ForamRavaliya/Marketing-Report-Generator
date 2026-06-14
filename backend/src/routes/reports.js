@@ -743,10 +743,20 @@ const drawMiniMetricCards = (items, startX, startY) => {
       .font('Helvetica-Bold')
       .text(item.label.toUpperCase(), x + 12, y + 14, { width: 95 });
 
-    doc.fillColor(THEME.text)
-      .fontSize(14)
-      .font('Helvetica-Bold')
-      .text(item.value, x + 12, y + 36, { width: cardWidth - 20 });
+const valueText = String(item.value || '');
+
+const valueFont =
+  valueText.length > 14 ? 10 :
+  valueText.length > 10 ? 11 :
+  14;
+
+doc.fillColor(THEME.text)
+  .fontSize(valueFont)
+  .font('Helvetica-Bold')
+  .text(valueText, x + 12, y + 36, {
+    width: cardWidth - 20,
+    height: 26,
+    ellipsis: true,
   });
 };
 
@@ -1202,12 +1212,83 @@ if (!safeSummary.hasRevenue) {
   missingMetrics.push('ROAS');
 }
 
-drawCard(35, 655, 525, 45, '#F8FAFC', '#BFDBFE');
+const scoreBreakdown = [
+  {
+    label: 'Lead Volume',
+    score: safeSummary.conversions > 0 ? 30 : 0,
+    max: 30,
+  },
+  {
+    label: 'Cost Efficiency',
+    score:
+      safeSummary.cpa > 0 && safeSummary.cpa <= 100
+        ? 25
+        : safeSummary.cpa > 0 && safeSummary.cpa <= 500
+        ? 15
+        : safeSummary.cpa > 0
+        ? 8
+        : 0,
+    max: 25,
+  },
+  {
+    label: 'Engagement',
+    score:
+      safeSummary.hasClicks && safeSummary.ctr >= 2
+        ? 20
+        : safeSummary.hasClicks && safeSummary.ctr >= 1
+        ? 12
+        : safeSummary.hasClicks
+        ? 5
+        : 0,
+    max: 20,
+  },
+  {
+    label: 'Revenue Tracking',
+    score:
+      safeSummary.hasRevenue && safeSummary.roas >= 3
+        ? 25
+        : safeSummary.hasRevenue && safeSummary.roas >= 1
+        ? 15
+        : safeSummary.hasRevenue
+        ? 5
+        : 0,
+    max: 25,
+  },
+];
+
+drawCard(35, 625, 525, 55, '#FFFFFF', '#BFDBFE');
+
+doc.fillColor(THEME.text)
+  .fontSize(10)
+  .font('Helvetica-Bold')
+  .text('Score Breakdown', 55, 638);
+
+scoreBreakdown.forEach((item, i) => {
+  const x = 160 + i * 92;
+
+  doc.fillColor(THEME.muted)
+    .fontSize(6.5)
+    .font('Helvetica-Bold')
+    .text(item.label.toUpperCase(), x, 634, {
+      width: 75,
+      align: 'center',
+    });
+
+  doc.fillColor(THEME.text)
+    .fontSize(9)
+    .font('Helvetica-Bold')
+    .text(`${item.score}/${item.max}`, x, 655, {
+      width: 75,
+      align: 'center',
+    });
+});
+
+drawCard(35, 695, 525, 40, '#F8FAFC', '#BFDBFE');
 
 doc.fillColor(THEME.royal)
   .fontSize(8)
   .font('Helvetica-Bold')
-  .text('DATA AVAILABILITY', 55, 668, {
+  .text('DATA AVAILABILITY', 55, 707, {
     width: 120,
     lineBreak: false,
   });
@@ -1215,7 +1296,7 @@ doc.fillColor(THEME.royal)
 doc.fillColor(THEME.emerald)
   .fontSize(7.5)
   .font('Helvetica-Bold')
-  .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 668, {
+  .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 707, {
     width: 170,
     lineBreak: false,
   });
@@ -1223,7 +1304,7 @@ doc.fillColor(THEME.emerald)
 doc.fillColor(THEME.rose)
   .fontSize(7.5)
   .font('Helvetica-Bold')
-  .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 668, {
+  .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 707, {
     width: 180,
     lineBreak: false,
   });
@@ -1417,11 +1498,11 @@ if (campaigns.length > 0) {
 
 
 drawFooter(pageNo++);
+
+
 // ===============================
 // PAGE 3 - CHARTS
 // ===============================
-
-
 
   doc.addPage();
 
@@ -1499,7 +1580,10 @@ drawFooter(pageNo++);
   const campaignMiniCards = [
     {
       label: 'Campaign',
-     value: campaign.name?.substring(0, 11) || 'Unknown',
+     value:
+       !campaign.name || campaign.name === 'Unknown Campaign'
+         ? 'Name N/A'
+         : campaign.name.substring(0, 11),
       color: THEME.royal,
       bg: THEME.softBlue,
     },
@@ -1541,10 +1625,16 @@ drawFooter(pageNo++);
         lineBreak: false,
       });
 
-    doc.fillColor(THEME.text)
-      .fontSize(12)
-      .font('Helvetica-Bold')
-      .text(item.value, x + 12, miniY + 36, {
+   const miniValueText = String(item.value || '');
+   const miniValueFont =
+     miniValueText.length > 14 ? 9.5 :
+     miniValueText.length > 10 ? 10.5 :
+     12;
+
+   doc.fillColor(THEME.text)
+     .fontSize(miniValueFont)
+     .font('Helvetica-Bold')
+     .text(miniValueText, x + 12, miniY + 36, {
         width: miniW - 20,
         height: 28,
         ellipsis: true,
@@ -1562,7 +1652,7 @@ drawFooter(pageNo++);
      .fontSize(9)
      .font('Helvetica')
      .text(
-       `${campaign.name || 'This campaign'} generated 100% of tracked campaign spend and results during the selected reporting period.`,
+       `Campaign name was not available in the uploaded export. This campaign generated 100% of tracked campaign spend and results during the selected reporting period.`,
        75,
        605,
        {
@@ -1749,6 +1839,21 @@ doc.fillColor('#CBD5E1')
   .font('Helvetica')
   .text('Simple view of how audience activity converted into leads', 50, 62);
 
+const impressionToReachRate =
+  safeSummary.reach > 0
+    ? (safeSummary.impressions / safeSummary.reach) * 100
+    : 0;
+
+const clickRate =
+  safeSummary.impressions > 0
+    ? (safeSummary.clicks / safeSummary.impressions) * 100
+    : 0;
+
+const leadRate =
+  safeSummary.clicks > 0
+    ? (safeSummary.conversions / safeSummary.clicks) * 100
+    : 0;
+
 const funnelItems = [
   {
     label: 'Reach',
@@ -1815,15 +1920,29 @@ funnelItems.forEach((item, i) => {
       align: 'right',
     });
 
-  if (i < funnelItems.length - 1) {
-    doc.fillColor('#94A3B8')
-      .fontSize(18)
-      .font('Helvetica-Bold')
-      .text('v', 285, y + 82, {
-        width: 20,
-        align: 'center',
-      });
-  }
+ if (i < funnelItems.length - 1) {
+   const rates = [
+     `View Rate: ${formatPct(impressionToReachRate)}`,
+     `Click Rate: ${formatPct(clickRate)}`,
+     `Lead Rate: ${formatPct(leadRate)}`,
+   ];
+
+   doc.fillColor('#94A3B8')
+     .fontSize(14)
+     .font('Helvetica-Bold')
+     .text('v', 285, y + 82, {
+       width: 20,
+       align: 'center',
+     });
+
+   doc.fillColor(THEME.text)
+     .fontSize(8)
+     .font('Helvetica-Bold')
+     .text(rates[i], 315, y + 86, {
+       width: 150,
+       lineBreak: false,
+     });
+ }
 });
 
 drawCard(35, 610, 525, 90, '#F8FAFC', '#BFDBFE');
@@ -1837,7 +1956,7 @@ doc.fillColor(THEME.muted)
   .fontSize(9)
   .font('Helvetica')
   .text(
-    `This funnel shows the journey from audience reach to final leads. A stronger funnel means more people are moving from seeing ads to taking action. If clicks or revenue are missing, future uploads should include those fields for deeper analysis.`,
+    `This funnel shows how people move from seeing ads to becoming leads. Click Rate shows how many impressions turned into clicks, and Lead Rate shows how many clicks became leads. These ratios help identify where campaign improvement is needed.`,
     55,
     655,
     {
