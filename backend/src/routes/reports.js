@@ -1309,15 +1309,13 @@ doc.fillColor(THEME.rose)
     lineBreak: false,
   });
   if (isFreePlan) {
-    drawCard(35, 710, 525, 32, '#FFF7ED', '#FDBA74');
-
     doc.fillColor('#C2410C')
-      .fontSize(8)
+      .fontSize(6.5)
       .font('Helvetica-Bold')
       .text(
-        'Upgrade to Pro to add your agency logo, remove product branding and unlock executive PDF pages.',
+        'Free report: upgrade to Pro for agency logo, executive pages and no product branding.',
         55,
-        722,
+        728,
         {
           width: 485,
           align: 'center',
@@ -1467,7 +1465,9 @@ if (campaigns.length > 0) {
         : 'N/A';
 
     const vals = [
-      (row.name || 'Unknown').substring(0, 30),
+      !row.name || row.name === 'Unknown Campaign'
+        ? 'Campaign Name N/A'
+        : row.name.substring(0, 30),
       formatCurrency(row.spend, currency),
       spendShare,
       formatNum(row.conversions),
@@ -1839,9 +1839,9 @@ doc.fillColor('#CBD5E1')
   .font('Helvetica')
   .text('Simple view of how audience activity converted into leads', 50, 62);
 
-const impressionToReachRate =
+const avgFrequency =
   safeSummary.reach > 0
-    ? (safeSummary.impressions / safeSummary.reach) * 100
+    ? safeSummary.impressions / safeSummary.reach
     : 0;
 
 const clickRate =
@@ -1922,7 +1922,7 @@ funnelItems.forEach((item, i) => {
 
  if (i < funnelItems.length - 1) {
    const rates = [
-     `View Rate: ${formatPct(impressionToReachRate)}`,
+     `Avg Frequency: ${formatNum(avgFrequency, 2)}x`,
      `Click Rate: ${formatPct(clickRate)}`,
      `Lead Rate: ${formatPct(leadRate)}`,
    ];
