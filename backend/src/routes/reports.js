@@ -987,6 +987,29 @@ doc.fillColor('#BFDBFE')
     .font('Helvetica-Bold')
     .text(planLabel, 50, 198);
 
+if (isAgencyPlan) {
+  doc.roundedRect(390, 176, 145, 24, 12).fill('#ECFDF5');
+
+  doc.fillColor('#047857')
+    .fontSize(7.5)
+    .font('Helvetica-Bold')
+    .text('WHITE-LABEL CLIENT REPORT', 402, 184, {
+      width: 120,
+      align: 'center',
+      lineBreak: false,
+    });
+} else if (isProPlan) {
+  doc.roundedRect(420, 176, 105, 24, 12).fill('#EFF6FF');
+
+  doc.fillColor('#1D4ED8')
+    .fontSize(7.5)
+    .font('Helvetica-Bold')
+    .text('PRO REPORT', 438, 184, {
+      width: 70,
+      align: 'center',
+      lineBreak: false,
+    });
+}
 // ===============================
 // PERFORMANCE SCORE + GRADE
 // ===============================
