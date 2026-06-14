@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   getSubscription,
-  updateSubscriptionPlan,
-  createPaymentOrder,
-  verifyPayment,
+    updateSubscriptionPlan,
+    createPaymentOrder,
+    verifyPayment,
+    cancelDowngrade,
 } from '../utils/api';
 
 const plans = [
@@ -72,7 +73,11 @@ export default function Subscription() {
       if (planName === 'free') {
         const updated = await updateSubscriptionPlan('free');
         setSubscription(updated);
-        toast.success('Plan changed to Free');
+      toast.success(
+         updated.downgrade_scheduled
+           ? 'Downgrade scheduled after current billing period'
+           : 'Plan changed to Free'
+       );
         return;
       }
 
@@ -139,6 +144,21 @@ export default function Subscription() {
     }
   };
 
+const handleCancelDowngrade = async () => {
+  try {
+    setProcessingPlan(subscription.plan_name);
+
+    const updated = await cancelDowngrade();
+    setSubscription(updated);
+
+    toast.success(`${updated.plan_name.toUpperCase()} plan will remain active`);
+  } catch (error) {
+    toast.error(error.response?.data?.error || 'Failed to keep current plan');
+  } finally {
+    setProcessingPlan(null);
+  }
+};
+
 const getPlanPrice = (planId) => {
   if (planId === 'free') return 'INR 0';
 
@@ -189,6 +209,34 @@ const getPlanPrice = (planId) => {
                   : 'Not applicable'}
               </strong>
             </div>
+            {subscription?.downgrade_scheduled && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 12,
+                  borderRadius: 12,
+                  background: '#FFF7ED',
+                  border: '1px solid #FDBA74',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#C2410C' }}>
+                  Downgrade scheduled
+                </div>
+
+                <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text2)' }}>
+                  Your plan will change to {subscription.next_plan_name?.toUpperCase()} after your current billing period ends.
+                </div>
+
+                <button
+                  className="btn btn-primary"
+                  style={{ marginTop: 10 }}
+                  onClick={handleCancelDowngrade}
+                  disabled={processingPlan === subscription.plan_name}
+                >
+                  Keep {subscription.plan_name?.toUpperCase()} Active
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -282,7 +330,7 @@ const getPlanPrice = (planId) => {
               fontWeight: 800,
             }}
           >
-            SAVE 15%
+            SAVE 17%
           </span>
         )}
       </>
@@ -297,6 +345,10 @@ const getPlanPrice = (planId) => {
           {plans.map((plan) => {
             const active = subscription?.plan_name === plan.id;
             const processing = processingPlan === plan.id;
+
+            const downgradeToThisPlan =
+              subscription?.downgrade_scheduled &&
+              subscription?.next_plan_name === plan.id;
 
             return (
               <div
@@ -344,16 +396,18 @@ const getPlanPrice = (planId) => {
                 <button
                   className={active ? 'btn btn-secondary' : 'btn btn-primary'}
                   style={{ width: '100%' }}
-                  disabled={active || processing}
+                  disabled={active || processing || downgradeToThisPlan}
                   onClick={() => handleUpgrade(plan.id)}
                 >
-                  {active
-                    ? 'Current Plan'
-                    : processing
-                    ? 'Processing...'
-                    : plan.id === 'free'
-                    ? 'Switch to Free'
-                    : `Pay & Choose ${plan.name}`}
+                {active
+                  ? 'Current Plan'
+                  : downgradeToThisPlan
+                  ? 'Downgrade Scheduled'
+                  : processing
+                  ? 'Processing...'
+                  : plan.id === 'free'
+                  ? 'Switch to Free'
+                  : `Pay & Choose ${plan.name}`}
                 </button>
               </div>
             );

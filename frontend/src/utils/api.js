@@ -97,6 +97,8 @@ export const confirmUploadMapping = (uploadId, mapping) =>
     const res = await api.get('/subscription');
     return res.data;
   };
+  export const cancelDowngrade = () =>
+    api.put('/subscription/cancel-downgrade').then(r => r.data);
     export const updateSubscriptionPlan = (planName) =>
       api.put('/subscription/plan', { planName }).then(r => r.data);
 
