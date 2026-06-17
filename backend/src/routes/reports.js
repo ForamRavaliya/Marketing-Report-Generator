@@ -2286,6 +2286,45 @@ doc.fillColor(THEME.muted)
       lineGap: 4,
     }
   );
+
+  if (isProPlan || isAgencyPlan) {
+    drawCard(35, 490, 525, 70, '#F8FAFC', '#BFDBFE');
+
+    doc.fillColor(THEME.text)
+      .fontSize(13)
+      .font('Helvetica-Bold')
+      .text('Top KPI Summary', 55, 510);
+
+    const bestMetric =
+      safeSummary.conversions > 0 && safeSummary.cpa <= 100
+        ? 'Lead Efficiency'
+        : safeSummary.hasClicks
+        ? 'Engagement Tracking'
+        : 'Spend Tracking';
+
+    const weakestMetric =
+      !safeSummary.hasRevenue
+        ? 'Revenue Tracking'
+        : safeSummary.ctr < 1
+        ? 'Click-Through Rate'
+        : 'Campaign Scaling';
+
+    doc.fillColor(THEME.muted)
+      .fontSize(8.5)
+      .font('Helvetica')
+      .text(
+        `Best Metric: ${bestMetric}   |   Weakest Metric: ${weakestMetric}   |   Spend Efficiency: ${
+          safeSummary.cpa <= 100 ? 'Good' : safeSummary.cpa <= 500 ? 'Average' : 'Needs Work'
+        }`,
+        55,
+        535,
+        {
+          width: 480,
+          lineBreak: false,
+        }
+      );
+  }
+
 // Clean Insight Sections
 const whatsWorking = [
   `${formatNum(safeSummary.conversions)} leads/results generated.`,
@@ -2335,7 +2374,7 @@ const drawInsightBox = (x, y, title, items, color, bg) => {
 
 drawInsightBox(
   35,
-  505,
+ 580 ,
   "What's Working",
   whatsWorking,
   THEME.emerald,
@@ -2352,6 +2391,120 @@ drawInsightBox(
 );
 
 drawFooter(pageNo++);
+
+// ===============================
+// AGENCY ONLY - PREMIUM EXECUTIVE PAGE
+// ===============================
+if (isAgencyPlan) {
+  doc.addPage();
+
+  doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
+  doc.rect(0, 0, pageW, 95).fill(THEME.navy);
+
+  doc.fillColor('#FFFFFF')
+    .fontSize(22)
+    .font('Helvetica-Bold')
+    .text('Agency Executive Summary', 50, 34);
+
+  doc.fillColor('#CBD5E1')
+    .fontSize(9)
+    .font('Helvetica')
+    .text('White-label client-ready decision summary', 50, 62);
+
+  drawCard(35, 125, 525, 115, '#FFFFFF', '#BFDBFE');
+
+  doc.fillColor(THEME.text)
+    .fontSize(16)
+    .font('Helvetica-Bold')
+    .text(client.name, 55, 145);
+
+  doc.fillColor(THEME.muted)
+    .fontSize(9)
+    .font('Helvetica')
+    .text(`Report Period: ${dateLabel}`, 55, 172);
+
+  doc.fillColor(THEME.royal)
+    .fontSize(11)
+    .font('Helvetica-Bold')
+    .text(`Marketing Grade: ${performanceGrade}`, 55, 205);
+
+  drawMiniMetricCards(
+    [
+      {
+        label: 'Total Spend',
+        value: formatCurrency(safeSummary.spend, currency),
+        color: THEME.royal,
+        bg: THEME.softBlue,
+      },
+      {
+        label: 'Total Leads',
+        value: formatNum(safeSummary.conversions),
+        color: THEME.emerald,
+        bg: THEME.softGreen,
+      },
+      {
+        label: 'Avg CPL',
+        value: formatCurrency(safeSummary.cpa, currency),
+        color: THEME.amber,
+        bg: THEME.softAmber,
+      },
+      {
+        label: 'Best Platform',
+        value: topPlatform
+          ? String(topPlatform.platform || 'N/A').toUpperCase()
+          : 'N/A',
+        color: THEME.violet,
+        bg: THEME.softPurple,
+      },
+    ],
+    35,
+    270
+  );
+
+  drawCard(35, 380, 525, 110, '#F8FAFC', '#BFDBFE');
+
+  doc.fillColor(THEME.text)
+    .fontSize(15)
+    .font('Helvetica-Bold')
+    .text('Executive Recommendation', 55, 405);
+
+  doc.fillColor(THEME.muted)
+    .fontSize(9)
+    .font('Helvetica')
+    .text(
+      safeSummary.hasRevenue
+        ? 'Campaign performance should be reviewed using both cost efficiency and revenue return before increasing budget.'
+        : 'Lead generation is active, but revenue tracking is missing. Add revenue or qualified lead value before making final budget scaling decisions.',
+      55,
+      435,
+      {
+        width: 480,
+        lineGap: 4,
+      }
+    );
+
+  drawCard(35, 525, 525, 95, THEME.softGreen, '#A7F3D0');
+
+  doc.fillColor('#166534')
+    .fontSize(13)
+    .font('Helvetica-Bold')
+    .text('Client-Ready Verdict', 55, 548);
+
+  doc.fillColor(THEME.text)
+    .fontSize(9)
+    .font('Helvetica')
+    .text(
+      `${client.name} generated ${formatNum(safeSummary.conversions)} leads at ${formatCurrency(safeSummary.cpa, currency)} average CPL. The report is suitable for client review, with the main improvement area being revenue/ROI tracking.`,
+      55,
+      575,
+      {
+        width: 480,
+        lineGap: 4,
+      }
+    );
+
+  drawFooter(pageNo++);
+}
 
 if (canUseExecutivePages) {
 // ===============================
