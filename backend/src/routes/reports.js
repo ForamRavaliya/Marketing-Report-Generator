@@ -633,6 +633,221 @@ if (isAgencyPlan) {
 
   doc.restore();
 };
+
+const drawLineChart = (doc, rows, options, currency = 'INR') => {
+  const {
+    x,
+    y,
+    width,
+    height = 150,
+    title,
+    labelKey,
+    valueKey,
+    color = THEME.royal,
+  } = options;
+
+  const values = rows.map((r) => Number(r[valueKey] || 0));
+  const maxValue = Math.max(...values, 1);
+  const chartTop = y + 35;
+  const chartHeight = height - 55;
+  const chartBottom = chartTop + chartHeight;
+  const stepX = rows.length > 1 ? width / (rows.length - 1) : width;
+
+  doc.fillColor(THEME.text)
+    .fontSize(13)
+    .font('Helvetica-Bold')
+    .text(title, x, y);
+
+  doc.moveTo(x, chartBottom)
+    .lineTo(x + width, chartBottom)
+    .strokeColor(THEME.border)
+    .lineWidth(1)
+    .stroke();
+
+  doc.moveTo(x, chartTop)
+    .lineTo(x, chartBottom)
+    .strokeColor(THEME.border)
+    .lineWidth(1)
+    .stroke();
+
+  let previousPoint = null;
+
+  rows.forEach((row, i) => {
+    const value = Number(row[valueKey] || 0);
+    const px = x + i * stepX;
+    const py = chartBottom - (value / maxValue) * chartHeight;
+
+    if (previousPoint) {
+      doc.moveTo(previousPoint.x, previousPoint.y)
+        .lineTo(px, py)
+        .strokeColor(color)
+        .lineWidth(2)
+        .stroke();
+    }
+
+    doc.circle(px, py, 4).fill(color);
+
+    doc.fillColor(THEME.muted)
+      .fontSize(6.5)
+      .font('Helvetica')
+      .text(String(row[labelKey] || '').substring(0, 8), px - 18, chartBottom + 8, {
+        width: 36,
+        align: 'center',
+      });
+
+    previousPoint = { x: px, y: py };
+  });
+};
+
+const drawBarChart = (doc, rows, options, currency = 'INR') => {
+  const {
+    x,
+    y,
+    width,
+    title,
+    valueKey,
+    labelKey,
+    color = THEME.violet,
+  } = options;
+
+  const chartHeight = 205;
+  const values = rows.map((r) => Number(r[valueKey] || 0));
+  const maxValue = Math.max(...values, 1);
+  const barGap = 12;
+  const barWidth = Math.max(26, (width - barGap * (rows.length - 1)) / Math.max(rows.length, 1));
+  const chartBottom = y + chartHeight;
+
+  doc.fillColor(THEME.text)
+    .fontSize(13)
+    .font('Helvetica-Bold')
+    .text(title, x, y - 5);
+
+  rows.slice(0, 6).forEach((row, i) => {
+    const value = Number(row[valueKey] || 0);
+    const h = (value / maxValue) * 135;
+    const bx = x + i * (barWidth + barGap);
+    const by = chartBottom - h;
+
+    doc.roundedRect(bx, by, barWidth, h, 5).fill(color);
+
+    doc.fillColor(THEME.text)
+      .fontSize(7)
+      .font('Helvetica-Bold')
+      .text(formatCurrency(value, currency), bx - 4, by - 14, {
+        width: barWidth + 8,
+        align: 'center',
+      });
+
+    doc.fillColor(THEME.muted)
+      .fontSize(6.5)
+      .font('Helvetica')
+      .text(String(row[labelKey] || 'Campaign').substring(0, 12), bx - 6, chartBottom + 8, {
+        width: barWidth + 12,
+        align: 'center',
+      });
+  });
+};
+
+const drawNumberBarChart = (doc, rows, options) => {
+  const {
+    x,
+    y,
+    width,
+    title,
+    valueKey,
+    labelKey,
+    color = THEME.emerald,
+  } = options;
+
+  const values = rows.map((r) => Number(r[valueKey] || 0));
+  const maxValue = Math.max(...values, 1);
+  const chartHeight = 170;
+  const barGap = 14;
+  const barWidth = Math.max(30, (width - barGap * (rows.length - 1)) / Math.max(rows.length, 1));
+  const chartBottom = y + chartHeight;
+
+  doc.fillColor(THEME.text)
+    .fontSize(13)
+    .font('Helvetica-Bold')
+    .text(title, x, y - 5);
+
+  rows.slice(0, 6).forEach((row, i) => {
+    const value = Number(row[valueKey] || 0);
+    const h = (value / maxValue) * 115;
+    const bx = x + i * (barWidth + barGap);
+    const by = chartBottom - h;
+
+    doc.roundedRect(bx, by, barWidth, h, 5).fill(color);
+
+    doc.fillColor(THEME.text)
+      .fontSize(8)
+      .font('Helvetica-Bold')
+      .text(formatNum(value), bx - 4, by - 15, {
+        width: barWidth + 8,
+        align: 'center',
+      });
+
+    doc.fillColor(THEME.muted)
+      .fontSize(6.5)
+      .font('Helvetica')
+      .text(String(row[labelKey] || '').substring(0, 10), bx - 6, chartBottom + 8, {
+        width: barWidth + 12,
+        align: 'center',
+      });
+  });
+};
+
+const drawPieChart = (doc, rows, options, currency = 'INR') => {
+  const { x, y, radius = 60, title } = options;
+
+  const total = rows.reduce((sum, r) => sum + Number(r.spend || 0), 0);
+  const colors = [THEME.royal, THEME.violet, THEME.emerald, THEME.amber, THEME.rose, THEME.cyan];
+
+  doc.fillColor(THEME.text)
+    .fontSize(13)
+    .font('Helvetica-Bold')
+    .text(title, 55, 140);
+
+  if (total <= 0) {
+    doc.fillColor(THEME.muted)
+      .fontSize(9)
+      .font('Helvetica')
+      .text('No spend data available for pie chart.', 55, 175);
+    return;
+  }
+
+  let startAngle = -90;
+
+  rows.slice(0, 6).forEach((row, i) => {
+    const value = Number(row.spend || 0);
+    const angle = (value / total) * 360;
+    const endAngle = startAngle + angle;
+
+    doc.moveTo(x, y)
+      .arc(x, y, radius, startAngle, endAngle)
+      .lineTo(x, y)
+      .fill(colors[i % colors.length]);
+
+    startAngle = endAngle;
+  });
+
+  rows.slice(0, 6).forEach((row, i) => {
+    const ly = y - 55 + i * 18;
+    const share = total > 0 ? (Number(row.spend || 0) / total) * 100 : 0;
+
+    doc.roundedRect(x + 100, ly, 10, 10, 2).fill(colors[i % colors.length]);
+
+    doc.fillColor(THEME.text)
+      .fontSize(7.5)
+      .font('Helvetica')
+      .text(
+        `${String(row.platform || 'Platform').toUpperCase()} - ${formatNum(share, 1)}%`,
+        x + 118,
+        ly - 1,
+        { width: 190 }
+      );
+  });
+};
 // ===============================
 // PAGE 1 - COVER + DASHBOARD
 // ===============================
