@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const PDFDocument = require('pdfkit');
 const path = require('path');
+const fs = require('fs');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
