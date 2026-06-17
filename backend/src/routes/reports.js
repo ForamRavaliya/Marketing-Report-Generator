@@ -395,12 +395,10 @@ const calcChange = (current, previous, reverse = false) => {
 };
 
 const formatGrowth = (change) => {
-  if (change === null || change === undefined || Number.isNaN(change)) {
-    return null;
-  }
+  if (change === null || change === undefined || Number.isNaN(change)) return null;
 
-  if (change >= 300) return 'High increase';
-  if (change <= -300) return 'High decrease';
+  if (change >= 300) return 'Significant increase';
+  if (change <= -300) return 'Significant decrease';
 
   const sign = change > 0 ? '+' : '';
   return `${sign}${formatNum(change, 1)}% vs prev.`;
@@ -546,11 +544,8 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
 
 const bottomText =
   item.growth
-  ? item.growth
-    : item.subtitle ||
-      item.note ||
-      item.description ||
-      '';
+    ? `${item.growth}${item.growth.includes('%') ? '' : ' vs prev.'}`
+    : item.subtitle || item.note || item.description || '';
 
   const badIncreaseMetrics = ['Cost / Lead', 'CPC'];
   const isBadIncrease =
@@ -566,15 +561,16 @@ const bottomText =
     ? color
     : THEME.muted;
 
-  doc.fillColor(growthColor)
-    .fontSize(6.3)
-    .font('Helvetica-Bold')
-    .text(bottomText, x + 34, y + 49, {
-          width: w - 42,
-          lineBreak: false,
-          ellipsis: true,
-        });
-     };
+ doc.fillColor(growthColor)
+   .fontSize(5.8)
+   .font('Helvetica-Bold')
+   .text(bottomText, x + 34, y + 47, {
+     width: w - 42,
+     height: 13,
+     ellipsis: true,
+});
+};
+
 
 
 const drawAgencyLogo = () => {
@@ -1122,9 +1118,9 @@ const metrics = [
 ];
 
 const cardW = 155;
-const cardH = 50;
+const cardH = 56;
 const gapX = 15;
-const gapY = 7;
+const gapY = 9;
 const startX = 50;
 const startY = 382;
 
@@ -1205,73 +1201,78 @@ const scoreBreakdown = [
   },
 ];
 
-drawCard(35, 615, 525, 55, '#FFFFFF', '#BFDBFE');
+drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
 
-doc.fillColor(THEME.text)
-  .fontSize(10)
-  .font('Helvetica-Bold')
- .text('Score Breakdown', 55, 628);
+ doc.fillColor(THEME.text)
+   .fontSize(10)
+   .font('Helvetica-Bold')
+   .text('Score Breakdown', 55, 665);
 
-scoreBreakdown.forEach((item, i) => {
-  const x = 160 + i * 92;
+ scoreBreakdown.forEach((item, i) => {
+   const x = 160 + i * 92;
 
-  doc.fillColor(THEME.muted)
-    .fontSize(6.5)
-    .font('Helvetica-Bold')
-    .text(item.label.toUpperCase(), x, 624, {
-      width: 75,
-      align: 'center',
-    });
+   doc.fillColor(THEME.muted)
+     .fontSize(6.3)
+     .font('Helvetica-Bold')
+     .text(item.label.toUpperCase(), x, 662, {
+       width: 75,
+       align: 'center',
+     });
 
-  doc.fillColor(THEME.text)
-    .fontSize(9)
-    .font('Helvetica-Bold')
-    .text(`${item.score}/${item.max}`, x, 645, {
-      width: 75,
-      align: 'center',
-    });
-});
+   doc.fillColor(THEME.text)
+     .fontSize(8.8)
+     .font('Helvetica-Bold')
+     .text(`${item.score}/${item.max}`, x, 682, {
+       width: 75,
+       align: 'center',
+     });
+ });
 
-drawCard(35, 685, 525, 40, '#F8FAFC', '#BFDBFE');
+ drawCard(35, 710, 525, 38, '#F8FAFC', '#BFDBFE');
 
-doc.fillColor(THEME.royal)
-  .fontSize(8)
-  .font('Helvetica-Bold')
-  .text('DATA AVAILABILITY', 55, 697, {
-    width: 120,
-    lineBreak: false,
-  });
+ doc.fillColor(THEME.royal)
+   .fontSize(7.5)
+   .font('Helvetica-Bold')
+   .text('DATA AVAILABILITY', 55, 722, {
+     width: 120,
+     lineBreak: false,
+   });
 
-doc.fillColor(THEME.emerald)
-  .fontSize(7.5)
-  .font('Helvetica-Bold')
-  .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 697, {
-    width: 170,
-    lineBreak: false,
-  });
+ doc.fillColor(THEME.emerald)
+   .fontSize(6.8)
+   .font('Helvetica-Bold')
+   .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 722, {
+     width: 170,
+     height: 10,
+     ellipsis: true,
+   });
 
-doc.fillColor(THEME.rose)
-  .fontSize(7.5)
-  .font('Helvetica-Bold')
-  .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 697, {
-    width: 180,
-    lineBreak: false,
-  });
-  if (isFreePlan) {
-    doc.fillColor('#C2410C')
-      .fontSize(6.5)
-      .font('Helvetica-Bold')
-      .text(
-        'Free report: upgrade to Pro for agency logo, executive pages and no product branding.',
-        55,
-        718,
-        {
-          width: 485,
-          align: 'center',
-          lineBreak: false,
-        }
-      );
-  }
+ doc.fillColor(THEME.rose)
+   .fontSize(6.8)
+   .font('Helvetica-Bold')
+   .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 722, {
+     width: 165,
+     height: 10,
+     ellipsis: true,
+   });
+
+ if (isFreePlan) {
+   doc.fillColor('#C2410C')
+     .fontSize(6)
+     .font('Helvetica-Bold')
+     .text(
+       'Free report: upgrade to Pro for agency logo, executive pages and no product branding.',
+       55,
+       737,
+       {
+         width: 485,
+         height: 8,
+         align: 'center',
+         ellipsis: true,
+       }
+     );
+ }
+
 drawFooter(pageNo++);
 // ===============================
 // PAGE 2 - TABLES
@@ -1379,7 +1380,7 @@ doc.fillColor(THEME.muted)
 // Major campaign mini strip
 if (campaigns.length > 0) {
   drawCard(35, 545, 525, 135, THEME.card, THEME.border);
-  drawSectionTitle('Major Campaigns Breakdown', 55, 565, THEME.violet);
+  drawSectionTitle('Tracked Campaigns Breakdown', 55, 565, THEME.violet);
 
   const cHeaders = ['Campaign', 'Spend', 'Share', 'Leads', 'CPL'];
   const cWidths = [210, 95, 60, 55, 65];
@@ -1517,7 +1518,7 @@ drawFooter(pageNo++);
  } else if (campaigns.length === 1) {
    const campaign = campaigns[0];
 
-   drawCard(35, 375, 525, 315, THEME.card, THEME.border);
+  drawCard(35, 375, 525, 285, THEME.card, THEME.border);
 
    drawSectionTitle(
      'Campaign Performance Summary',
@@ -1559,7 +1560,7 @@ drawFooter(pageNo++);
   const miniW = 108;
   const miniGap = 12;
   const miniStartX = 55;
-  const miniY = 450;
+  const miniY = 445;
 
   campaignMiniCards.forEach((item, i) => {
     const x = miniStartX + i * (miniW + miniGap);
@@ -1590,20 +1591,20 @@ drawFooter(pageNo++);
       });
   });
 
-   drawCard(55, 560, 485, 80, '#F8FAFC', '#BFDBFE');
+ drawCard(55, 550, 485, 85, '#F8FAFC', '#BFDBFE');
 
    doc.fillColor(THEME.text)
      .fontSize(13)
      .font('Helvetica-Bold')
-     .text('Campaign Summary', 75, 580);
+     .text('Campaign Summary', 75, 570);
 
    doc.fillColor(THEME.muted)
      .fontSize(9)
      .font('Helvetica')
      .text(
-       `Campaign name was not available in the uploaded export. This campaign generated 100% of tracked campaign spend and results during the selected reporting period.`,
+`Campaign-level rows were available for this tracked campaign. The campaign contributed the visible tracked campaign spend and leads during the selected reporting period.`,
        75,
-       605,
+       595,
        {
          width: 430,
          lineGap: 4,
