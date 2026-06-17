@@ -2,424 +2,61 @@ const express = require('express');
 const router = express.Router();
 const PDFDocument = require('pdfkit');
 const path = require('path');
-const fs = require('fs');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
-const https = require('https');
+
 
 router.use(authenticate);
-const getImageBufferFromUrl = (url) => {
-  return new Promise((resolve, reject) => {
-    https
-      .get(url, (response) => {
-        const chunks = [];
-
-        response.on('data', (chunk) => chunks.push(chunk));
-
-        response.on('end', () => {
-          resolve(Buffer.concat(chunks));
-        });
-      })
-      .on('error', reject);
-  });
-};
-
-const CURRENCY_SYMBOLS = {
-  INR: 'INR',
-  USD: '$',
-  EUR: '€',
-  GBP: '£',
-  AED: 'AED',
-  SGD: 'S$',
-};
-
-const CURRENCY_RATES = {
-  INR: 1,
-  USD: 0.012,
-  EUR: 0.011,
-  GBP: 0.0095,
-  AED: 0.044,
-  SGD: 0.016,
-};
-const formatNum = (n, decimals = 0) => {
-  if (n === null || n === undefined) return '0';
-
-  return parseFloat(n || 0).toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-};
-const formatCurrency = (n, currency = 'INR') => {
-  const symbol = CURRENCY_SYMBOLS[currency] || 'INR';
-  const rate = CURRENCY_RATES[currency] || 1;
-  const convertedValue = parseFloat(n || 0) * rate;
-
-  return `${symbol} ${convertedValue.toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-};
-
-
-const formatPct = (n) => `${formatNum(n, 2)}%`;
-
-//Bar Chart
-const drawBarChart = (doc, data, options, currency = 'INR') => {
-  const { x, y, width, title, labelKey, valueKey, color } = options;
-
-  doc.fillColor('#1E293B')
-    .fontSize(16)
-    .font('Helvetica-Bold')
-    .text(title, x, y);
-
-  const startY = y + 45;
-  const max = Math.max(...data.map(d => Number(d[valueKey] || 0)), 1);
-
-  const labelW = 180;
-  const valueW = 90;
-  const chartW = width - labelW - valueW - 20;
-
-  const barHeight = 24;
-  const gap = 12;
-
-  data.slice(0, 6).forEach((d, i) => {
-    const label = String(d[labelKey] || 'Unknown').substring(0, 30);
-    const value = Number(d[valueKey] || 0);
-
-    const rowY = startY + i * (barHeight + gap);
-
-    const barWidth = Math.max((value / max) * chartW, 18);
-
-    doc.fillColor('#475569')
-      .fontSize(9)
-      .font('Helvetica-Bold')
-      .text(label, x, rowY + 7, {
-        width: labelW - 15,
-      });
-
-    // Background track
-    doc.roundedRect(
-      x + labelW,
-      rowY,
-      chartW,
-      barHeight,
-      8
-    ).fill('#E9D5FF');
-
-    // Main bar
-    doc.roundedRect(
-      x + labelW,
-      rowY,
-      barWidth,
-      barHeight,
-      8
-    ).fill(color);
-
-    // Gloss effect
-    doc.roundedRect(
-      x + labelW,
-      rowY,
-      barWidth * 0.45,
-      barHeight,
-      8
-    )
-    .fillOpacity(0.15)
-    .fill('#FFFFFF')
-    .fillOpacity(1);
-
-    doc.fillColor('#0F172A')
-      .fontSize(9)
-      .font('Helvetica-Bold')
-      .text(
-      valueKey === 'conversions'
-        ? `${formatNum(value)} leads`
-        : valueKey === 'spendShare'
-          ? `${formatNum(value, 1)}%`
-          : formatCurrency(value, currency),
-        x + labelW + chartW + 12,
-        rowY + 7,
-        {
-          width: valueW,
-          lineBreak: false,
-        }
-      );
-  });
-};
-// Number Bar chart
-const drawNumberBarChart = (doc, data, options) => {
-  const { x, y, width, title, labelKey, valueKey, color } = options;
-
-  doc.fillColor('#1E293B')
-    .fontSize(16)
-    .font('Helvetica-Bold')
-    .text(title, x, y);
-
-  const startY = y + 35;
-  const max = Math.max(...data.map(d => Number(d[valueKey] || 0)), 1);
-
-  const labelW = 150;
-  const valueW = 90;
-  const chartW = width - labelW - valueW - 25;
-
-  const barHeight = 18;
-  const gap = 14;
-
-  data.slice(0, 6).forEach((d, i) => {
-    const label = String(d[labelKey] || 'Unknown').toUpperCase().substring(0, 22);
-    const value = Number(d[valueKey] || 0);
-    const barWidth = Math.max((value / max) * chartW, 4);
-    const rowY = startY + i * (barHeight + gap);
-
-    doc.fillColor('#64748B')
-      .fontSize(8)
-      .font('Helvetica-Bold')
-      .text(label, x, rowY + 4, { width: labelW - 10 });
-
-    doc.roundedRect(x + labelW, rowY, barWidth, barHeight, 3).fill(color);
-
-    doc.fillColor('#1E293B')
-      .fontSize(8)
-      .font('Helvetica-Bold')
-      .text(formatNum(value), x + labelW + chartW + 10, rowY + 4, {
-        width: valueW,
-        align: 'left',
-        lineBreak: false,
-      });
-  });
-};
-//Line chart
-const drawLineChart = (doc, data, options, currency = 'INR') => {
-  const { x, y, width, height, title, labelKey, valueKey, color } = options;
-
-  doc.fillColor('#1E293B')
-    .fontSize(16)
-    .font('Helvetica-Bold')
-    .text(title, x, y);
-
-  if (!data || data.length === 0) return;
-
-  const chartX = x + 40;
-  const chartY = y + 45;
-  const chartW = width - 60;
-  const chartH = height - 70;
-
-  const values = data.map(d => Number(d[valueKey] || 0));
-  const max = Math.max(...values, 1);
-
-  doc.strokeColor('#E2E8F0').lineWidth(1);
-
-  for (let i = 0; i <= 4; i++) {
-    const gy = chartY + (chartH / 4) * i;
-    doc.moveTo(chartX, gy).lineTo(chartX + chartW, gy).stroke();
-  }
-
-  const points = data.map((d, i) => {
-    const px = chartX + (i / Math.max(data.length - 1, 1)) * chartW;
-    const py = chartY + chartH - (Number(d[valueKey] || 0) / max) * chartH;
-    return { x: px, y: py, label: d[labelKey], value: Number(d[valueKey] || 0) };
-  });
-
-  doc.strokeColor(color).lineWidth(4);
-
-  points.forEach((p, i) => {
-    if (i === 0) {
-      doc.moveTo(p.x, p.y);
-    } else {
-      doc.lineTo(p.x, p.y);
-    }
-  });
-
-  doc.stroke();
-
-  points.forEach((p) => {
-    doc.circle(p.x, p.y, 5).fill(color);
-
-    doc.circle(p.x, p.y, 9)
-      .strokeColor('#BFDBFE')
-      .lineWidth(2)
-      .stroke();
-
-    doc.fillColor('#64748B')
-      .fontSize(7)
-      .text(String(p.label || ''), p.x - 20, chartY + chartH + 8, {
-        width: 45,
-        align: 'center',
-      });
-  });
-
-const highestPoint = points.reduce((a, b) => (a.value > b.value ? a : b), points[0]);
-const lowestPoint = points.reduce((a, b) => (a.value < b.value ? a : b), points[0]);
-const avgValue = values.reduce((sum, v) => sum + v, 0) / values.length;
-
-doc.fillColor('#1E293B')
-  .fontSize(8.5)
-  .font('Helvetica-Bold')
-  .text(
-    `Highest: ${highestPoint.label} (${formatCurrency(highestPoint.value, currency)})   Lowest: ${lowestPoint.label} (${formatCurrency(lowestPoint.value, currency)})   Avg: ${formatCurrency(avgValue, currency)}`,
-    x,
-    y + height - 10,
-    { width: width - 20 }
-  );
-
-};
-
-//Pie chart
-const drawPieChart = (doc, data, options, currency = 'INR') => {
-  const { x, y, radius, title } = options;
-
-  if (!data || data.length === 0) return;
-
-  doc.fillColor('#1E293B')
-    .fontSize(16)
-    .font('Helvetica-Bold')
-    .text(title, x - 80, y - radius - 55);
-
-  const total= Math.max(
-               data.reduce((sum,d)=>sum+Number(d.spend||0),0),
-               1
-             );
-
-  const colors = [
-    '#3B82F6',
-    '#8B5CF6',
-    '#06B6D4',
-    '#10B981',
-    '#F59E0B',
-    '#F43F5E',
-  ];
-
-  let startAngle = 0;
-
-  data.slice(0, 5).forEach((d, i) => {
-    const value = Number(d.spend || 0);
-    const sliceAngle = (value / total) * Math.PI * 2;
-
-    doc.moveTo(x, y)
-      .fillColor(colors[i % colors.length])
-      .arc(x, y, radius, startAngle, startAngle + sliceAngle)
-      .lineTo(x, y)
-      .fill();
-
-    startAngle += sliceAngle;
-  });
-
-  let legendY = y - radius;
-
-  data.slice(0, 5).forEach((d, i) => {
-    const value = Number(d.spend || 0);
-    const percent = ((value / total) * 100).toFixed(1);
-
-    doc.rect(x + radius + 40, legendY, 12, 12)
-      .fill(colors[i % colors.length]);
-
-    doc.fillColor('#1E293B')
-      .fontSize(9)
-      .font('Helvetica')
-      .text(
-        `${String(d.platform || 'Unknown').toUpperCase()} (${percent}%)`,
-        x + radius + 60,
-        legendY - 1
-      );
-
-    legendY += 24;
-  });
-};
-
 
 // Generate PDF report
-router.post('/generate', async (req, res) => {
+/*router.post('/generate', async (req, res) => {
   try {
-
-  let pageNo = 1;
     const {
-      clientId,
-      title,
-      dateStart,
-      dateEnd,
-      platform,
-      includeComparison = true,
-      customTitle,
-      agencyBranding = true,
-      currency = 'INR',
+      clientId, title, dateStart, dateEnd, platform,
+      includeComparison, customTitle, agencyBranding, currency
     } = req.body;
 
-    if (!clientId) return res.status(400).json({ error: 'clientId required' });
-// Subscription plan check
-const subscriptionResult = await db.query(
-  `SELECT plan_name
-   FROM subscriptions
-   WHERE agency_id = $1
-   ORDER BY created_at DESC
-   LIMIT 1`,
-  [req.user.agency_id]
-);
+    const result = await generateClientReport({
+      clientId,
+      agencyId: req.user.agency_id,
+      userId: req.user.id,
+      dateStart,
+      dateEnd,
+      title,
+      platform,
+      includeComparison,
+      customTitle,
+      agencyBranding,
+      currency
+    });
 
-const planName =
- (subscriptionResult.rows[0]?.plan_name || 'free')
-   .toLowerCase();;
-const canUseAgencyBranding = planName !== 'free';
-const isFreePlan = planName === 'free';
-const isProPlan = planName === 'pro';
-const isAgencyPlan = planName === 'agency';
-
-const canUseExecutivePages = isProPlan || isAgencyPlan;
-const canUseAdvancedBranding = isAgencyPlan;
-
-// Total generated reports
-const reportsCountResult = await db.query(
-  `SELECT COUNT(*)::int AS total
-   FROM generated_reports
-   WHERE agency_id = $1`,
-  [req.user.agency_id]
-);
-
-const totalReports =
- Number(reportsCountResult.rows[0]?.total || 0);
-
-const reportLimits = {
-  free: 5,
-  pro: 50,
-  agency: Infinity,
-};
-
-if (totalReports >= reportLimits[planName]) {
-  return res.status(403).json({
-    error:
-      planName === 'free'
-        ? 'Free plan allows only 5 reports. Upgrade to Pro.'
-        : 'Pro plan allows only 50 reports. Upgrade to Agency.',
-    plan: planName,
-    limit: reportLimits[planName],
-  });
-}
-
-    // Fetch all data
-    const [clientResult, agencyResult] = await Promise.all([
-      db.query('SELECT * FROM clients WHERE id=$1', [clientId]),
-      db.query('SELECT * FROM agencies WHERE id=$1', [req.user.agency_id]),
-    ]);
-
-    const client = clientResult.rows[0];
-    const agency = agencyResult.rows[0];
-    if (!client) return res.status(404).json({ error: 'Client not found' });
-let agencyLogoBuffer = null;
-
-if (
-  canUseAgencyBranding &&
-  agency?.logo_url &&
-  agency.logo_url.startsWith('https://')
-) {
-  try {
-    agencyLogoBuffer = await getImageBufferFromUrl(
-      agency.logo_url
-    );
+    res.json({ url: result.fileUrl, fileName: result.fileName });
   } catch (error) {
-    console.log(
-      'Logo download skipped:',
-      error.message
-    );
-  }
-}
+        console.error(error);
+
+        res.status(500).json({
+          error: 'Failed to generate report'
+        });
+      }
+    }); */
+    // Generate PDF report
+    router.post('/generate', async (req, res) => {
+      try {
+        const {
+          clientId,
+          title,
+          dateStart,
+          dateEnd,
+          platform,
+          includeComparison = true,
+          customTitle,
+          agencyBranding = true,
+          currency = 'INR',
+        } = req.body;
+
+        if (!clientId) {
+          return res.status(400).json({ error: 'clientId required' });
+        }
     // Fetch metrics
    let whereClause = `
      WHERE pd.client_id = $1
@@ -1423,7 +1060,7 @@ if (trends.length > 0) {
 }
 
 
-drawCard(35, 350, 525, 95, THEME.softBlue, '#BFDBFE');
+drawCard(35, 430, 525, 95, THEME.softBlue, '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(14)
@@ -1452,13 +1089,13 @@ doc.fillColor(THEME.muted)
 
 // Major campaign mini strip
 if (campaigns.length > 0) {
-  drawCard(35, 470, 525, 135, THEME.card, THEME.border);
+  drawCard(35, 545, 525, 135, THEME.card, THEME.border);
   drawSectionTitle('Major Campaigns Breakdown', 55, 565, THEME.violet);
 
   const cHeaders = ['Campaign', 'Spend', 'Share', 'Leads', 'CPL'];
   const cWidths = [210, 95, 60, 55, 65];
 
-  let cY = 530;
+  let cY = 605;
   let cX = 55;
 
   doc.roundedRect(55, cY, 485, 24, 7).fill(THEME.violet);
@@ -1511,7 +1148,7 @@ if (campaigns.length > 0) {
 } else {
   drawEmptyState(
     35,
-    470,
+    545,
     525,
     135,
     'Major Campaign Data Not Available',
@@ -2121,26 +1758,8 @@ drawMiniMetricCards(
   55,
   305
 );
-drawCard(35, 355, 525, 55, '#ECFDF5', '#A7F3D0');
 
-doc.fillColor('#166534')
-  .fontSize(12)
-  .font('Helvetica-Bold')
-  .text('Top Performing Platform', 55, 375);
-
-doc.fillColor(THEME.text)
-  .fontSize(9)
-  .font('Helvetica')
-  .text(
-    `${String(activePlatforms[0]?.platform || 'META').toUpperCase()} generated the highest volume of tracked leads.`,
-    220,
-    375,
-    {
-      width: 300,
-    }
-  );
 drawCard(35, 395, 525, 80, '#F8FAFC', '#BFDBFE');
-
 
 doc.fillColor(THEME.text)
   .fontSize(14)
@@ -2283,7 +1902,7 @@ insightCards.forEach((card, i) => {
 });
 
 // AI Summary
-drawCard(35, 360, 525, 100, THEME.card, THEME.border);
+drawCard(35, 360, 525, 120, THEME.card, THEME.border);
 
 
 
@@ -2824,8 +2443,10 @@ drawFooter(pageNo++);
   } catch (error) {
     console.error('Report generation error:', error);
     res.status(500).json({ error: 'Failed to generate report' });
+
   }
 });
+
 
 // Delete generated report
 router.delete('/:reportId', async (req, res) => {
@@ -2874,3 +2495,4 @@ router.get('/history/:clientId', async (req, res) => {
 });
 
 module.exports = router;
+
