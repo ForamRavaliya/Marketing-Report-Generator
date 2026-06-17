@@ -251,6 +251,7 @@ const isAgencyPlan = currentPlan === 'agency';
 
 const canUseAgencyBranding = isProPlan || isAgencyPlan;
 const canUseExecutivePages = isProPlan || isAgencyPlan;
+let agencyLogoBuffer = null;
 
     const summary = summaryResult.rows[0];
 
