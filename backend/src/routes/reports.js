@@ -234,6 +234,23 @@ const agencyResult = await db.query(
 );
 
 const agency = agencyResult.rows[0] || {};
+const subscriptionResult = await db.query(
+  `SELECT plan_name
+   FROM subscriptions
+   WHERE agency_id = $1
+   ORDER BY created_at DESC
+   LIMIT 1`,
+  [req.user.agency_id]
+);
+
+const currentPlan = subscriptionResult.rows[0]?.plan_name || 'free';
+
+const isFreePlan = currentPlan === 'free';
+const isProPlan = currentPlan === 'pro';
+const isAgencyPlan = currentPlan === 'agency';
+
+const canUseAgencyBranding = isProPlan || isAgencyPlan;
+const canUseExecutivePages = isProPlan || isAgencyPlan;
 
     const summary = summaryResult.rows[0];
 
