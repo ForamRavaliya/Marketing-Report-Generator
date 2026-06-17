@@ -207,6 +207,34 @@ const formatPct = (value) => {
       ),
     ]);
 
+
+const clientResult = await db.query(
+  `SELECT *
+   FROM clients
+   WHERE id = $1
+   AND agency_id = $2
+   LIMIT 1`,
+  [clientId, req.user.agency_id]
+);
+
+const client = clientResult.rows[0];
+
+if (!client) {
+  return res.status(404).json({
+    error: 'Client not found',
+  });
+}
+
+const agencyResult = await db.query(
+  `SELECT *
+   FROM agencies
+   WHERE id = $1
+   LIMIT 1`,
+  [req.user.agency_id]
+);
+
+const agency = agencyResult.rows[0] || {};
+
     const summary = summaryResult.rows[0];
 
     const trends = trendsResult.rows;
