@@ -365,6 +365,7 @@ const THEME = {
 
 const pageW = doc.page.width;
 const pageH = doc.page.height;
+let pageNo = 1;
 
 const safeSummary = {
   spend: Number(summary?.spend ?? 0),
