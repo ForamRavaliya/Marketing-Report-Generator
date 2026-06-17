@@ -8,6 +8,32 @@ const { authenticate } = require('../middleware/auth');
 
 
 router.use(authenticate);
+const CURRENCY_SYMBOLS = {
+  INR: '₹',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+};
+
+const formatNum = (value, decimals = 0) => {
+  const num = Number(value || 0);
+
+  if (!Number.isFinite(num)) return '0';
+
+  return num.toLocaleString('en-IN', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
+
+const formatCurrency = (value, currency = 'INR') => {
+  const symbol = CURRENCY_SYMBOLS[currency] || currency || '₹';
+  return `${symbol}${formatNum(value, 2)}`;
+};
+
+const formatPct = (value) => {
+  return `${formatNum(value, 2)}%`;
+};
 
 // Generate PDF report
 /*router.post('/generate', async (req, res) => {
