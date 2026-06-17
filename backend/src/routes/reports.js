@@ -1423,7 +1423,7 @@ if (trends.length > 0) {
 }
 
 
-drawCard(35, 430, 525, 95, THEME.softBlue, '#BFDBFE');
+drawCard(35, 350, 525, 95, THEME.softBlue, '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(14)
@@ -1452,13 +1452,13 @@ doc.fillColor(THEME.muted)
 
 // Major campaign mini strip
 if (campaigns.length > 0) {
-  drawCard(35, 545, 525, 135, THEME.card, THEME.border);
+  drawCard(35, 470, 525, 135, THEME.card, THEME.border);
   drawSectionTitle('Major Campaigns Breakdown', 55, 565, THEME.violet);
 
   const cHeaders = ['Campaign', 'Spend', 'Share', 'Leads', 'CPL'];
   const cWidths = [210, 95, 60, 55, 65];
 
-  let cY = 605;
+  let cY = 530;
   let cX = 55;
 
   doc.roundedRect(55, cY, 485, 24, 7).fill(THEME.violet);
@@ -1511,7 +1511,7 @@ if (campaigns.length > 0) {
 } else {
   drawEmptyState(
     35,
-    545,
+    470,
     525,
     135,
     'Major Campaign Data Not Available',
@@ -2121,8 +2121,26 @@ drawMiniMetricCards(
   55,
   305
 );
+drawCard(35, 355, 525, 55, '#ECFDF5', '#A7F3D0');
 
+doc.fillColor('#166534')
+  .fontSize(12)
+  .font('Helvetica-Bold')
+  .text('Top Performing Platform', 55, 375);
+
+doc.fillColor(THEME.text)
+  .fontSize(9)
+  .font('Helvetica')
+  .text(
+    `${String(activePlatforms[0]?.platform || 'META').toUpperCase()} generated the highest volume of tracked leads.`,
+    220,
+    375,
+    {
+      width: 300,
+    }
+  );
 drawCard(35, 395, 525, 80, '#F8FAFC', '#BFDBFE');
+
 
 doc.fillColor(THEME.text)
   .fontSize(14)
@@ -2265,7 +2283,7 @@ insightCards.forEach((card, i) => {
 });
 
 // AI Summary
-drawCard(35, 360, 525, 120, THEME.card, THEME.border);
+drawCard(35, 360, 525, 100, THEME.card, THEME.border);
 
 
 

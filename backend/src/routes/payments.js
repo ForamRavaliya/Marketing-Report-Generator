@@ -10,6 +10,9 @@ const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
+router.get('/test', (req, res) => {
+  res.json({ ok: true, route: 'payments route working' });
+});
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
