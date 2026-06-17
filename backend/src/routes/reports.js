@@ -9,10 +9,10 @@ const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
 const CURRENCY_SYMBOLS = {
-  INR: '₹',
+  INR: 'INR ',
   USD: '$',
-  EUR: '€',
-  GBP: '£',
+  EUR: 'EUR ',
+  GBP: 'GBP ',
 };
 
 const formatNum = (value, decimals = 0) => {
@@ -399,11 +399,11 @@ const formatGrowth = (change) => {
     return null;
   }
 
-  if (change >= 300) return 'Significant increase';
-  if (change <= -300) return 'Significant decrease';
+  if (change >= 300) return 'High increase';
+  if (change <= -300) return 'High decrease';
 
   const sign = change > 0 ? '+' : '';
-  return `${sign}${formatNum(change, 1)}%`;
+  return `${sign}${formatNum(change, 1)}% vs prev.`;
 };
 
 const growth = {
@@ -546,7 +546,7 @@ const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
 
 const bottomText =
   item.growth
-  ? `${item.growth} vs previous period`
+  ? item.growth
     : item.subtitle ||
       item.note ||
       item.description ||
@@ -1122,11 +1122,11 @@ const metrics = [
 ];
 
 const cardW = 155;
-const cardH = 56;
+const cardH = 50;
 const gapX = 15;
-const gapY = 9;
+const gapY = 7;
 const startX = 50;
-const startY = 385;
+const startY = 382;
 
 
 metrics.forEach((m, i) => {
@@ -1205,12 +1205,12 @@ const scoreBreakdown = [
   },
 ];
 
-drawCard(35, 625, 525, 55, '#FFFFFF', '#BFDBFE');
+drawCard(35, 615, 525, 55, '#FFFFFF', '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(10)
   .font('Helvetica-Bold')
-  .text('Score Breakdown', 55, 638);
+ .text('Score Breakdown', 55, 628);
 
 scoreBreakdown.forEach((item, i) => {
   const x = 160 + i * 92;
@@ -1218,7 +1218,7 @@ scoreBreakdown.forEach((item, i) => {
   doc.fillColor(THEME.muted)
     .fontSize(6.5)
     .font('Helvetica-Bold')
-    .text(item.label.toUpperCase(), x, 634, {
+    .text(item.label.toUpperCase(), x, 624, {
       width: 75,
       align: 'center',
     });
@@ -1226,18 +1226,18 @@ scoreBreakdown.forEach((item, i) => {
   doc.fillColor(THEME.text)
     .fontSize(9)
     .font('Helvetica-Bold')
-    .text(`${item.score}/${item.max}`, x, 655, {
+    .text(`${item.score}/${item.max}`, x, 645, {
       width: 75,
       align: 'center',
     });
 });
 
-drawCard(35, 695, 525, 40, '#F8FAFC', '#BFDBFE');
+drawCard(35, 685, 525, 40, '#F8FAFC', '#BFDBFE');
 
 doc.fillColor(THEME.royal)
   .fontSize(8)
   .font('Helvetica-Bold')
-  .text('DATA AVAILABILITY', 55, 707, {
+  .text('DATA AVAILABILITY', 55, 697, {
     width: 120,
     lineBreak: false,
   });
@@ -1245,7 +1245,7 @@ doc.fillColor(THEME.royal)
 doc.fillColor(THEME.emerald)
   .fontSize(7.5)
   .font('Helvetica-Bold')
-  .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 707, {
+  .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 697, {
     width: 170,
     lineBreak: false,
   });
@@ -1253,7 +1253,7 @@ doc.fillColor(THEME.emerald)
 doc.fillColor(THEME.rose)
   .fontSize(7.5)
   .font('Helvetica-Bold')
-  .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 707, {
+  .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 697, {
     width: 180,
     lineBreak: false,
   });
@@ -1264,7 +1264,7 @@ doc.fillColor(THEME.rose)
       .text(
         'Free report: upgrade to Pro for agency logo, executive pages and no product branding.',
         55,
-        728,
+        718,
         {
           width: 485,
           align: 'center',
@@ -1907,7 +1907,7 @@ doc.fillColor(THEME.muted)
   .text(
     `This funnel shows how people move from seeing ads to becoming leads. Click Rate shows how many impressions turned into clicks, and Lead Rate shows how many clicks became leads. These ratios help identify where campaign improvement is needed.`,
     55,
-    655,
+    645,
     {
       width: 480,
       lineGap: 4,
@@ -2300,7 +2300,7 @@ const drawInsightBox = (x, y, title, items, color, bg) => {
 
 drawInsightBox(
   35,
- 580 ,
+  585,
   "What's Working",
   whatsWorking,
   THEME.emerald,
@@ -2309,7 +2309,7 @@ drawInsightBox(
 
 drawInsightBox(
   35,
-  625,
+  705,
   'Needs Attention',
   needsAttention,
   THEME.amber,
@@ -2515,7 +2515,7 @@ actionItems.forEach((item, i) => {
     });
 });
 
-drawCard(35, 655, 525, 55, '#F8FAFC', '#BFDBFE');
+drawCard(35, 645, 525, 55, '#F8FAFC', '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(12)
