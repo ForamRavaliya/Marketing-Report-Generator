@@ -168,7 +168,10 @@ const formatPct = (value) => {
      ),
    db.query(
      `SELECT
-         COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')) AS name,
+         COALESCE(
+           NULLIF(TRIM(c.name), ''),
+           NULLIF(TRIM(pd.external_campaign_name), '')
+         ) AS name,
          pd.platform,
          SUM(COALESCE(pd.spend, 0)) AS spend,
          SUM(COALESCE(pd.clicks, 0)) AS clicks,
@@ -191,9 +194,22 @@ const formatPct = (value) => {
        FROM performance_data pd
        LEFT JOIN campaigns c ON pd.campaign_id = c.id
        ${campaignWhereClause}
-       AND COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')) IS NOT NULL
-       GROUP BY COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')), pd.platform
-       HAVING SUM(COALESCE(pd.spend, 0)) > 0
+       AND COALESCE(
+         NULLIF(TRIM(c.name), ''),
+         NULLIF(TRIM(pd.external_campaign_name), '')
+       ) IS NOT NULL
+       AND LOWER(COALESCE(c.name, pd.external_campaign_name, '')) NOT IN (
+         'unknown campaign',
+         'unknown camp',
+         'campaign name n/a',
+         'name n/a'
+       )
+       GROUP BY
+         COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')),
+         pd.platform
+       HAVING
+         SUM(COALESCE(pd.spend, 0)) >= 100
+         OR SUM(COALESCE(pd.conversions, 0)) > 0
        ORDER BY SUM(COALESCE(pd.spend, 0)) DESC
        LIMIT 8`,
      params
@@ -253,18 +269,47 @@ const isAgencyPlan = currentPlan === 'agency';
 const canUseAgencyBranding = isProPlan || isAgencyPlan;
 const canUseExecutivePages = isProPlan || isAgencyPlan;
 let agencyLogoBuffer = null;
+const summary = summaryResult.rows[0];
 
-    const summary = summaryResult.rows[0];
+const trends = trendsResult.rows;
+const platforms = platformsResult.rows;
 
-    const trends = trendsResult.rows;
-    const platforms = platformsResult.rows;
-    const campaigns = campaignsResult.rows;
-    const totalCampaignSpend = campaigns.reduce(
-      (sum, c) => sum + Number(c.spend || 0),
-      0
-    );
-    const hasTrendChart = trends.length > 1;
-    const hasCampaignChart = campaigns.length > 0;
+const rawCampaigns = campaignsResult.rows || [];
+
+const rawCampaignSpend = rawCampaigns.reduce(
+  (sum, c) => sum + Number(c.spend || 0),
+  0
+);
+
+const rawCampaignLeads = rawCampaigns.reduce(
+  (sum, c) => sum + Number(c.conversions || 0),
+  0
+);
+
+const summarySpend = Number(summary?.spend || 0);
+const summaryLeads = Number(summary?.conversions || 0);
+
+const campaignSpendMatches =
+  summarySpend > 0 &&
+  Math.abs(rawCampaignSpend - summarySpend) <= 1;
+
+const campaignLeadsMatches =
+  summaryLeads > 0 &&
+  Math.abs(rawCampaignLeads - summaryLeads) <= 1;
+
+const campaigns =
+  campaignSpendMatches && campaignLeadsMatches
+    ? rawCampaigns
+    : [];
+
+const totalCampaignSpend = campaigns.reduce(
+  (sum, c) => sum + Number(c.spend || 0),
+  0
+);
+
+const hasTrendChart = trends.length > 1;
+const hasCampaignChart = campaigns.length > 0;
+
     // const aiInsight = aiInsightResult.rows[0] || null;
 
     const monthResult = await db.query(
