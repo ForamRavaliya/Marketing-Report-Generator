@@ -435,6 +435,8 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
     mapping
   );
 
+
+
     res.json({
       success: true,
       message: 'Mapping confirmed and data imported successfully',
@@ -585,6 +587,25 @@ async function processFileWithMapping(
     };
 
     const inferredRange = inferDateRangeFromFileName(originalFileName);
+
+    if (inferredRange && dateStart) {
+      const selectedMonth = new Date(dateStart);
+      selectedMonth.setDate(1);
+      selectedMonth.setHours(0, 0, 0, 0);
+
+      const fileMonth = new Date(inferredRange.start);
+      fileMonth.setDate(1);
+      fileMonth.setHours(0, 0, 0, 0);
+
+      if (selectedMonth.getTime() !== fileMonth.getTime()) {
+        throw new Error(
+          `Selected date range does not match file name. File appears to be for ${fileMonth.toLocaleString('en-US', {
+            month: 'long',
+            year: 'numeric',
+          })}.`
+        );
+      }
+    }
 
     const finalDateStart = dateStart || inferredRange?.start || null;
     const finalDateEnd = dateEnd || inferredRange?.end || null;
