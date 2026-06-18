@@ -1538,13 +1538,13 @@ drawFooter(pageNo++);
       bg: THEME.softBlue,
     },
     {
-      label: 'Spend',
+     label: 'Tracked Spend',
       value: formatCurrency(campaign.spend, currency),
       color: THEME.violet,
       bg: THEME.softPurple,
     },
     {
-      label: 'Leads',
+      label: 'Tracked Leads',
       value: formatNum(campaign.conversions),
       color: THEME.emerald,
       bg: THEME.softGreen,
@@ -1602,7 +1602,7 @@ drawFooter(pageNo++);
      .fontSize(9)
      .font('Helvetica')
      .text(
-`Campaign-level rows were available for this tracked campaign. The campaign contributed the visible tracked campaign spend and leads during the selected reporting period.`,
+`This section shows campaign-level rows available in the uploaded export. These values may be lower than the total report summary if some data was available only at aggregate level.`,
        75,
        595,
        {
