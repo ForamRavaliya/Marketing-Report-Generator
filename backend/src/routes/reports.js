@@ -166,37 +166,38 @@ const formatPct = (value) => {
         ORDER BY SUM(spend) DESC`,
        params
      ),
-    db.query(
-      `SELECT
-          COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign') as name,
-          pd.platform,
-          SUM(COALESCE(pd.spend, 0)) as spend,
-          SUM(COALESCE(pd.clicks, 0)) as clicks,
-          SUM(COALESCE(pd.conversions, 0)) as conversions,
-          CASE
-            WHEN SUM(COALESCE(pd.impressions, 0)) > 0
-            THEN SUM(COALESCE(pd.clicks, 0))::float / SUM(COALESCE(pd.impressions, 0)) * 100
-            ELSE 0
-          END as ctr,
-          CASE
-            WHEN SUM(COALESCE(pd.clicks, 0)) > 0
-            THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.clicks, 0))
-            ELSE 0
-          END as cpc,
-          CASE
-            WHEN SUM(COALESCE(pd.conversions, 0)) > 0
-            THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.conversions, 0))
-            ELSE 0
-          END as cpa
-        FROM performance_data pd
-        LEFT JOIN campaigns c ON pd.campaign_id = c.id
-        ${campaignWhereClause}
-        GROUP BY COALESCE(c.name, pd.external_campaign_name, 'Unknown Campaign'), pd.platform
-        HAVING SUM(COALESCE(pd.spend, 0)) >= 100
-        ORDER BY SUM(COALESCE(pd.spend, 0)) DESC
-        LIMIT 8`,
-      params
-    ),
+   db.query(
+     `SELECT
+         COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')) AS name,
+         pd.platform,
+         SUM(COALESCE(pd.spend, 0)) AS spend,
+         SUM(COALESCE(pd.clicks, 0)) AS clicks,
+         SUM(COALESCE(pd.conversions, 0)) AS conversions,
+         CASE
+           WHEN SUM(COALESCE(pd.impressions, 0)) > 0
+           THEN SUM(COALESCE(pd.clicks, 0))::float / SUM(COALESCE(pd.impressions, 0)) * 100
+           ELSE 0
+         END AS ctr,
+         CASE
+           WHEN SUM(COALESCE(pd.clicks, 0)) > 0
+           THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.clicks, 0))
+           ELSE 0
+         END AS cpc,
+         CASE
+           WHEN SUM(COALESCE(pd.conversions, 0)) > 0
+           THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.conversions, 0))
+           ELSE 0
+         END AS cpa
+       FROM performance_data pd
+       LEFT JOIN campaigns c ON pd.campaign_id = c.id
+       ${campaignWhereClause}
+       AND COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')) IS NOT NULL
+       GROUP BY COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')), pd.platform
+       HAVING SUM(COALESCE(pd.spend, 0)) > 0
+       ORDER BY SUM(COALESCE(pd.spend, 0)) DESC
+       LIMIT 8`,
+     params
+   ),
       db.query(
         `SELECT summary, recommendations, created_at
          FROM ai_insights
