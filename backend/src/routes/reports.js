@@ -2069,14 +2069,14 @@ doc.fillColor(THEME.muted)
     }
   );
 
-   drawCard(35, 500, 525, 155, THEME.softGreen, '#A7F3D0');
+   drawCard(35, 500, 525, 130, THEME.softGreen, '#A7F3D0');
 
    drawNumberBarChart(
      doc,
      activePlatforms,
      {
        x: 55,
-       y: 520,
+       y: 535,
        width: 480,
     title: 'Tracked Leads by Platform',
        labelKey: 'platform',
@@ -2268,9 +2268,7 @@ const needsAttention = [
   !safeSummary.hasClicks
     ? 'Clicks, CTR and CPC should be included in future exports.'
     : `CPC is ${formatCurrency(safeSummary.cpc, currency)}.`,
-  activePlatforms.length === 1
-    ? 'Only one platform is tracked, so platform comparison is limited.'
-    : 'Compare platform spend and lead quality before scaling.',
+
 ];
 
 const drawInsightBox = (x, y, title, items, color, bg) => {
