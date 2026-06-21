@@ -135,7 +135,7 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
 
   const campaignWhereClause = whereClause.replace(
     "AND pd.external_campaign_name = 'aggregate'",
-    "AND pd.external_campaign_name <> 'aggregate'"
+    "AND LOWER(TRIM(pd.external_campaign_name)) <> 'aggregate'"
   );
 
     const [summaryResult, trendsResult, platformsResult, campaignsResult, aiInsightResult] = await Promise.all([
@@ -221,7 +221,10 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
          NULLIF(TRIM(c.name), ''),
          NULLIF(TRIM(pd.external_campaign_name), '')
        ) IS NOT NULL
-       AND LOWER(COALESCE(c.name, pd.external_campaign_name, '')) NOT IN (
+       AND LOWER(COALESCE(
+         NULLIF(TRIM(c.name), ''),
+         NULLIF(TRIM(pd.external_campaign_name), '')
+       )) NOT IN (
          'unknown campaign',
          'unknown camp',
          'campaign name n/a',
@@ -231,7 +234,8 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
          COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')),
          pd.platform
        HAVING
-         SUM(COALESCE(pd.spend, 0)) >= 100
+         SUM(COALESCE(pd.spend, 0)) > 0
+         OR SUM(COALESCE(pd.clicks, 0)) > 0
          OR SUM(COALESCE(pd.conversions, 0)) > 0
        ORDER BY SUM(COALESCE(pd.spend, 0)) DESC
        LIMIT 8`,
