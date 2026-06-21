@@ -545,6 +545,8 @@ async function processFileWithMapping(
   dateEnd,
   mapping
 ) {
+  let transactionClient = null;
+
   try {
     const records = await buildRecordsFromMappedFile(filePath, fileType);
 
@@ -711,7 +713,7 @@ async function processFileWithMapping(
     };
     };
 
-    const campaignRows = [];
+    const rawCampaignRows = [];
     const summaryRows = [];
 
     for (const record of records) {
@@ -740,13 +742,53 @@ async function processFileWithMapping(
           rawData: record,
         });
       } else {
-        campaignRows.push({
+        rawCampaignRows.push({
           name: campaignName,
           metrics,
           rawData: record,
         });
       }
     }
+
+    const campaignsByName = new Map();
+
+    for (const row of rawCampaignRows) {
+      const key = row.name.trim().toLowerCase();
+      const existing = campaignsByName.get(key) || {
+        name: row.name.trim(),
+        metrics: {
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          conversions: 0,
+          revenue: 0,
+          reach: 0,
+          followers: 0,
+        },
+        rawData: [],
+      };
+
+      existing.metrics.spend += row.metrics.spend;
+      existing.metrics.impressions += row.metrics.impressions;
+      existing.metrics.clicks += row.metrics.clicks;
+      existing.metrics.conversions += row.metrics.conversions;
+      existing.metrics.revenue += row.metrics.revenue;
+      existing.metrics.reach += row.metrics.reach;
+      existing.metrics.followers += row.metrics.followers;
+      existing.rawData.push(row.rawData);
+      campaignsByName.set(key, existing);
+    }
+
+    const campaignRows = Array.from(campaignsByName.values()).map((row) => {
+      const metrics = row.metrics;
+
+      metrics.ctr = metrics.impressions > 0 ? (metrics.clicks / metrics.impressions) * 100 : 0;
+      metrics.cpc = metrics.clicks > 0 ? metrics.spend / metrics.clicks : 0;
+      metrics.cpa = metrics.conversions > 0 ? metrics.spend / metrics.conversions : 0;
+      metrics.roas = metrics.spend > 0 ? metrics.revenue / metrics.spend : 0;
+
+      return row;
+    });
 
     const rowsForAggregate = summaryRows.length > 0 ? summaryRows : campaignRows;
 
@@ -788,7 +830,22 @@ async function processFileWithMapping(
         ? aggregate.revenue / aggregate.spend
         : 0;
 
-    await db.query(
+    transactionClient = await db.getClient();
+    await transactionClient.query('BEGIN');
+    await transactionClient.query(
+      'SELECT pg_advisory_xact_lock(hashtext($1))',
+      [`${clientId}:${normalizedPlatform}:${reportMonth.toISOString().slice(0, 10)}`]
+    );
+
+    await transactionClient.query(
+      `DELETE FROM performance_data
+       WHERE client_id = $1
+       AND platform = $2
+       AND report_month = $3`,
+      [clientId, normalizedPlatform, reportMonth]
+    );
+
+    await transactionClient.query(
       `INSERT INTO performance_data
         (client_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
          spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, raw_data)
@@ -796,6 +853,8 @@ async function processFileWithMapping(
        ON CONFLICT (client_id, platform, external_campaign_name, report_month)
        DO UPDATE SET
          upload_id = EXCLUDED.upload_id,
+         date_range_start = EXCLUDED.date_range_start,
+         date_range_end = EXCLUDED.date_range_end,
          spend = EXCLUDED.spend,
          impressions = EXCLUDED.impressions,
          clicks = EXCLUDED.clicks,
@@ -842,30 +901,31 @@ async function processFileWithMapping(
 
       let campaignId = null;
 
-      const campResult = await db.query(
-        `INSERT INTO campaigns (client_id, name, platform)
-         VALUES ($1,$2,$3)
-         ON CONFLICT DO NOTHING
-         RETURNING id`,
+      const existingCampaign = await transactionClient.query(
+        `SELECT id
+         FROM campaigns
+         WHERE client_id = $1
+         AND LOWER(name) = LOWER($2)
+         AND platform = $3
+         ORDER BY created_at
+         LIMIT 1`,
         [clientId, campaignName, normalizedPlatform]
       );
 
-      if (campResult.rows.length) {
-        campaignId = campResult.rows[0].id;
+      if (existingCampaign.rows.length) {
+        campaignId = existingCampaign.rows[0].id;
       } else {
-        const existing = await db.query(
-          `SELECT id
-           FROM campaigns
-           WHERE client_id = $1
-           AND name = $2
-           LIMIT 1`,
-          [clientId, campaignName]
+        const campResult = await transactionClient.query(
+          `INSERT INTO campaigns (client_id, name, platform)
+           VALUES ($1,$2,$3)
+           RETURNING id`,
+          [clientId, campaignName, normalizedPlatform]
         );
 
-        campaignId = existing.rows[0]?.id || null;
+        campaignId = campResult.rows[0].id;
       }
 
-      await db.query(
+      await transactionClient.query(
         `INSERT INTO performance_data
           (client_id, campaign_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
            spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, raw_data)
@@ -874,6 +934,8 @@ async function processFileWithMapping(
          DO UPDATE SET
            campaign_id = EXCLUDED.campaign_id,
            upload_id = EXCLUDED.upload_id,
+           date_range_start = EXCLUDED.date_range_start,
+           date_range_end = EXCLUDED.date_range_end,
            spend = EXCLUDED.spend,
            impressions = EXCLUDED.impressions,
            clicks = EXCLUDED.clicks,
@@ -917,7 +979,7 @@ async function processFileWithMapping(
       );
     }
 
-    await db.query(
+    await transactionClient.query(
       `UPDATE report_uploads
        SET extraction_status = 'completed',
            date_range_start = COALESCE(date_range_start, $2),
@@ -925,8 +987,14 @@ async function processFileWithMapping(
        WHERE id = $1`,
       [uploadId, finalDateStart, finalDateEnd]
     );
+
+    await transactionClient.query('COMMIT');
   } catch (error) {
     console.error('Mapping import error:', error);
+
+    if (transactionClient) {
+      await transactionClient.query('ROLLBACK').catch(() => {});
+    }
 
     await db.query(
       `UPDATE report_uploads
@@ -937,6 +1005,8 @@ async function processFileWithMapping(
     );
 
     throw error;
+  } finally {
+    transactionClient?.release();
   }
 }
 
