@@ -649,7 +649,6 @@ async function processFileWithMapping(
       const n = normalizeHeader(name);
 
       return (
-        !n ||
         n === 'all' ||
         n === 'total' ||
         n === 'overall' ||
@@ -657,6 +656,11 @@ async function processFileWithMapping(
         n.includes('total results') ||
         n.includes('account total')
       );
+    };
+
+    const isInvalidCampaignName = (name) => {
+      const n = normalizeHeader(name);
+      return !n || n === 'unknown campaign';
     };
 
     const normalizeCampaignMetric = (record) => {
@@ -715,12 +719,12 @@ async function processFileWithMapping(
 
     const rawCampaignRows = [];
     const summaryRows = [];
+    const detailRowsForAggregate = [];
 
     for (const record of records) {
       const campaignName =
         getText(record, 'campaignName') ||
-        getText(record, 'campaign') ||
-        'Unknown Campaign';
+        getText(record, 'campaign');
 
       const metrics = normalizeCampaignMetric(record);
 
@@ -742,6 +746,14 @@ async function processFileWithMapping(
           rawData: record,
         });
       } else {
+        detailRowsForAggregate.push({
+          name: campaignName,
+          metrics,
+          rawData: record,
+        });
+
+        if (isInvalidCampaignName(campaignName)) continue;
+
         rawCampaignRows.push({
           name: campaignName,
           metrics,
@@ -790,7 +802,7 @@ async function processFileWithMapping(
       return row;
     });
 
-    const rowsForAggregate = summaryRows.length > 0 ? summaryRows : campaignRows;
+    const rowsForAggregate = summaryRows.length > 0 ? summaryRows : detailRowsForAggregate;
 
     const aggregate = rowsForAggregate.reduce(
       (acc, row) => {
@@ -896,7 +908,7 @@ async function processFileWithMapping(
     );
 
     for (const row of campaignRows) {
-      const campaignName = row.name || 'Unknown Campaign';
+      const campaignName = row.name;
       const m = row.metrics;
 
       let campaignId = null;
