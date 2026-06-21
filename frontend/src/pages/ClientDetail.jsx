@@ -275,7 +275,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
               {/* KPI Cards */}
               <div className="grid grid-4" style={{ marginBottom: 20 }}>
                 <MetricCard label="Total Spend" value={fmtCur(summary?.spend)} icon={DollarSign} color="#2563EB"
-                  change={comparison?.comparison?.spend?.change} />
+                  change={comparison?.comparison?.spend?.change} changeType="neutral" />
                 <MetricCard label="Impressions" value={fmt(summary?.impressions)} icon={TrendingUp} color="#7C3AED"
                   change={comparison?.comparison?.impressions?.change} />
                 <MetricCard label="Clicks" value={fmt(summary?.clicks)} icon={MousePointerClick} color="#059669"
@@ -351,9 +351,18 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                         ].map(({ key, label, fmt: f }) => {
                           const d = comparison.comparison[key];
                           if (!d) return null;
-                          const up = d.change > 0;
-                          const isGoodUp = !['cpc', 'cpa'].includes(key);
-                          const positive = (up && isGoodUp) || (!up && !isGoodUp);
+                          const hasPreviousData = d.hasPreviousData !== false && d.change !== null && Number.isFinite(Number(d.change));
+                          const numericChange = hasPreviousData ? Number(d.change) : 0;
+                          const isCostMetric = ['cpc', 'cpa', 'cpl'].includes(key);
+                          const isNeutral = !hasPreviousData || numericChange === 0 || key === 'spend';
+                          const positive = isCostMetric ? numericChange < 0 : numericChange > 0;
+                          const changeLabel = !hasPreviousData
+                            ? 'No previous data'
+                            : Math.abs(numericChange) > 300
+                            ? numericChange > 0
+                              ? 'High increase'
+                              : 'High decrease'
+                            : `${numericChange > 0 ? '+' : ''}${fmt(numericChange, 1)}%`;
                           return (
                             <tr key={key}>
                               <td style={{ fontWeight: 600 }}>{label}</td>
@@ -362,10 +371,10 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                               <td>
                                 <span style={{
                                   padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                                  background: d.change === 0 ? 'var(--bg3)' : positive ? 'var(--success-light)' : 'var(--danger-light)',
-                                  color: d.change === 0 ? 'var(--text3)' : positive ? 'var(--success)' : 'var(--danger)',
+                                  background: isNeutral ? 'var(--bg3)' : positive ? 'var(--success-light)' : 'var(--danger-light)',
+                                  color: isNeutral ? 'var(--text3)' : positive ? 'var(--success)' : 'var(--danger)',
                                 }}>
-                                  {d.change > 0 ? '+' : ''}{fmt(d.change, 1)}%
+                                  {changeLabel}
                                 </span>
                               </td>
                             </tr>

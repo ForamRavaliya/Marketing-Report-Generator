@@ -12,11 +12,12 @@ export const MetricCard = ({
   subtitle,
   changeType = 'positive-good',
 }) => {
-  const numericChange = Number(change || 0);
+  const hasPreviousData = change !== null && Number.isFinite(Number(change));
+  const numericChange = hasPreviousData ? Number(change) : 0;
   const isPositive = numericChange > 0;
   const isNegative = numericChange < 0;
 
-  const isNeutral = numericChange === 0;
+  const isNeutral = !hasPreviousData || numericChange === 0 || changeType === 'neutral';
 
   const isGood =
     isNeutral
@@ -36,6 +37,14 @@ export const MetricCard = ({
     : isNegative
     ? TrendingDown
     : Minus;
+
+  const changeLabel = !hasPreviousData
+    ? 'No previous data'
+    : Math.abs(numericChange) > 300
+    ? numericChange > 0
+      ? 'High increase'
+      : 'High decrease'
+    : `${isPositive ? '+' : ''}${numericChange.toFixed(1)}%`;
 
   return (
     <div className="card card-pad fade-in" style={{ position: 'relative', overflow: 'hidden' }}>
@@ -63,17 +72,19 @@ export const MetricCard = ({
         </div>
       )}
 
-      {change !== undefined && change !== null && (
+      {change !== undefined && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600 }}>
           <TrendIcon size={12} color={changeColor} />
 
           <span style={{ color: changeColor }}>
-            {isPositive ? '+' : ''}{numericChange.toFixed(1)}%
+            {changeLabel}
           </span>
 
-          <span style={{ color: 'var(--text3)', fontWeight: 400 }}>
-            vs last month
-          </span>
+          {hasPreviousData && (
+            <span style={{ color: 'var(--text3)', fontWeight: 400 }}>
+              vs last month
+            </span>
+          )}
         </div>
       )}
     </div>
