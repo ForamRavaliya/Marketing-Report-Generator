@@ -35,6 +35,29 @@ const formatPct = (value) => {
   return `${formatNum(value, 2)}%`;
 };
 
+const getPreviousDateRange = (dateStart, dateEnd) => {
+  if (!dateStart || !dateEnd) return null;
+
+  const start = new Date(`${String(dateStart).slice(0, 10)}T00:00:00Z`);
+  const end = new Date(`${String(dateEnd).slice(0, 10)}T00:00:00Z`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return null;
+  }
+
+  const periodDays = Math.round((end - start) / 86400000) + 1;
+  const previousEnd = new Date(start);
+  previousEnd.setUTCDate(previousEnd.getUTCDate() - 1);
+
+  const previousStart = new Date(previousEnd);
+  previousStart.setUTCDate(previousStart.getUTCDate() - periodDays + 1);
+
+  return {
+    start: previousStart.toISOString().slice(0, 10),
+    end: previousEnd.toISOString().slice(0, 10),
+  };
+};
+
 // Generate PDF report
 /*router.post('/generate', async (req, res) => {
   try {
@@ -94,13 +117,13 @@ const formatPct = (value) => {
    let idx = 2;
 
    if (dateStart) {
-     whereClause += ` AND pd.report_month >= $${idx++}`;
-     params.push(new Date(dateStart));
+     whereClause += ` AND COALESCE(pd.date_range_end, pd.report_month) >= $${idx++}::date`;
+     params.push(dateStart);
    }
 
    if (dateEnd) {
-     whereClause += ` AND pd.report_month <= $${idx++}`;
-     params.push(new Date(dateEnd));
+     whereClause += ` AND COALESCE(pd.date_range_start, pd.report_month) <= $${idx++}::date`;
+     params.push(dateEnd);
    }
 
    if (platform && platform !== 'all') {
@@ -275,32 +298,7 @@ const trends = trendsResult.rows;
 const platforms = platformsResult.rows;
 
 const rawCampaigns = campaignsResult.rows || [];
-
-const rawCampaignSpend = rawCampaigns.reduce(
-  (sum, c) => sum + Number(c.spend || 0),
-  0
-);
-
-const rawCampaignLeads = rawCampaigns.reduce(
-  (sum, c) => sum + Number(c.conversions || 0),
-  0
-);
-
-const summarySpend = Number(summary?.spend || 0);
-const summaryLeads = Number(summary?.conversions || 0);
-
-const campaignSpendMatches =
-  summarySpend > 0 &&
-  Math.abs(rawCampaignSpend - summarySpend) <= 1;
-
-const campaignLeadsMatches =
-  summaryLeads > 0 &&
-  Math.abs(rawCampaignLeads - summaryLeads) <= 1;
-
-const campaigns =
-  campaignSpendMatches && campaignLeadsMatches
-    ? rawCampaigns
-    : [];
+const campaigns = rawCampaigns;
 
 const totalCampaignSpend = campaigns.reduce(
   (sum, c) => sum + Number(c.spend || 0),
@@ -312,20 +310,22 @@ const hasCampaignChart = campaigns.length > 0;
 
     // const aiInsight = aiInsightResult.rows[0] || null;
 
-    const monthResult = await db.query(
-      `SELECT DISTINCT report_month
-       FROM performance_data
-       WHERE client_id = $1
-       AND external_campaign_name = 'aggregate'
-       ORDER BY report_month DESC
-       LIMIT 2`,
-      [clientId]
-    );
-
     let previousSummary = null;
+    const previousRange = getPreviousDateRange(dateStart, dateEnd);
 
-    if (monthResult.rows.length >= 2) {
-      const previousAvailableMonth = monthResult.rows[1].report_month;
+    if (includeComparison && previousRange) {
+      let previousWhereClause = `
+        WHERE client_id = $1
+        AND external_campaign_name = 'aggregate'
+        AND COALESCE(date_range_end, report_month) >= $2::date
+        AND COALESCE(date_range_start, report_month) <= $3::date
+      `;
+      const previousParams = [clientId, previousRange.start, previousRange.end];
+
+      if (platform && platform !== 'all') {
+        previousWhereClause += ` AND platform = $4`;
+        previousParams.push(platform);
+      }
 
       const previousResult = await db.query(
         `SELECT
@@ -348,10 +348,8 @@ const hasCampaignChart = campaigns.length > 0;
              THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
              ELSE 0 END as roas
          FROM performance_data
-         WHERE client_id = $1
-         AND external_campaign_name = 'aggregate'
-         AND DATE_TRUNC('month', report_month) = DATE_TRUNC('month', $2::date)`,
-        [clientId, previousAvailableMonth]
+         ${previousWhereClause}`,
+        previousParams
       );
 
       previousSummary = previousResult.rows[0];
@@ -430,14 +428,13 @@ const safeSummary = {
   hasImpressions: Number(summary?.impressions ?? 0) > 0,
 };
 
-const calcChange = (current, previous, reverse = false) => {
+const calcChange = (current, previous) => {
   const curr = Number(current || 0);
   const prev = Number(previous || 0);
 
   if (!prev || prev === 0) return null;
 
-  const change = ((curr - prev) / Math.abs(prev)) * 100;
-  return reverse ? -change : change;
+  return ((curr - prev) / Math.abs(prev)) * 100;
 };
 
 const formatGrowth = (change) => {
@@ -457,8 +454,8 @@ const growth = {
   clicks: formatGrowth(calcChange(safeSummary.clicks, previousSummary?.clicks)),
   conversions: formatGrowth(calcChange(safeSummary.conversions, previousSummary?.conversions)),
   ctr: formatGrowth(calcChange(safeSummary.ctr, previousSummary?.ctr)),
-  cpc: formatGrowth(calcChange(safeSummary.cpc, previousSummary?.cpc, true)),
-  cpa: formatGrowth(calcChange(safeSummary.cpa, previousSummary?.cpa, true)),
+  cpc: formatGrowth(calcChange(safeSummary.cpc, previousSummary?.cpc)),
+  cpa: formatGrowth(calcChange(safeSummary.cpa, previousSummary?.cpa)),
   roas: formatGrowth(calcChange(safeSummary.roas, previousSummary?.roas)),
 };
 
