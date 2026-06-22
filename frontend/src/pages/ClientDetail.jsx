@@ -317,7 +317,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
               <div className="grid grid-4" style={{ marginBottom: 20 }}>
                 <MetricCard
                   label="ROAS"
-                  value={`${fmt(currentMonthMetrics.roas?.current 2)}x`}
+                  value={`${fmt(currentMonthMetrics.roas?.current, 2)}x`}
                   color="#059669"
                   change={comparison?.comparison?.roas?.change}
                 />
