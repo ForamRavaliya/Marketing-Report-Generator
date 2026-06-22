@@ -14,7 +14,6 @@ const {
   extractFromImage,
   COLUMN_MAP,
   normalizeHeader,
-  parseNum,
 } = require('../utils/extractor');
 
 
@@ -54,11 +53,6 @@ const getFileType = (filename) => {
 };
 
 const norm = (v) => normalizeHeader(v || '');
-
-const isAny = (header, words) => {
-  const h = norm(header);
-  return words.some((w) => h === norm(w) || h.includes(norm(w)));
-};
 
 function getExcelHeaderInfo(filePath) {
   const workbook = XLSX.readFile(filePath);
@@ -135,7 +129,32 @@ async function extractHeaders(filePath, fileType) {
 function suggestColumnMapping(headers) {
   const mapping = {};
 
-  const find = (words) => headers.find((h) => isAny(h, words));
+  const find = (words, excluded = []) => {
+    const normalizedHeaders = headers.map((header) => ({
+      header,
+      normalized: norm(header),
+    }));
+    const aliases = words.map(norm);
+    const exclusions = excluded.map(norm);
+    const allowed = ({ normalized }) =>
+      !exclusions.some((word) => normalized.includes(word));
+
+    for (const alias of aliases) {
+      const exact = normalizedHeaders.find(
+        (item) => allowed(item) && item.normalized === alias
+      );
+      if (exact) return exact.header;
+    }
+
+    for (const alias of aliases) {
+      const partial = normalizedHeaders.find(
+        (item) => allowed(item) && item.normalized.includes(alias)
+      );
+      if (partial) return partial.header;
+    }
+
+    return undefined;
+  };
 
   mapping.spend = find([
     'amount spent',
@@ -145,8 +164,10 @@ function suggestColumnMapping(headers) {
     'meta spends',
     'meta spend',
     'total spend',
+    'total spent',
     'ad spend',
-  ]);
+    'cost',
+  ], ['cost per click', 'cost per result', 'cost per lead', 'cost per conversion']);
 
   mapping.revenue = find([
     'website revenue',
@@ -165,7 +186,9 @@ function suggestColumnMapping(headers) {
     'conversions',
     'purchases',
     'purchase',
-  ]);
+    'website purchases',
+    'messaging conversations started',
+  ], ['cost per result', 'cost per conversion', 'cost per lead', 'cost per purchase']);
 
   mapping.clicks = find([
     'clicks',
@@ -174,13 +197,20 @@ function suggestColumnMapping(headers) {
     'outbound clicks',
     'all clicks',
     'unique clicks',
+    'unique link clicks',
     'inline link clicks',
-  ]);
+    'result clicks',
+    'click',
+  ], ['cost per click', 'click through rate', 'click-through rate']);
 
   mapping.impressions = find([
     'impressions',
+    'impression',
+    'delivery impressions',
+    'reach impressions',
     'total impressions',
-  ]);
+    'views',
+  ], ['cost per 1000 impressions', 'cost per thousand impressions', 'cpm']);
 
   mapping.reach = find([
     'reach',
@@ -617,10 +647,58 @@ async function processFileWithMapping(
     reportMonth.setHours(0, 0, 0, 0);
 
     const normalizedPlatform = platform || 'meta';
+    const availableHeaders = Object.keys(records[0] || {});
+    const suggestedColumns = suggestColumnMapping(availableHeaders);
+    const mappedFields = [
+      'campaignName', 'spend', 'impressions', 'clicks', 'conversions',
+      'revenue', 'ctr', 'cpc', 'cpa', 'roas', 'reach', 'followers',
+    ];
+
+    const resolvedColumns = Object.fromEntries(
+      mappedFields.map((field) => {
+        const configured =
+          mapping[field] || (field === 'campaignName' ? mapping.campaign : null);
+
+        if (configured === 'ignore') return [field, null];
+
+        const configuredHeader = configured
+          ? availableHeaders.find(
+              (header) => normalizeHeader(header) === normalizeHeader(configured)
+            )
+          : null;
+
+        return [field, configuredHeader || suggestedColumns[field] || null];
+      })
+    );
+
+    console.log(`[upload ${uploadId}] Detected mapped fields:`, {
+      campaignName: resolvedColumns.campaignName,
+      spend: resolvedColumns.spend,
+      impressions: resolvedColumns.impressions,
+      clicks: resolvedColumns.clicks,
+      conversions: resolvedColumns.conversions,
+      revenue: resolvedColumns.revenue,
+    });
+
+    const parseMappedNumber = (value) => {
+      if (value === null || value === undefined || value === '') return 0;
+      if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+      const text = String(value).trim();
+      if (!text) return 0;
+
+      const isNegative = /^\(.*\)$/.test(text);
+      const parsed = Number.parseFloat(
+        text.replace(/,/g, '').replace(/[^\d.+-]/g, '')
+      );
+
+      if (!Number.isFinite(parsed)) return 0;
+      return isNegative ? -Math.abs(parsed) : parsed;
+    };
 
     const getRawValue = (record, field) => {
-      const col = mapping[field];
-      if (!col || col === 'ignore') return '';
+      const col = resolvedColumns[field];
+      if (!col) return '';
 
       if (record[col] !== undefined && record[col] !== null) {
         return record[col];
@@ -638,7 +716,7 @@ async function processFileWithMapping(
     };
 
     const getValue = (record, field) => {
-      return parseNum(getRawValue(record, field));
+      return parseMappedNumber(getRawValue(record, field));
     };
 
     const getText = (record, field) => {
