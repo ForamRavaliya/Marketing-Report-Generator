@@ -140,6 +140,8 @@ const totalCampaignSpend = campaigns.reduce(
   (sum, c) => sum + parseFloat(c.spend || 0),
   0
 );
+
+const currentMonthMetrics = comparison?.comparison || {};
   if (!client && !loading) return (
     <div style={{ textAlign: 'center', padding: 60 }}>
       <p>Client not found</p>
@@ -1004,7 +1006,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
         );
 
 
-const currentMonthMetrics = comparison?.comparison || {};
+
 
         return (
           <div
