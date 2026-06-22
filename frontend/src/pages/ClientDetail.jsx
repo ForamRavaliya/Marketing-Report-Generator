@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getClient, getSummary, getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount,updateAdAccountFrequency,getSyncLogs,
+import { getClient,  getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount,updateAdAccountFrequency,getSyncLogs,
     getSubscription, generateAIInsights, getAIInsights,} from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend ,} from 'recharts';
@@ -32,7 +32,7 @@ export default function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [client, setClient] = useState(null);
-  const [summary, setSummary] = useState(null);
+
   const [trends, setTrends] = useState([]);
   const [comparison, setComparison] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
@@ -62,8 +62,7 @@ const [adForm, setAdForm] = useState({
       const clientData = await getClient(id);
       setClient(clientData);
 
-      const summaryData = await getSummary(id, params);
-      setSummary(summaryData);
+
 
       const trendsData = await getTrends(id, { ...params, months: 6 });
       const byMonth = {};
@@ -274,26 +273,26 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
             <div>
               {/* KPI Cards */}
               <div className="grid grid-4" style={{ marginBottom: 20 }}>
-                <MetricCard label="Total Spend" value={fmtCur(summary?.spend)} icon={DollarSign} color="#2563EB"
+                <MetricCard label="Total Spend" value={fmtCur(currentMonthMetrics.spend?.current)} icon={DollarSign} color="#2563EB"
                   change={comparison?.comparison?.spend?.change} changeType="neutral" />
-                <MetricCard label="Impressions" value={fmt(summary?.impressions)} icon={TrendingUp} color="#7C3AED"
+                <MetricCard label="Impressions" value={fmt(currentMonthMetrics.impressions?.current)} icon={TrendingUp} color="#7C3AED"
                   change={comparison?.comparison?.impressions?.change} />
-                <MetricCard label="Clicks" value={fmt(summary?.clicks)} icon={MousePointerClick} color="#059669"
+                <MetricCard label="Clicks" value={fmt(currentMonthMetrics.clicks?.current)} icon={MousePointerClick} color="#059669"
                   change={comparison?.comparison?.clicks?.change} />
-                <MetricCard label="Conversions" value={fmt(summary?.conversions)} icon={Target} color="#D97706"
+                <MetricCard label="Conversions" value={fmt(currentMonthMetrics.conversions?.current)} icon={Target} color="#D97706"
                   change={comparison?.comparison?.conversions?.change} />
               </div>
               <div className="grid grid-4" style={{ marginBottom: 20 }}>
                 <MetricCard
                   label="CTR"
-                  value={fmtPct(summary?.ctr)}
+                  value={fmtPct(currentMonthMetrics.ctr?.current)}
                   color="#0891B2"
                   change={comparison?.comparison?.ctr?.change}
                 />
 
              <MetricCard
                label="CPC"
-               value={fmtCur(summary?.cpc)}
+               value={fmtCur(currentMonthMetrics.cpc?.current)}
                color="#7C3AED"
                change={comparison?.comparison?.cpc?.change}
                changeType="negative-good"
@@ -301,7 +300,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
 
                 <MetricCard
                   label="CPA"
-                  value={fmtCur(summary?.cpa)}
+                  value={fmtCur(currentMonthMetrics.cpa?.current)}
                   color="#DC2626"
                   change={comparison?.comparison?.cpa?.change}
                   changeType="negative-good"
@@ -309,7 +308,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
 
                 <MetricCard
                   label="Revenue"
-                  value={fmtCur(summary?.revenue)}
+                  value={fmtCur(currentMonthMetrics.revenue?.current)}
                   color="#16A34A"
                   change={comparison?.comparison?.revenue?.change}
                 />
@@ -318,7 +317,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
               <div className="grid grid-4" style={{ marginBottom: 20 }}>
                 <MetricCard
                   label="ROAS"
-                  value={`${fmt(summary?.roas, 2)}x`}
+                  value={`${fmt(currentMonthMetrics.roas?.current 2)}x`}
                   color="#059669"
                   change={comparison?.comparison?.roas?.change}
                 />
@@ -1003,6 +1002,9 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
         const connected = adAccounts.find(
           a => a.platform === platform.key
         );
+
+
+const currentMonthMetrics = comparison?.comparison || {};
 
         return (
           <div
