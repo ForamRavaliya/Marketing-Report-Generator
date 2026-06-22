@@ -1427,9 +1427,9 @@ doc.fillColor(THEME.muted)
 // Major campaign mini strip
 if (campaigns.length > 0) {
   drawCard(35, 545, 525, 135, THEME.card, THEME.border);
-  drawSectionTitle('Tracked Campaigns Breakdown', 55, 565, THEME.violet);
+  drawSectionTitle('Campaign-Level Breakdown', 55, 565, THEME.violet);
 
-  const cHeaders = ['Campaign', 'Spend', 'Share', 'Leads', 'CPL'];
+  const cHeaders = ['Campaign', 'Spend', '% of Total', 'Leads', 'CPL'];
   const cWidths = [210, 95, 60, 55, 65];
 
   let cY = 605;
@@ -1451,10 +1451,10 @@ if (campaigns.length > 0) {
     const bg = idx % 2 === 0 ? '#F8FAFC' : '#F5F3FF';
     doc.roundedRect(55, cY, 485, 22, 5).fill(bg);
 
-    const spendShare =
-      totalCampaignSpend > 0
-        ? `${formatNum((Number(row.spend || 0) / totalCampaignSpend) * 100, 1)}%`
-        : 'N/A';
+   const spendShare =
+     safeSummary.spend > 0
+       ? `${formatNum((Number(row.spend || 0) / safeSummary.spend) * 100, 1)}%`
+       : 'N/A';
 
     const cpl =
       Number(row.conversions || 0) > 0
@@ -1482,6 +1482,19 @@ if (campaigns.length > 0) {
 
     cY += 22;
   });
+
+  doc.fillColor(THEME.muted)
+    .fontSize(7)
+    .font('Helvetica')
+    .text(
+      'Note: Campaign-level rows may not equal total report spend if the upload contains both aggregate and partial campaign rows.',
+      55,
+      cY + 8,
+      {
+        width: 485,
+        lineGap: 2,
+      }
+    );
 } else {
   drawEmptyState(
     35,
@@ -1555,7 +1568,7 @@ drawFooter(pageNo++);
        x: 55,
        y: 400,
        width: 480,
-       title: 'Major Campaigns by Spend',
+       title: 'Campaign-Level Spend',
        valueKey: 'spend',
        labelKey: 'name',
        color: THEME.violet,
