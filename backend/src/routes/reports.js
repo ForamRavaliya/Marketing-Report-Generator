@@ -501,6 +501,22 @@ let pageNo = 1;
 const FOOTER_TOP = 755;
 const CONTENT_BOTTOM = 735;
 const PAGE_CONTENT_TOP = 120;
+const dateLabel =
+  dateStart && dateEnd
+    ? `${new Date(dateStart).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })} - ${new Date(dateEnd).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })}`
+    : `Generated ${new Date().toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })}`;
 let currentPageTitle = 'Marketing Performance Report';
 let currentPageSubtitle = dateLabel;
 
@@ -648,23 +664,6 @@ const reportSummaryText =
   `${safeSummary.hasRoas ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} and ROAS was ${formatNum(safeSummary.roas, 2)}x.` : `Weakest area: ${weakestMetricName}. Revenue and ROAS are not available from this source data.`}`;
 
 const reportTitle = customTitle || title || 'Marketing Performance Report';
-
-const dateLabel =
-  dateStart && dateEnd
-    ? `${new Date(dateStart).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })} - ${new Date(dateEnd).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })}`
-    : `Generated ${new Date().toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      })}`;
 
       const planLabel =
         isFreePlan
