@@ -498,6 +498,11 @@ const THEME = {
 const pageW = doc.page.width;
 const pageH = doc.page.height;
 let pageNo = 1;
+const FOOTER_TOP = 755;
+const CONTENT_BOTTOM = 735;
+const PAGE_CONTENT_TOP = 120;
+let currentPageTitle = 'Marketing Performance Report';
+let currentPageSubtitle = dateLabel;
 
 const safeSummary = {
   spend: positiveNumber(summary?.spend),
@@ -765,8 +770,8 @@ if (isAgencyPlan) {
   footerBrand = `Prepared for ${client.name} • Generated with Marketing Report Generator`;
 }
 
-  doc.moveTo(50, 755)
-    .lineTo(545, 755)
+  doc.moveTo(50, FOOTER_TOP)
+    .lineTo(545, FOOTER_TOP)
     .strokeColor('#E2E8F0')
     .lineWidth(1)
     .stroke();
@@ -774,24 +779,65 @@ if (isAgencyPlan) {
   doc.fillColor('#94A3B8')
     .fontSize(8)
     .font('Helvetica')
-    .text(footerBrand, 50, 765, {
+    .text(footerBrand, 50, FOOTER_TOP + 10, {
       width: 430,
       align: 'left',
       lineBreak: false,
     });
 
-  doc.roundedRect(515, 760, 26, 18, 5).fill(THEME.royal);
+  doc.roundedRect(515, FOOTER_TOP + 5, 26, 18, 5).fill(THEME.royal);
 
   doc.fillColor('#FFFFFF')
     .fontSize(8)
     .font('Helvetica-Bold')
-    .text(String(pageNo), 515, 765, {
+    .text(String(pageNo), 515, FOOTER_TOP + 10, {
       width: 26,
       align: 'center',
       lineBreak: false,
     });
 
   doc.restore();
+};
+
+const setPageContext = (title, subtitle = '') => {
+  currentPageTitle = title;
+  currentPageSubtitle = subtitle;
+};
+
+const drawPageHeader = (title = currentPageTitle, subtitle = currentPageSubtitle) => {
+  setPageContext(title, subtitle);
+
+  doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
+  doc.rect(0, 0, pageW, 95).fill(THEME.navy);
+
+  doc.fillColor('#FFFFFF')
+    .fontSize(22)
+    .font('Helvetica-Bold')
+    .text(title, 50, 34);
+
+  if (subtitle) {
+    doc.fillColor('#CBD5E1')
+      .fontSize(9)
+      .font('Helvetica')
+      .text(subtitle, 50, 62);
+  }
+
+  doc.y = PAGE_CONTENT_TOP;
+};
+
+const addReportPage = (title, subtitle = '') => {
+  doc.addPage();
+  drawPageHeader(title, subtitle);
+};
+
+const ensurePageSpace = (requiredHeight) => {
+  const currentY = Number.isFinite(doc.y) ? doc.y : PAGE_CONTENT_TOP;
+
+  if (currentY + requiredHeight <= CONTENT_BOTTOM) return false;
+
+  drawFooter(pageNo++);
+  addReportPage(currentPageTitle, currentPageSubtitle ? `${currentPageSubtitle} continued` : 'Continued');
+  return true;
 };
 
 const drawLineChart = (doc, rows, options, currency = 'INR') => {
