@@ -45,12 +45,8 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
     return null;
   }
 
-  const periodDays = Math.round((end - start) / 86400000) + 1;
-  const previousEnd = new Date(start);
-  previousEnd.setUTCDate(previousEnd.getUTCDate() - 1);
-
-  const previousStart = new Date(previousEnd);
-  previousStart.setUTCDate(previousStart.getUTCDate() - periodDays + 1);
+  const previousStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 1, 1));
+  const previousEnd = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 0));
 
   return {
     start: previousStart.toISOString().slice(0, 10),
@@ -107,6 +103,13 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
         if (!clientId) {
           return res.status(400).json({ error: 'clientId required' });
         }
+        if (!dateStart || !dateEnd) {
+          return res.status(400).json({ error: 'dateStart and dateEnd are required' });
+        }
+
+        if (new Date(dateEnd) < new Date(dateStart)) {
+          return res.status(400).json({ error: 'dateEnd must be on or after dateStart' });
+        }
     // Fetch metrics
    let whereClause = `
      WHERE pd.client_id = $1
@@ -117,12 +120,12 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
    let idx = 2;
 
    if (dateStart) {
-     whereClause += ` AND COALESCE(pd.date_range_end, pd.report_month) >= $${idx++}::date`;
+     whereClause += ` AND COALESCE(pd.date_range_start, pd.report_month) >= $${idx++}::date`;
      params.push(dateStart);
    }
 
    if (dateEnd) {
-     whereClause += ` AND COALESCE(pd.date_range_start, pd.report_month) <= $${idx++}::date`;
+     whereClause += ` AND COALESCE(pd.date_range_end, pd.report_month) <= $${idx++}::date`;
      params.push(dateEnd);
    }
 
@@ -146,7 +149,15 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
          SUM(COALESCE(clicks, 0)) as clicks,
          SUM(COALESCE(conversions, 0)) as conversions,
          SUM(COALESCE(revenue, 0)) as revenue,
-         SUM(COALESCE(reach, 0)) as reach,
+         CASE WHEN COUNT(*) = 1
+           THEN MAX(COALESCE(reach, 0))
+           ELSE NULL END as reach,
+         BOOL_OR(COALESCE(raw_data->'mapping' ? 'spend', false) OR COALESCE(spend, 0) > 0) as has_spend_field,
+         BOOL_OR(COALESCE(raw_data->'mapping' ? 'reach', false) OR COALESCE(reach, 0) > 0) as has_reach_field,
+         BOOL_OR(COALESCE(raw_data->'mapping' ? 'impressions', false) OR COALESCE(impressions, 0) > 0) as has_impressions_field,
+         BOOL_OR(COALESCE(raw_data->'mapping' ? 'clicks', false) OR COALESCE(clicks, 0) > 0) as has_clicks_field,
+         BOOL_OR(COALESCE(raw_data->'mapping' ? 'conversions', false) OR COALESCE(conversions, 0) > 0) as has_conversions_field,
+         BOOL_OR(COALESCE(raw_data->'mapping' ? 'revenue', false) OR COALESCE(revenue, 0) > 0) as has_revenue_field,
          CASE WHEN SUM(COALESCE(impressions, 0)) > 0
            THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100
            ELSE 0 END as ctr,
@@ -190,7 +201,8 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
        params
      ),
    db.query(
-     `SELECT
+       `SELECT
+         COALESCE(pd.campaign_id::text, LOWER(TRIM(pd.external_campaign_name))) AS campaign_key,
          COALESCE(
            NULLIF(TRIM(c.name), ''),
            NULLIF(TRIM(pd.external_campaign_name), '')
@@ -231,6 +243,7 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
          'name n/a'
        )
        GROUP BY
+         COALESCE(pd.campaign_id::text, LOWER(TRIM(pd.external_campaign_name))),
          COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')),
          pd.platform
        HAVING
@@ -299,6 +312,7 @@ let agencyLogoBuffer = null;
 const summary = summaryResult.rows[0];
 
 const trends = trendsResult.rows;
+const displayedTrends = trends.slice(-6);
 const platforms = platformsResult.rows;
 
 const rawCampaigns = campaignsResult.rows || [];
@@ -309,7 +323,7 @@ const totalCampaignSpend = campaigns.reduce(
   0
 );
 
-const hasTrendChart = trends.length > 1;
+const hasTrendChart = displayedTrends.length > 1;
 const hasCampaignChart = campaigns.length > 0;
 
     // const aiInsight = aiInsightResult.rows[0] || null;
@@ -321,8 +335,8 @@ const hasCampaignChart = campaigns.length > 0;
       let previousWhereClause = `
         WHERE client_id = $1
         AND external_campaign_name = 'aggregate'
-        AND COALESCE(date_range_end, report_month) >= $2::date
-        AND COALESCE(date_range_start, report_month) <= $3::date
+        AND COALESCE(date_range_start, report_month) >= $2::date
+        AND COALESCE(date_range_end, report_month) <= $3::date
       `;
       const previousParams = [clientId, previousRange.start, previousRange.end];
 
@@ -334,7 +348,9 @@ const hasCampaignChart = campaigns.length > 0;
       const previousResult = await db.query(
         `SELECT
            SUM(COALESCE(spend, 0)) as spend,
-           SUM(COALESCE(reach, 0)) as reach,
+           CASE WHEN COUNT(*) = 1
+             THEN MAX(COALESCE(reach, 0))
+             ELSE NULL END as reach,
            SUM(COALESCE(impressions, 0)) as impressions,
            SUM(COALESCE(clicks, 0)) as clicks,
            SUM(COALESCE(conversions, 0)) as conversions,
@@ -427,10 +443,18 @@ const safeSummary = {
   roas: Number(summary?.roas ?? 0),
   revenue: Number(summary?.revenue ?? 0),
 
-  hasClicks: Number(summary?.clicks ?? 0) > 0,
-  hasRevenue: Number(summary?.revenue ?? 0) > 0,
-  hasImpressions: Number(summary?.impressions ?? 0) > 0,
+  hasSpend: Boolean(summary?.has_spend_field) || Number(summary?.spend ?? 0) > 0,
+  hasReach: Boolean(summary?.has_reach_field) || Number(summary?.reach ?? 0) > 0,
+  hasClicks: Boolean(summary?.has_clicks_field) || Number(summary?.clicks ?? 0) > 0,
+  hasRevenue: Boolean(summary?.has_revenue_field) || Number(summary?.revenue ?? 0) > 0,
+  hasImpressions: Boolean(summary?.has_impressions_field) || Number(summary?.impressions ?? 0) > 0,
+  hasConversions: Boolean(summary?.has_conversions_field) || Number(summary?.conversions ?? 0) > 0,
 };
+
+safeSummary.hasCpa = safeSummary.hasSpend && safeSummary.hasConversions && safeSummary.conversions > 0;
+safeSummary.hasCpc = safeSummary.hasSpend && safeSummary.hasClicks && safeSummary.clicks > 0;
+safeSummary.hasCtr = safeSummary.hasClicks && safeSummary.hasImpressions;
+safeSummary.hasRoas = safeSummary.hasSpend && safeSummary.hasRevenue;
 
 const calcChange = (current, previous) => {
   const curr = Number(current || 0);
@@ -519,11 +543,11 @@ doc.fillColor(THEME.text)
 
 
 const reportSummaryText =
-  `During the selected reporting period, ${client.name} generated ${formatNum(safeSummary.conversions)} leads/results with total ad spend of ${formatCurrency(safeSummary.spend, currency)}. ` +
-  `The average cost per lead/result was ${formatCurrency(safeSummary.cpa, currency)}. ` +
-  `${safeSummary.reach > 0 ? `The campaigns reached ${formatNum(safeSummary.reach)} people and delivered ${formatNum(safeSummary.impressions)} impressions. ` : ''}` +
-  `${safeSummary.hasClicks ? `Click data was available, with ${formatNum(safeSummary.clicks)} clicks and CTR of ${formatPct(safeSummary.ctr)}. ` : 'Click and CTR data were not present in the uploaded report, so engagement performance cannot be evaluated from this export. '}` +
-  `${safeSummary.hasRevenue ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS of ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue and ROAS were not included in the uploaded report, so return on ad spend cannot be evaluated from this export.'}`;
+  `During the selected reporting period, ${client.name} generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results with total ad spend of ${formatCurrency(safeSummary.spend, currency)}. ` +
+  `${safeSummary.hasCpa ? `The average cost per lead/result was ${formatCurrency(safeSummary.cpa, currency)}. ` : 'Cost per lead/result could not be calculated from the available source fields. '}` +
+  `${safeSummary.hasReach && safeSummary.reach > 0 ? `The campaigns reached ${formatNum(safeSummary.reach)} people and delivered ${formatNum(safeSummary.impressions)} impressions. ` : ''}` +
+  `${safeSummary.hasCtr ? `Click data was available, with ${formatNum(safeSummary.clicks)} clicks and CTR of ${formatPct(safeSummary.ctr)}. ` : 'Click and CTR data were not present in the uploaded report, so engagement performance cannot be evaluated from this export. '}` +
+  `${safeSummary.hasRoas ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS of ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue and ROAS were not included in the uploaded report, so return on ad spend cannot be evaluated from this export.'}`;
 
 const reportTitle = customTitle || title || 'Marketing Performance Report';
 
@@ -985,21 +1009,50 @@ if (isAgencyPlan) {
 
 let performanceScore = 0;
 
-if (safeSummary.conversions > 0) performanceScore += 30;
+const leadVolumeScore = safeSummary.hasConversions
+  ? safeSummary.conversions > 0
+    ? 30
+    : 0
+  : null;
 
-if (safeSummary.cpa > 0 && safeSummary.cpa <= 100) performanceScore += 25;
-else if (safeSummary.cpa > 0 && safeSummary.cpa <= 500) performanceScore += 15;
-else if (safeSummary.cpa > 0) performanceScore += 8;
+const costEfficiencyScore = safeSummary.hasCpa
+  ? safeSummary.cpa <= 100
+    ? 25
+    : safeSummary.cpa <= 500
+    ? 15
+    : 8
+  : null;
 
-if (safeSummary.hasClicks && safeSummary.ctr >= 2) performanceScore += 20;
-else if (safeSummary.hasClicks && safeSummary.ctr >= 1) performanceScore += 12;
-else if (safeSummary.hasClicks) performanceScore += 5;
+const engagementScore = safeSummary.hasCtr
+  ? safeSummary.ctr >= 2
+    ? 20
+    : safeSummary.ctr >= 1
+    ? 12
+    : 5
+  : null;
 
-if (safeSummary.hasRevenue && safeSummary.roas >= 3) performanceScore += 25;
-else if (safeSummary.hasRevenue && safeSummary.roas >= 1) performanceScore += 15;
-else if (safeSummary.hasRevenue) performanceScore += 5;
+const revenueTrackingScore = safeSummary.hasRoas
+  ? safeSummary.roas >= 3
+    ? 25
+    : safeSummary.roas >= 1
+    ? 15
+    : 5
+  : null;
 
-performanceScore = Math.min(100, performanceScore);
+const performanceScoreItems = [
+  { score: leadVolumeScore, max: 30 },
+  { score: costEfficiencyScore, max: 25 },
+  { score: engagementScore, max: 20 },
+  { score: revenueTrackingScore, max: 25 },
+].filter((item) => item.score !== null);
+
+const availableScore = performanceScoreItems.reduce((sum, item) => sum + item.score, 0);
+const availableScoreMax = performanceScoreItems.reduce((sum, item) => sum + item.max, 0);
+
+performanceScore =
+  availableScoreMax > 0
+    ? Math.min(100, Math.round((availableScore / availableScoreMax) * 100))
+    : 0;
 
 let performanceGrade = 'Needs Improvement';
 let scoreLabel = 'Needs Improvement';
@@ -1036,7 +1089,7 @@ doc.fillColor(THEME.text)
   .fontSize(9)
   .font('Helvetica-Bold')
   .text(
-    `Key Takeaway: Generated ${formatNum(safeSummary.conversions)} leads at ${formatCurrency(safeSummary.cpa, currency)} CPL from total spend of ${formatCurrency(safeSummary.spend, currency)}.`,
+    `Key Takeaway: Generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads at ${safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'} CPL from total spend of ${formatCurrency(safeSummary.spend, currency)}.`,
     85,
     240,
     {
@@ -1100,7 +1153,7 @@ const metrics = [
   },
   {
     label: 'Reach',
-    value: safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'Not Provided',
+    value: safeSummary.hasReach && safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'Not Provided',
     description: 'Unique people reached',
     growth: growth.reach,
     color: THEME.violet,
@@ -1116,7 +1169,7 @@ const metrics = [
   },
   {
     label: 'Leads / Results',
-    value: formatNum(safeSummary.conversions),
+    value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'Not Available',
     description: 'Total leads/results generated',
     growth: growth.conversions,
     color: THEME.emerald,
@@ -1124,7 +1177,7 @@ const metrics = [
   },
   {
     label: 'Cost / Lead',
-    value: formatCurrency(safeSummary.cpa, currency),
+    value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A',
     description: 'Average cost per lead/result',
     growth: growth.cpa,
     color: THEME.amber,
@@ -1140,25 +1193,25 @@ const metrics = [
   },
   {
     label: 'CTR',
-    value: safeSummary.hasClicks ? formatPct(safeSummary.ctr) : 'Not Available',
-    note: safeSummary.hasClicks ? growth.ctr : 'Requires clicks data',
-    growth: safeSummary.hasClicks ? growth.ctr : null,
+    value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'Not Available',
+    note: safeSummary.hasCtr ? growth.ctr : 'Requires clicks and impressions data',
+    growth: safeSummary.hasCtr ? growth.ctr : null,
     color: THEME.violet,
     bg: THEME.softPurple,
   },
   {
     label: 'CPC',
-    value: safeSummary.hasClicks ? formatCurrency(safeSummary.cpc, currency) : 'Not Available',
-    note: safeSummary.hasClicks ? growth.cpc : 'Requires clicks data',
-    growth: safeSummary.hasClicks ? growth.cpc : null,
+    value: safeSummary.hasCpc ? formatCurrency(safeSummary.cpc, currency) : 'Not Available',
+    note: safeSummary.hasCpc ? growth.cpc : 'Requires spend and clicks data',
+    growth: safeSummary.hasCpc ? growth.cpc : null,
     color: THEME.rose,
     bg: THEME.softRose,
   },
   {
     label: 'ROAS',
-    value: safeSummary.hasRevenue ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available',
-    note: safeSummary.hasRevenue ? growth.roas : 'Requires revenue data',
-    growth: safeSummary.hasRevenue ? growth.roas : null,
+    value: safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available',
+    note: safeSummary.hasRoas ? growth.roas : 'Requires spend and revenue data',
+    growth: safeSummary.hasRoas ? growth.roas : null,
     color: THEME.royal,
     bg: THEME.softBlue,
   },
@@ -1185,65 +1238,46 @@ metrics.forEach((m, i) => {
 // DATA AVAILABILITY SUMMARY
 // ===============================
 
-const availableMetrics = [];
-const missingMetrics = [];
+const metricAvailability = [
+  { label: 'Spend', available: safeSummary.hasSpend },
+  { label: 'Reach', available: safeSummary.hasReach },
+  { label: 'Impressions', available: safeSummary.hasImpressions },
+  { label: 'Clicks', available: safeSummary.hasClicks },
+  { label: 'CTR', available: safeSummary.hasCtr },
+  { label: 'CPC', available: safeSummary.hasCpc },
+  { label: 'Leads', available: safeSummary.hasConversions },
+  { label: 'CPA', available: safeSummary.hasCpa },
+  { label: 'Revenue', available: safeSummary.hasRevenue },
+  { label: 'ROAS', available: safeSummary.hasRoas },
+];
 
-if (safeSummary.spend > 0) availableMetrics.push('Spend');
-if (safeSummary.reach > 0) availableMetrics.push('Reach');
-if (safeSummary.hasImpressions) availableMetrics.push('Impressions');
-if (safeSummary.conversions > 0) availableMetrics.push('Leads');
+const availableMetrics = metricAvailability
+  .filter((metric) => metric.available)
+  .map((metric) => metric.label);
 
-if (!safeSummary.hasClicks) {
-  missingMetrics.push('Clicks');
-  missingMetrics.push('CTR');
-  missingMetrics.push('CPC');
-}
-
-if (!safeSummary.hasRevenue) {
-  missingMetrics.push('Revenue');
-  missingMetrics.push('ROAS');
-}
+const missingMetrics = metricAvailability
+  .filter((metric) => !metric.available)
+  .map((metric) => metric.label);
 
 const scoreBreakdown = [
   {
     label: 'Lead Volume',
-    score: safeSummary.conversions > 0 ? 30 : 0,
+    score: leadVolumeScore,
     max: 30,
   },
   {
     label: 'Cost Efficiency',
-    score:
-      safeSummary.cpa > 0 && safeSummary.cpa <= 100
-        ? 25
-        : safeSummary.cpa > 0 && safeSummary.cpa <= 500
-        ? 15
-        : safeSummary.cpa > 0
-        ? 8
-        : 0,
+    score: costEfficiencyScore,
     max: 25,
   },
   {
     label: 'Engagement',
-    score:
-      safeSummary.hasClicks && safeSummary.ctr >= 2
-        ? 20
-        : safeSummary.hasClicks && safeSummary.ctr >= 1
-        ? 12
-        : safeSummary.hasClicks
-        ? 5
-        : 0,
+    score: engagementScore,
     max: 20,
   },
   {
     label: 'Revenue Tracking',
-    score:
-      safeSummary.hasRevenue && safeSummary.roas >= 3
-        ? 25
-        : safeSummary.hasRevenue && safeSummary.roas >= 1
-        ? 15
-        : safeSummary.hasRevenue
-        ? 5
-        : 0,
+    score: revenueTrackingScore,
     max: 25,
   },
 ];
@@ -1269,7 +1303,7 @@ drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
    doc.fillColor(THEME.text)
      .fontSize(8.8)
      .font('Helvetica-Bold')
-     .text(`${item.score}/${item.max}`, x, 682, {
+     .text(item.score === null ? 'N/A' : `${item.score}/${item.max}`, x, 682, {
        width: 75,
        align: 'center',
      });
@@ -1340,7 +1374,7 @@ doc.fillColor('#CBD5E1')
   .font('Helvetica')
   .text(`${client.name} | ${dateLabel}`, 50, 62);
 
-if (trends.length > 0) {
+if (displayedTrends.length > 0) {
   drawCard(35, 120, 525, 185, THEME.card, THEME.border);
   drawSectionTitle('Monthly Performance Trends', 55, 140, THEME.royal);
 
@@ -1361,7 +1395,7 @@ if (trends.length > 0) {
 
   tY += 28;
 
-  trends.slice(0, 6).forEach((row, idx) => {
+  displayedTrends.forEach((row, idx) => {
     const bg = idx % 2 === 0 ? '#F8FAFC' : '#EEF2FF';
     doc.roundedRect(55, tY, 485, 24, 5).fill(bg);
 
@@ -1405,10 +1439,10 @@ doc.fillColor(THEME.text)
   .text('Data Availability Notes', 55, 450);
 
 const dataNotes = [
-  safeSummary.hasClicks
+  safeSummary.hasCtr
     ? 'Click, CTR and CPC metrics are available.'
     : 'Click, CTR and CPC metrics are unavailable because click data was not included in the source file.',
-  safeSummary.hasRevenue
+  safeSummary.hasRoas
     ? 'Revenue and ROAS metrics are available.'
     : 'Revenue and ROAS metrics are unavailable because revenue data was not included in the source file.',
   hasTrendChart
@@ -1534,7 +1568,7 @@ drawFooter(pageNo++);
 
    drawLineChart(
      doc,
-     trends,
+     displayedTrends,
      {
        x: 55,
        y: 145,
@@ -1706,13 +1740,13 @@ doc.fillColor('#FFFFFF')
     [
       {
         label: 'Total Leads',
-        value: formatNum(safeSummary.conversions),
+        value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A',
         color: THEME.emerald,
         bg: THEME.softGreen,
       },
       {
         label: 'Cost / Lead',
-        value: formatCurrency(safeSummary.cpa, currency),
+        value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A',
         color: THEME.amber,
         bg: THEME.softAmber,
       },
@@ -1724,7 +1758,7 @@ doc.fillColor('#FFFFFF')
       },
       {
         label: 'CTR',
-        value: safeSummary.hasClicks ? formatPct(safeSummary.ctr) : 'N/A',
+        value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A',
         color: THEME.violet,
         bg: THEME.softPurple,
       },
@@ -1733,12 +1767,12 @@ doc.fillColor('#FFFFFF')
     125
   );
 
-  if (trends.length > 0) {
+  if (displayedTrends.length > 0) {
     drawCard(35, 235, 525, 250, THEME.card, THEME.border);
 
     drawNumberBarChart(
       doc,
-      trends,
+      displayedTrends,
       {
         x: 55,
         y: 255,
@@ -1771,7 +1805,9 @@ doc.fillColor('#FFFFFF')
     {
       label: 'Lead Volume',
       value:
-        safeSummary.conversions >= 1000
+        !safeSummary.hasConversions
+          ? 'N/A'
+          : safeSummary.conversions >= 1000
           ? 'Strong'
           : safeSummary.conversions >= 300
           ? 'Good'
@@ -1781,7 +1817,9 @@ doc.fillColor('#FFFFFF')
     {
       label: 'Cost Efficiency',
       value:
-        safeSummary.cpa <= 100
+        !safeSummary.hasCpa
+          ? 'N/A'
+          : safeSummary.cpa <= 100
           ? 'Good'
           : safeSummary.cpa <= 500
           ? 'Average'
@@ -1791,7 +1829,9 @@ doc.fillColor('#FFFFFF')
     {
       label: 'Engagement',
       value:
-        safeSummary.ctr >= 2
+        !safeSummary.hasCtr
+          ? 'N/A'
+          : safeSummary.ctr >= 2
           ? 'Strong'
           : safeSummary.ctr >= 1
           ? 'Average'
@@ -1800,8 +1840,8 @@ doc.fillColor('#FFFFFF')
     },
     {
       label: 'Tracking',
-      value: safeSummary.hasRevenue ? 'Complete' : 'Revenue Missing',
-      color: safeSummary.hasRevenue ? THEME.emerald : THEME.rose,
+      value: safeSummary.hasRoas ? 'Complete' : 'Revenue Missing',
+      color: safeSummary.hasRoas ? THEME.emerald : THEME.rose,
     },
   ];
 
@@ -1850,24 +1890,24 @@ doc.fillColor('#CBD5E1')
   .text('Simple view of how audience activity converted into leads', 50, 62);
 
 const avgFrequency =
-  safeSummary.reach > 0
+  safeSummary.hasReach && safeSummary.reach > 0
     ? safeSummary.impressions / safeSummary.reach
     : 0;
 
 const clickRate =
-  safeSummary.impressions > 0
+  safeSummary.hasCtr && safeSummary.impressions > 0
     ? (safeSummary.clicks / safeSummary.impressions) * 100
     : 0;
 
 const leadRate =
-  safeSummary.clicks > 0
+  safeSummary.hasClicks && safeSummary.clicks > 0
     ? (safeSummary.conversions / safeSummary.clicks) * 100
     : 0;
 
 const funnelItems = [
   {
     label: 'Reach',
-    value: safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'N/A',
+    value: safeSummary.hasReach && safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'N/A',
     note: 'People reached',
     color: THEME.royal,
     bg: THEME.softBlue,
@@ -1888,7 +1928,7 @@ const funnelItems = [
   },
   {
     label: 'Leads',
-    value: formatNum(safeSummary.conversions),
+    value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A',
     note: 'Final results generated',
     color: THEME.emerald,
     bg: THEME.softGreen,
@@ -1932,9 +1972,9 @@ funnelItems.forEach((item, i) => {
 
  if (i < funnelItems.length - 1) {
    const rates = [
-     `Avg Frequency: ${formatNum(avgFrequency, 2)}x`,
-     `Click Rate: ${formatPct(clickRate)}`,
-     `Lead Rate: ${formatPct(leadRate)}`,
+     `Avg Frequency: ${safeSummary.hasReach && safeSummary.hasImpressions ? `${formatNum(avgFrequency, 2)}x` : 'N/A'}`,
+     `Click Rate: ${safeSummary.hasCtr ? formatPct(clickRate) : 'N/A'}`,
+     `Lead Rate: ${safeSummary.hasClicks && safeSummary.hasConversions ? formatPct(leadRate) : 'N/A'}`,
    ];
 
    doc.fillColor('#94A3B8')
@@ -1997,7 +2037,10 @@ doc.fillColor('#CBD5E1')
   .text('Platform-wise spend distribution and leads performance', 50, 62);
 
 const activePlatforms = platforms.filter(
-  (p) => Number(p.spend || 0) > 0
+  (p) =>
+    Number(p.spend || 0) > 0 ||
+    Number(p.clicks || 0) > 0 ||
+    Number(p.conversions || 0) > 0
 );
 const topPlatform =
   activePlatforms.length > 0
@@ -2026,8 +2069,8 @@ if (activePlatforms.length > 1) {
 if (topPlatform) {
   const topPlatformCpl =
     Number(topPlatform.conversions || 0) > 0
-      ? Number(topPlatform.spend || 0) / Number(topPlatform.conversions || 0)
-      : 0;
+      ? formatCurrency(Number(topPlatform.spend || 0) / Number(topPlatform.conversions || 0), currency)
+      : 'N/A';
 
   drawCard(35, 375, 525, 55, THEME.softBlue, '#BFDBFE');
 
@@ -2040,7 +2083,7 @@ if (topPlatform) {
     .fontSize(12)
     .font('Helvetica-Bold')
     .text(
-      `${String(topPlatform.platform || 'Platform').toUpperCase()} generated ${formatNum(topPlatform.conversions)} leads at ${formatCurrency(topPlatformCpl, currency)} cost/lead.`,
+      `${String(topPlatform.platform || 'Platform').toUpperCase()} generated ${formatNum(topPlatform.conversions)} leads at ${topPlatformCpl} cost/lead.`,
       55,
       407,
       { width: 485 }
@@ -2096,11 +2139,12 @@ drawMiniMetricCards(
     },
     {
       label: 'Cost/Lead',
-      value: formatCurrency(
-        Number(onlyPlatform.spend || 0) /
-          Math.max(Number(onlyPlatform.conversions || 0), 1),
-        currency
-      ),
+      value: Number(onlyPlatform.conversions || 0) > 0
+        ? formatCurrency(
+            Number(onlyPlatform.spend || 0) / Number(onlyPlatform.conversions || 0),
+            currency
+          )
+        : 'N/A',
       color: THEME.rose,
       bg: THEME.softRose,
     },
@@ -2177,17 +2221,10 @@ doc.fillColor('#CBD5E1')
   .font('Helvetica')
   .text('Business-oriented observations and next actions', 50, 62);
 
-  let availableFields = 0;
-
-  if (safeSummary.spend > 0) availableFields++;
-  if (safeSummary.reach > 0) availableFields++;
-  if (safeSummary.impressions > 0) availableFields++;
-  if (safeSummary.clicks > 0) availableFields++;
-  if (safeSummary.conversions > 0) availableFields++;
-  if (safeSummary.revenue > 0) availableFields++;
+  const availableFields = metricAvailability.filter((metric) => metric.available).length;
 
   const completenessScore =
-    Math.round((availableFields / 6) * 100);
+    Math.round((availableFields / metricAvailability.length) * 100);
 
 // Insight stat cards
 const insightCards = [
@@ -2200,14 +2237,14 @@ const insightCards = [
   },
   {
     title: 'Lead Volume',
-    value: formatNum(safeSummary.conversions),
+    value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A',
     desc: 'Total leads/results generated from active campaigns.',
     bg: THEME.softGreen,
     color: THEME.emerald,
   },
   {
     title: 'Cost per Lead',
-    value: formatCurrency(safeSummary.cpa, currency),
+    value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A',
     desc: 'Average cost required to generate one lead/result.',
     bg: THEME.softAmber,
     color: THEME.amber,
@@ -2283,16 +2320,16 @@ doc.fillColor(THEME.muted)
       .text('Top KPI Summary', 55, 510);
 
     const bestMetric =
-      safeSummary.conversions > 0 && safeSummary.cpa <= 100
+      safeSummary.hasCpa && safeSummary.conversions > 0 && safeSummary.cpa <= 100
         ? 'Lead Efficiency'
-        : safeSummary.hasClicks
+        : safeSummary.hasCtr
         ? 'Engagement Tracking'
         : 'Spend Tracking';
 
     const weakestMetric =
-      !safeSummary.hasRevenue
+      !safeSummary.hasRoas
         ? 'Revenue Tracking'
-        : safeSummary.ctr < 1
+        : safeSummary.hasCtr && safeSummary.ctr < 1
         ? 'Click-Through Rate'
         : 'Campaign Scaling';
 
@@ -2301,7 +2338,7 @@ doc.fillColor(THEME.muted)
       .font('Helvetica')
       .text(
         `Best Metric: ${bestMetric}   |   Weakest Metric: ${weakestMetric}   |   Spend Efficiency: ${
-          safeSummary.cpa <= 100 ? 'Good' : safeSummary.cpa <= 500 ? 'Average' : 'Needs Work'
+          safeSummary.hasCpa ? (safeSummary.cpa <= 100 ? 'Good' : safeSummary.cpa <= 500 ? 'Average' : 'Needs Work') : 'N/A'
         }`,
         55,
         535,
@@ -2314,18 +2351,18 @@ doc.fillColor(THEME.muted)
 
 // Clean Insight Sections
 const whatsWorking = [
-  `${formatNum(safeSummary.conversions)} leads/results generated.`,
-  `Average cost per lead is ${formatCurrency(safeSummary.cpa, currency)}.`,
-  safeSummary.hasClicks
+  `${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results generated.`,
+  `Average cost per lead is ${safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'}.`,
+  safeSummary.hasCtr
     ? `CTR is ${formatPct(safeSummary.ctr)} from ${formatNum(safeSummary.clicks)} clicks.`
     : 'Lead data is available, but click data is missing.',
 ];
 
 const needsAttention = [
-  !safeSummary.hasRevenue
+  !safeSummary.hasRoas
     ? 'Revenue and ROAS are missing, so profit quality cannot be measured.'
     : `ROAS is ${formatNum(safeSummary.roas, 2)}x.`,
-  !safeSummary.hasClicks
+  !safeSummary.hasCpc
     ? 'Clicks, CTR and CPC should be included in future exports.'
     : `CPC is ${formatCurrency(safeSummary.cpc, currency)}.`,
 
@@ -2423,13 +2460,13 @@ if (isAgencyPlan) {
       },
       {
         label: 'Total Leads',
-        value: formatNum(safeSummary.conversions),
+        value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A',
         color: THEME.emerald,
         bg: THEME.softGreen,
       },
       {
         label: 'Avg CPL',
-        value: formatCurrency(safeSummary.cpa, currency),
+        value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A',
         color: THEME.amber,
         bg: THEME.softAmber,
       },
@@ -2457,7 +2494,7 @@ if (isAgencyPlan) {
     .fontSize(9)
     .font('Helvetica')
     .text(
-      safeSummary.hasRevenue
+      safeSummary.hasRoas
         ? 'Campaign performance should be reviewed using both cost efficiency and revenue return before increasing budget.'
         : 'Lead generation is active, but revenue tracking is missing. Add revenue or qualified lead value before making final budget scaling decisions.',
       55,
@@ -2479,7 +2516,7 @@ if (isAgencyPlan) {
     .fontSize(9)
     .font('Helvetica')
     .text(
-      `${client.name} generated ${formatNum(safeSummary.conversions)} leads at ${formatCurrency(safeSummary.cpa, currency)} average CPL. The report is suitable for client review, with the main improvement area being revenue/ROI tracking.`,
+      `${client.name} generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads at ${safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'} average CPL. The report is suitable for client review, with the main improvement area being revenue/ROI tracking.`,
       55,
       575,
       {
@@ -2515,7 +2552,7 @@ doc.fillColor('#CBD5E1')
 const actionItems = [
   {
     title: 'Improve Tracking',
-    desc: safeSummary.hasRevenue
+    desc: safeSummary.hasRoas
       ? 'Continue tracking revenue and conversion quality for each campaign.'
       : 'Add revenue, purchase value or qualified-lead value in the next upload to calculate ROAS.',
     color: THEME.royal,
@@ -2537,7 +2574,7 @@ const actionItems = [
   },
   {
     title: 'Test Creatives',
-    desc: safeSummary.hasClicks
+    desc: safeSummary.hasCtr
       ? 'CTR is available, so test new creatives and monitor which ads improve click-through rate.'
       : 'Add click data in future exports to measure ad engagement and creative performance.',
     color: THEME.amber,
@@ -2585,7 +2622,7 @@ doc.fillColor(THEME.muted)
   .fontSize(8.5)
   .font('Helvetica')
   .text(
-    safeSummary.hasRevenue
+    safeSummary.hasRoas
       ? 'Focus on scaling only the campaigns that maintain strong cost efficiency and revenue quality.'
       : 'First priority should be adding revenue/qualified lead tracking so future reports can measure true ROI.',
     55,
@@ -2621,8 +2658,8 @@ doc.fillColor('#CBD5E1')
   .text('Final business summary for quick decision making', 50, 62);
 
 const bestPlatformName =
-  activePlatforms.length > 0
-    ? String(activePlatforms[0].platform || 'Platform').toUpperCase()
+  topPlatform
+    ? String(topPlatform.platform || 'Platform').toUpperCase()
     : 'N/A';
 
 const executiveCards = [
@@ -2634,13 +2671,13 @@ const executiveCards = [
   },
   {
     label: 'Total Leads',
-    value: formatNum(safeSummary.conversions),
+    value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A',
     color: THEME.emerald,
     bg: THEME.softGreen,
   },
   {
     label: 'Average CPL',
-    value: formatCurrency(safeSummary.cpa, currency),
+    value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A',
     color: THEME.amber,
     bg: THEME.softAmber,
   },
@@ -2652,13 +2689,13 @@ const executiveCards = [
   },
   {
     label: 'CTR',
-    value: safeSummary.hasClicks ? formatPct(safeSummary.ctr) : 'N/A',
+    value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A',
     color: THEME.cyan,
     bg: '#ECFEFF',
   },
   {
     label: 'ROAS',
-    value: safeSummary.hasRevenue ? `${formatNum(safeSummary.roas, 2)}x` : 'N/A',
+    value: safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'N/A',
     color: THEME.rose,
     bg: THEME.softRose,
   },
@@ -2700,8 +2737,8 @@ doc.fillColor(THEME.muted)
   .fontSize(9)
   .font('Helvetica')
   .text(
-    `The campaigns generated ${formatNum(safeSummary.conversions)} leads with an average cost per lead of ${formatCurrency(safeSummary.cpa, currency)}. ${
-      safeSummary.hasRevenue
+    `The campaigns generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads with an average cost per lead of ${safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'}. ${
+      safeSummary.hasRoas
         ? `Tracked ROAS was ${formatNum(safeSummary.roas, 2)}x.`
         : 'Revenue data was not available, so profitability and ROAS cannot be confirmed.'
     } Focus should remain on improving lead quality, tracking revenue, and scaling the strongest-performing campaigns carefully.`,
@@ -2724,7 +2761,7 @@ doc.fillColor(THEME.muted)
   .fontSize(9)
   .font('Helvetica')
   .text(
-    safeSummary.hasRevenue
+    safeSummary.hasRoas
       ? 'Optimize campaigns with high cost per lead, improve CTR with better creatives, and scale campaigns that maintain strong ROAS.'
       : 'Add revenue or purchase value data in the next upload so the report can show ROAS, profit quality, and true campaign return.',
     55,
@@ -2746,7 +2783,7 @@ doc.fillColor(THEME.muted)
   .fontSize(8.5)
   .font('Helvetica')
   .text(
-    safeSummary.hasRevenue
+    safeSummary.hasRoas
       ? 'Continue optimizing campaigns based on CPL, ROAS and lead quality before scaling budget.'
       : 'Campaigns are generating leads, but revenue tracking must be added before final ROI decisions.',
     190,
@@ -2775,7 +2812,7 @@ drawFooter(pageNo++);
          VALUES ($1,$2,$3,$4,$5,$6,$7)`,
         [clientId, req.user.agency_id, req.user.id,
          customTitle || title || `Report - ${client.name}`,
-         dateStart || new Date(), dateEnd || new Date(), fileUrl]
+         dateStart, dateEnd, fileUrl]
       );
 
       res.json({ url: fileUrl, fileName });
