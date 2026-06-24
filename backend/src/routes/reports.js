@@ -381,6 +381,7 @@ const totalCampaignSpend = campaigns.reduce(
 
 const hasTrendChart = displayedTrends.length > 1;
 const hasCampaignChart = campaigns.length > 0;
+const campaignDisplayRows = campaigns.slice(0, 6);
 
 const bestCampaign = campaigns.length > 0
   ? [...campaigns].sort((a, b) => {
@@ -1433,12 +1434,12 @@ const scoreBreakdown = [
   },
 ];
 
-drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
+drawCard(35, 640, 525, 48, '#FFFFFF', '#BFDBFE');
 
  doc.fillColor(THEME.text)
    .fontSize(10)
    .font('Helvetica-Bold')
-   .text('Score Breakdown', 55, 665);
+   .text('Score Breakdown', 55, 655);
 
  scoreBreakdown.forEach((item, i) => {
    const x = 160 + i * 92;
@@ -1446,7 +1447,7 @@ drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
    doc.fillColor(THEME.muted)
      .fontSize(6.3)
      .font('Helvetica-Bold')
-     .text(item.label.toUpperCase(), x, 662, {
+     .text(item.label.toUpperCase(), x, 652, {
        width: 75,
        align: 'center',
      });
@@ -1454,18 +1455,18 @@ drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
    doc.fillColor(THEME.text)
      .fontSize(8.8)
      .font('Helvetica-Bold')
-     .text(item.score === null ? 'N/A' : `${item.score}/${item.max}`, x, 682, {
+     .text(item.score === null ? 'N/A' : `${item.score}/${item.max}`, x, 672, {
        width: 75,
        align: 'center',
      });
  });
 
- drawCard(35, 704, 525, 50, '#F8FAFC', '#BFDBFE');
+ drawCard(35, 690, 525, 45, '#F8FAFC', '#BFDBFE');
 
  doc.fillColor(THEME.royal)
    .fontSize(7.5)
    .font('Helvetica-Bold')
-   .text('DATA AVAILABILITY', 55, 716, {
+   .text('DATA AVAILABILITY', 55, 702, {
      width: 120,
      lineBreak: false,
    });
@@ -1473,7 +1474,7 @@ drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
  doc.fillColor(THEME.emerald)
    .fontSize(6.8)
    .font('Helvetica-Bold')
-   .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 714, {
+   .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 700, {
      width: 345,
      height: 12,
      ellipsis: true,
@@ -1482,7 +1483,7 @@ drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
  doc.fillColor(THEME.rose)
    .fontSize(6.8)
    .font('Helvetica-Bold')
-   .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 180, 733, {
+   .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 180, 719, {
      width: 345,
      height: 12,
      ellipsis: true,
@@ -1495,10 +1496,10 @@ drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
      .text(
        'Free report: upgrade to Pro for agency logo, executive pages and no product branding.',
        55,
-       744,
+       728,
        {
          width: 485,
-         height: 8,
+         height: 7,
          align: 'center',
          ellipsis: true,
        }
@@ -1610,14 +1611,28 @@ doc.fillColor(THEME.muted)
   });
 
 // Major campaign mini strip
-if (campaigns.length > 0) {
-  drawCard(35, 545, 525, 135, THEME.card, THEME.border);
-  drawSectionTitle('Campaign-Level Breakdown', 55, 565, THEME.violet);
+if (campaignDisplayRows.length > 0) {
+  const campaignRowHeight = 22;
+  const campaignCardHeight = 72 + campaignDisplayRows.length * campaignRowHeight;
+  let campaignCardY = 545;
+  let campaignTitleY = 565;
+  let campaignHeaderY = 605;
+
+  if (campaignCardY + campaignCardHeight > CONTENT_BOTTOM) {
+    drawFooter(pageNo++);
+    addReportPage('Campaign Performance Details', `${client.name} | ${dateLabel}`);
+    campaignCardY = 120;
+    campaignTitleY = 140;
+    campaignHeaderY = 180;
+  }
+
+  drawCard(35, campaignCardY, 525, campaignCardHeight, THEME.card, THEME.border);
+  drawSectionTitle('Campaign-Level Breakdown', 55, campaignTitleY, THEME.violet);
 
   const cHeaders = ['Campaign', 'Spend', '% of Total', 'Leads', 'CPL'];
   const cWidths = [210, 95, 60, 55, 65];
 
-  let cY = 605;
+  let cY = campaignHeaderY;
   let cX = 55;
 
   doc.roundedRect(55, cY, 485, 24, 7).fill(THEME.violet);
@@ -1632,7 +1647,7 @@ if (campaigns.length > 0) {
 
   cY += 28;
 
-  campaigns.slice(0, 3).forEach((row, idx) => {
+  campaignDisplayRows.forEach((row, idx) => {
     const bg = idx % 2 === 0 ? '#F8FAFC' : '#F5F3FF';
     doc.roundedRect(55, cY, 485, 22, 5).fill(bg);
 
@@ -1671,19 +1686,6 @@ if (campaigns.length > 0) {
 
     cY += 22;
   });
-
-  doc.fillColor(THEME.muted)
-    .fontSize(7)
-    .font('Helvetica')
-    .text(
-      'Note: Campaign-level rows may not equal total report spend if the upload contains both aggregate and partial campaign rows.',
-      55,
-      cY + 8,
-      {
-        width: 485,
-        lineGap: 2,
-      }
-    );
 } else {
   drawEmptyState(
     35,
@@ -1747,12 +1749,12 @@ drawFooter(pageNo++);
    );
  }
 
- if (campaigns.length > 1) {
+ if (campaignDisplayRows.length > 1) {
    drawCard(35, hasTrendChart ? 375 : 375, 525, 315, THEME.card, THEME.border);
 
    drawBarChart(
      doc,
-     campaigns,
+     campaignDisplayRows,
      {
        x: 55,
        y: 400,
@@ -1764,8 +1766,8 @@ drawFooter(pageNo++);
      },
      currency
    );
- } else if (campaigns.length === 1) {
-   const campaign = campaigns[0];
+ } else if (campaignDisplayRows.length === 1) {
+   const campaign = campaignDisplayRows[0];
 
   drawCard(35, 375, 525, 285, THEME.card, THEME.border);
 
@@ -2397,7 +2399,7 @@ const insightCards = [
   {
     title: 'Data Quality',
     value: `${completenessScore}%`,
-    desc: 'Completeness of uploaded report metrics.',
+    desc: `${availableFields}/${metricAvailability.length} tracked metrics available.`,
     bg: THEME.softPurple,
     color: THEME.violet,
   },
@@ -2516,27 +2518,37 @@ const needsAttention = [
 ];
 
 const drawInsightBox = (x, y, title, items, color, bg) => {
-  drawCard(x, y, 525, 105, bg, THEME.border);
+  let boxY = y;
 
-  doc.circle(x + 22, y + 25, 8).fill(color);
+  if (boxY + 105 > CONTENT_BOTTOM) {
+    drawFooter(pageNo++);
+    addReportPage('Insights & Recommendations', 'Business-oriented observations and next actions continued');
+    boxY = PAGE_CONTENT_TOP;
+  }
+
+  drawCard(x, boxY, 525, 105, bg, THEME.border);
+
+  doc.circle(x + 22, boxY + 25, 8).fill(color);
 
   doc.fillColor(THEME.text)
     .fontSize(14)
     .font('Helvetica-Bold')
-    .text(title, x + 40, y + 17);
+    .text(title, x + 40, boxY + 17);
 
   items.slice(0, 3).forEach((item, i) => {
     doc.fillColor(color)
       .fontSize(9)
       .font('Helvetica-Bold')
-     .text('-', x + 22, y + 48 + i * 22);
+     .text('-', x + 22, boxY + 48 + i * 22);
 
     doc.fillColor(THEME.text)
       .fontSize(8.5)
       .font('Helvetica')
-      .text(item, x + 40, y + 48 + i * 22, {
+      .text(item, x + 40, boxY + 48 + i * 22, {
         width: 465,
+        height: 18,
         lineGap: 2,
+        ellipsis: true,
       });
   });
 };
@@ -2919,12 +2931,12 @@ doc.fillColor(THEME.muted)
     }
   );
 
-drawCard(35, 700, 525, 42, '#F8FAFC', '#BFDBFE');
+drawCard(35, 690, 525, 42, '#F8FAFC', '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(12)
   .font('Helvetica-Bold')
-  .text('Executive Verdict', 55, 713);
+  .text('Executive Verdict', 55, 703);
 
 doc.fillColor(THEME.muted)
   .fontSize(8.5)
@@ -2934,7 +2946,7 @@ doc.fillColor(THEME.muted)
       ? 'Continue optimizing campaigns based on CPL, ROAS and lead quality before scaling budget.'
       : 'Campaigns are generating leads, but revenue tracking must be added before final ROI decisions.',
     190,
-    713,
+    703,
     {
       width: 345,
       lineGap: 2,
