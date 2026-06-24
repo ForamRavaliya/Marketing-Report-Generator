@@ -35,6 +35,30 @@ const formatPct = (value) => {
   return `${formatNum(value, 2)}%`;
 };
 
+const safeNumber = (value, fallback = 0) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+};
+
+const positiveNumber = (value) => Math.max(0, safeNumber(value, 0));
+
+const calcRatio = (numerator, denominator) => {
+  const num = safeNumber(numerator);
+  const den = safeNumber(denominator);
+
+  if (num < 0 || den <= 0) return null;
+
+  return num / den;
+};
+
+const calcBoundedPct = (numerator, denominator) => {
+  const ratio = calcRatio(numerator, denominator);
+
+  if (ratio === null || ratio > 1) return null;
+
+  return ratio * 100;
+};
+
 const getPreviousDateRange = (dateStart, dateEnd) => {
   if (!dateStart || !dateEnd) return null;
 
@@ -136,10 +160,45 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
 
    const aggregateWhereClause = whereClause;
 
-  const campaignWhereClause = whereClause.replace(
+   const campaignWhereClause = whereClause.replace(
     "AND pd.external_campaign_name = 'aggregate'",
     "AND LOWER(TRIM(pd.external_campaign_name)) <> 'aggregate'"
   );
+
+  const validCampaignNameSql = `
+    COALESCE(
+      CASE
+        WHEN c.name IS NOT NULL
+          AND NULLIF(TRIM(c.name), '') IS NOT NULL
+          AND LOWER(TRIM(c.name)) NOT IN (
+            'aggregate',
+            'total',
+            'overall',
+            'account total',
+            'unknown campaign',
+            'unknown camp',
+            'campaign name n/a',
+            'name n/a'
+          )
+        THEN TRIM(c.name)
+      END,
+      CASE
+        WHEN pd.external_campaign_name IS NOT NULL
+          AND NULLIF(TRIM(pd.external_campaign_name), '') IS NOT NULL
+          AND LOWER(TRIM(pd.external_campaign_name)) NOT IN (
+            'aggregate',
+            'total',
+            'overall',
+            'account total',
+            'unknown campaign',
+            'unknown camp',
+            'campaign name n/a',
+            'name n/a'
+          )
+        THEN TRIM(pd.external_campaign_name)
+      END
+    )
+  `;
 
     const [summaryResult, trendsResult, platformsResult, campaignsResult, aiInsightResult] = await Promise.all([
      db.query(
@@ -152,12 +211,12 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
          CASE WHEN COUNT(*) = 1
            THEN MAX(COALESCE(reach, 0))
            ELSE NULL END as reach,
-         BOOL_OR(COALESCE(raw_data->'mapping' ? 'spend', false) OR COALESCE(spend, 0) > 0) as has_spend_field,
-         BOOL_OR(COALESCE(raw_data->'mapping' ? 'reach', false) OR COALESCE(reach, 0) > 0) as has_reach_field,
-         BOOL_OR(COALESCE(raw_data->'mapping' ? 'impressions', false) OR COALESCE(impressions, 0) > 0) as has_impressions_field,
-         BOOL_OR(COALESCE(raw_data->'mapping' ? 'clicks', false) OR COALESCE(clicks, 0) > 0) as has_clicks_field,
-         BOOL_OR(COALESCE(raw_data->'mapping' ? 'conversions', false) OR COALESCE(conversions, 0) > 0) as has_conversions_field,
-         BOOL_OR(COALESCE(raw_data->'mapping' ? 'revenue', false) OR COALESCE(revenue, 0) > 0) as has_revenue_field,
+         BOOL_OR(COALESCE((raw_data->'mapping') ? 'spend', false) OR COALESCE(spend, 0) > 0) as has_spend_field,
+         BOOL_OR(COALESCE((raw_data->'mapping') ? 'reach', false) OR COALESCE(reach, 0) > 0) as has_reach_field,
+         BOOL_OR(COALESCE((raw_data->'mapping') ? 'impressions', false) OR COALESCE(impressions, 0) > 0) as has_impressions_field,
+         BOOL_OR(COALESCE((raw_data->'mapping') ? 'clicks', false) OR COALESCE(clicks, 0) > 0) as has_clicks_field,
+         BOOL_OR(COALESCE((raw_data->'mapping') ? 'conversions', false) OR COALESCE(conversions, 0) > 0) as has_conversions_field,
+         BOOL_OR(COALESCE((raw_data->'mapping') ? 'revenue', false) OR COALESCE(revenue, 0) > 0) as has_revenue_field,
          CASE WHEN SUM(COALESCE(impressions, 0)) > 0
            THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100
            ELSE 0 END as ctr,
@@ -203,12 +262,10 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
    db.query(
        `SELECT
          COALESCE(pd.campaign_id::text, LOWER(TRIM(pd.external_campaign_name))) AS campaign_key,
-         COALESCE(
-           NULLIF(TRIM(c.name), ''),
-           NULLIF(TRIM(pd.external_campaign_name), '')
-         ) AS name,
+         ${validCampaignNameSql} AS name,
          pd.platform,
          SUM(COALESCE(pd.spend, 0)) AS spend,
+         SUM(COALESCE(pd.impressions, 0)) AS impressions,
          SUM(COALESCE(pd.clicks, 0)) AS clicks,
          SUM(COALESCE(pd.conversions, 0)) AS conversions,
          CASE
@@ -229,22 +286,10 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
        FROM performance_data pd
        LEFT JOIN campaigns c ON pd.campaign_id = c.id
        ${campaignWhereClause}
-       AND COALESCE(
-         NULLIF(TRIM(c.name), ''),
-         NULLIF(TRIM(pd.external_campaign_name), '')
-       ) IS NOT NULL
-       AND LOWER(COALESCE(
-         NULLIF(TRIM(c.name), ''),
-         NULLIF(TRIM(pd.external_campaign_name), '')
-       )) NOT IN (
-         'unknown campaign',
-         'unknown camp',
-         'campaign name n/a',
-         'name n/a'
-       )
+       AND ${validCampaignNameSql} IS NOT NULL
        GROUP BY
          COALESCE(pd.campaign_id::text, LOWER(TRIM(pd.external_campaign_name))),
-         COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(pd.external_campaign_name), '')),
+         ${validCampaignNameSql},
          pd.platform
        HAVING
          SUM(COALESCE(pd.spend, 0)) > 0
@@ -316,7 +361,18 @@ const displayedTrends = trends.slice(-6);
 const platforms = platformsResult.rows;
 
 const rawCampaigns = campaignsResult.rows || [];
-const campaigns = rawCampaigns;
+const campaigns = rawCampaigns
+  .map((campaign) => ({
+    ...campaign,
+    spend: positiveNumber(campaign.spend),
+    impressions: positiveNumber(campaign.impressions),
+    clicks: positiveNumber(campaign.clicks),
+    conversions: positiveNumber(campaign.conversions),
+    ctr: calcBoundedPct(campaign.clicks, campaign.impressions),
+    cpc: calcRatio(campaign.spend, campaign.clicks),
+    cpa: calcRatio(campaign.spend, campaign.conversions),
+  }))
+  .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0));
 
 const totalCampaignSpend = campaigns.reduce(
   (sum, c) => sum + Number(c.spend || 0),
@@ -325,6 +381,18 @@ const totalCampaignSpend = campaigns.reduce(
 
 const hasTrendChart = displayedTrends.length > 1;
 const hasCampaignChart = campaigns.length > 0;
+
+const bestCampaign = campaigns.length > 0
+  ? [...campaigns].sort((a, b) => {
+      const leadDiff = Number(b.conversions || 0) - Number(a.conversions || 0);
+      if (leadDiff !== 0) return leadDiff;
+      return Number(a.cpa || Number.MAX_SAFE_INTEGER) - Number(b.cpa || Number.MAX_SAFE_INTEGER);
+    })[0]
+  : null;
+
+const bestMonth = displayedTrends.length > 0
+  ? [...displayedTrends].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
+  : null;
 
     // const aiInsight = aiInsightResult.rows[0] || null;
 
@@ -432,19 +500,19 @@ const pageH = doc.page.height;
 let pageNo = 1;
 
 const safeSummary = {
-  spend: Number(summary?.spend ?? 0),
-  reach: Number(summary?.reach ?? 0),
-  impressions: Number(summary?.impressions ?? 0),
-  clicks: Number(summary?.clicks ?? 0),
-  conversions: Number(summary?.conversions ?? 0),
-  ctr: Number(summary?.ctr ?? 0),
-  cpc: Number(summary?.cpc ?? 0),
-  cpa: Number(summary?.cpa ?? 0),
-  roas: Number(summary?.roas ?? 0),
-  revenue: Number(summary?.revenue ?? 0),
+  spend: positiveNumber(summary?.spend),
+  reach: positiveNumber(summary?.reach),
+  impressions: positiveNumber(summary?.impressions),
+  clicks: positiveNumber(summary?.clicks),
+  conversions: positiveNumber(summary?.conversions),
+  ctr: 0,
+  cpc: 0,
+  cpa: 0,
+  roas: 0,
+  revenue: positiveNumber(summary?.revenue),
 
   hasSpend: Boolean(summary?.has_spend_field) || Number(summary?.spend ?? 0) > 0,
-  hasReach: Boolean(summary?.has_reach_field) || Number(summary?.reach ?? 0) > 0,
+  hasReach: Number(summary?.reach ?? 0) > 0,
   hasClicks: Boolean(summary?.has_clicks_field) || Number(summary?.clicks ?? 0) > 0,
   hasRevenue: Boolean(summary?.has_revenue_field) || Number(summary?.revenue ?? 0) > 0,
   hasImpressions: Boolean(summary?.has_impressions_field) || Number(summary?.impressions ?? 0) > 0,
@@ -453,8 +521,32 @@ const safeSummary = {
 
 safeSummary.hasCpa = safeSummary.hasSpend && safeSummary.hasConversions && safeSummary.conversions > 0;
 safeSummary.hasCpc = safeSummary.hasSpend && safeSummary.hasClicks && safeSummary.clicks > 0;
-safeSummary.hasCtr = safeSummary.hasClicks && safeSummary.hasImpressions;
+safeSummary.hasCtr =
+  safeSummary.hasClicks &&
+  safeSummary.hasImpressions &&
+  safeSummary.clicks <= safeSummary.impressions;
 safeSummary.hasRoas = safeSummary.hasSpend && safeSummary.hasRevenue;
+
+safeSummary.ctr = safeSummary.hasCtr
+  ? (safeSummary.clicks / safeSummary.impressions) * 100
+  : 0;
+safeSummary.cpc = safeSummary.hasCpc
+  ? safeSummary.spend / safeSummary.clicks
+  : 0;
+safeSummary.cpa = safeSummary.hasCpa
+  ? safeSummary.spend / safeSummary.conversions
+  : 0;
+safeSummary.roas = safeSummary.hasRoas
+  ? safeSummary.revenue / safeSummary.spend
+  : 0;
+
+const weakestMetricName = !safeSummary.hasRoas
+  ? 'Revenue / ROAS tracking'
+  : !safeSummary.hasCtr
+  ? 'Click-through tracking'
+  : safeSummary.hasCpa && safeSummary.cpa > 500
+  ? 'Cost per lead'
+  : 'Campaign scaling';
 
 const calcChange = (current, previous) => {
   const curr = Number(current || 0);
@@ -543,11 +635,12 @@ doc.fillColor(THEME.text)
 
 
 const reportSummaryText =
-  `During the selected reporting period, ${client.name} generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results with total ad spend of ${formatCurrency(safeSummary.spend, currency)}. ` +
-  `${safeSummary.hasCpa ? `The average cost per lead/result was ${formatCurrency(safeSummary.cpa, currency)}. ` : 'Cost per lead/result could not be calculated from the available source fields. '}` +
-  `${safeSummary.hasReach && safeSummary.reach > 0 ? `The campaigns reached ${formatNum(safeSummary.reach)} people and delivered ${formatNum(safeSummary.impressions)} impressions. ` : ''}` +
-  `${safeSummary.hasCtr ? `Click data was available, with ${formatNum(safeSummary.clicks)} clicks and CTR of ${formatPct(safeSummary.ctr)}. ` : 'Click and CTR data were not present in the uploaded report, so engagement performance cannot be evaluated from this export. '}` +
-  `${safeSummary.hasRoas ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} with ROAS of ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue and ROAS were not included in the uploaded report, so return on ad spend cannot be evaluated from this export.'}`;
+  `${client.name} spent ${formatCurrency(safeSummary.spend, currency)} and generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results during ${dateStart} to ${dateEnd}. ` +
+  `${safeSummary.hasCpa ? `Average CPL was ${formatCurrency(safeSummary.cpa, currency)}. ` : 'CPL is not available because spend or lead data is missing. '}` +
+  `${bestCampaign ? `Top campaign by leads was ${bestCampaign.name} with ${formatNum(bestCampaign.conversions)} leads. ` : 'No valid campaign-level rows were available. '}` +
+  `${bestMonth ? `Best month was ${bestMonth.month} with ${formatNum(bestMonth.conversions)} leads. ` : ''}` +
+  `${safeSummary.hasCtr ? `CTR was ${formatPct(safeSummary.ctr)} from ${formatNum(safeSummary.clicks)} clicks and ${formatNum(safeSummary.impressions)} impressions. ` : 'CTR is not available because click or impression data is missing or inconsistent. '}` +
+  `${safeSummary.hasRoas ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} and ROAS was ${formatNum(safeSummary.roas, 2)}x.` : `Weakest area: ${weakestMetricName}. Revenue and ROAS are not available from this source data.`}`;
 
 const reportTitle = customTitle || title || 'Marketing Performance Report';
 
@@ -757,9 +850,11 @@ const drawLineChart = (doc, rows, options, currency = 'INR') => {
     doc.fillColor(THEME.muted)
       .fontSize(6.5)
       .font('Helvetica')
-      .text(String(row[labelKey] || '').substring(0, 8), px - 18, chartBottom + 8, {
-        width: 36,
+      .text(String(row[labelKey] || ''), px - 24, chartBottom + 8, {
+        width: 48,
+        height: 14,
         align: 'center',
+        ellipsis: true,
       });
 
     previousPoint = { x: px, y: py };
@@ -777,40 +872,47 @@ const drawBarChart = (doc, rows, options, currency = 'INR') => {
     color = THEME.violet,
   } = options;
 
-  const chartHeight = 205;
-  const values = rows.map((r) => Number(r[valueKey] || 0));
+  const chartRows = rows
+    .slice()
+    .sort((a, b) => Number(b[valueKey] || 0) - Number(a[valueKey] || 0))
+    .slice(0, 6);
+  const values = chartRows.map((r) => Number(r[valueKey] || 0));
   const maxValue = Math.max(...values, 1);
-  const barGap = 12;
-  const barWidth = Math.max(26, (width - barGap * (rows.length - 1)) / Math.max(rows.length, 1));
-  const chartBottom = y + chartHeight;
+  const labelW = 190;
+  const valueW = 92;
+  const barX = x + labelW + 8;
+  const barW = width - labelW - valueW - 20;
+  const rowH = 30;
 
   doc.fillColor(THEME.text)
     .fontSize(13)
     .font('Helvetica-Bold')
     .text(title, x, y - 5);
 
-  rows.slice(0, 6).forEach((row, i) => {
+  chartRows.forEach((row, i) => {
     const value = Number(row[valueKey] || 0);
-    const h = (value / maxValue) * 135;
-    const bx = x + i * (barWidth + barGap);
-    const by = chartBottom - h;
+    const by = y + 25 + i * rowH;
+    const bw = Math.max(2, (value / maxValue) * barW);
 
-    doc.roundedRect(bx, by, barWidth, h, 5).fill(color);
+    doc.fillColor(THEME.text)
+      .fontSize(7.2)
+      .font('Helvetica')
+      .text(String(row[labelKey] || 'Campaign'), x, by - 1, {
+        width: labelW,
+        height: 20,
+        ellipsis: true,
+      });
+
+    doc.roundedRect(barX, by, barW, 12, 4).fill('#E2E8F0');
+    doc.roundedRect(barX, by, bw, 12, 4).fill(color);
 
     doc.fillColor(THEME.text)
       .fontSize(7)
       .font('Helvetica-Bold')
-      .text(formatCurrency(value, currency), bx - 4, by - 14, {
-        width: barWidth + 8,
-        align: 'center',
-      });
-
-    doc.fillColor(THEME.muted)
-      .fontSize(6.5)
-      .font('Helvetica')
-      .text(String(row[labelKey] || 'Campaign').substring(0, 12), bx - 6, chartBottom + 8, {
-        width: barWidth + 12,
-        align: 'center',
+      .text(formatCurrency(value, currency), barX + barW + 8, by - 1, {
+        width: valueW,
+        height: 16,
+        ellipsis: true,
       });
   });
 };
@@ -857,9 +959,11 @@ const drawNumberBarChart = (doc, rows, options) => {
     doc.fillColor(THEME.muted)
       .fontSize(6.5)
       .font('Helvetica')
-      .text(String(row[labelKey] || '').substring(0, 10), bx - 6, chartBottom + 8, {
+      .text(String(row[labelKey] || ''), bx - 6, chartBottom + 8, {
         width: barWidth + 12,
+        height: 14,
         align: 'center',
+        ellipsis: true,
       });
   });
 };
@@ -1113,12 +1217,14 @@ doc.fillColor(THEME.muted)
   .fontSize(8)
   .font('Helvetica')
   .text(
-    `This report summarizes ${client.name}'s marketing performance, campaign spend, audience reach, engagement, conversions and recommended actions.`,
+    `Spend ${formatCurrency(safeSummary.spend, currency)} generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results${bestCampaign ? `; best campaign: ${bestCampaign.name}` : ''}${bestMonth ? `; best month: ${bestMonth.month}` : ''}. Weakest area: ${weakestMetricName}.`,
     70,
     316,
     {
       width: 440,
+      height: 24,
       lineGap: 2,
+      ellipsis: true,
     }
   );
 
@@ -1309,12 +1415,12 @@ drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
      });
  });
 
- drawCard(35, 710, 525, 38, '#F8FAFC', '#BFDBFE');
+ drawCard(35, 704, 525, 50, '#F8FAFC', '#BFDBFE');
 
  doc.fillColor(THEME.royal)
    .fontSize(7.5)
    .font('Helvetica-Bold')
-   .text('DATA AVAILABILITY', 55, 722, {
+   .text('DATA AVAILABILITY', 55, 716, {
      width: 120,
      lineBreak: false,
    });
@@ -1322,18 +1428,18 @@ drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
  doc.fillColor(THEME.emerald)
    .fontSize(6.8)
    .font('Helvetica-Bold')
-   .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 722, {
-     width: 170,
-     height: 10,
+   .text(`Available: ${availableMetrics.join(', ') || 'None'}`, 180, 714, {
+     width: 345,
+     height: 12,
      ellipsis: true,
    });
 
  doc.fillColor(THEME.rose)
    .fontSize(6.8)
    .font('Helvetica-Bold')
-   .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 360, 722, {
-     width: 165,
-     height: 10,
+   .text(`Missing: ${missingMetrics.join(', ') || 'None'}`, 180, 733, {
+     width: 345,
+     height: 12,
      ellipsis: true,
    });
 
@@ -1344,7 +1450,7 @@ drawCard(35, 650, 525, 48, '#FFFFFF', '#BFDBFE');
      .text(
        'Free report: upgrade to Pro for agency logo, executive pages and no product branding.',
        55,
-       737,
+       744,
        {
          width: 485,
          height: 8,
@@ -1498,7 +1604,7 @@ if (campaigns.length > 0) {
     const vals = [
       !row.name || row.name === 'Unknown Campaign'
         ? 'Campaign Name N/A'
-        : row.name.substring(0, 30),
+        : row.name,
       formatCurrency(row.spend, currency),
       spendShare,
       formatNum(row.conversions),
@@ -1510,7 +1616,11 @@ if (campaigns.length > 0) {
       doc.fillColor(THEME.text)
         .fontSize(7.2)
         .font('Helvetica')
-        .text(v, cX + 8, cY + 7, { width: cWidths[i] - 10 });
+        .text(v, cX + 8, cY + 7, {
+          width: cWidths[i] - 10,
+          height: 11,
+          ellipsis: true,
+        });
       cX += cWidths[i];
     });
 
@@ -1627,7 +1737,7 @@ drawFooter(pageNo++);
      value:
        !campaign.name || campaign.name === 'Unknown Campaign'
          ? 'Name N/A'
-         : campaign.name.substring(0, 11),
+         : campaign.name,
       color: THEME.royal,
       bg: THEME.softBlue,
     },
@@ -1645,7 +1755,7 @@ drawFooter(pageNo++);
     },
     {
       label: 'CTR',
-      value: formatPct(campaign.ctr || 0),
+      value: campaign.ctr !== null ? formatPct(campaign.ctr) : 'N/A',
       color: THEME.amber,
       bg: THEME.softAmber,
     },
@@ -1890,7 +2000,10 @@ doc.fillColor('#CBD5E1')
   .text('Simple view of how audience activity converted into leads', 50, 62);
 
 const avgFrequency =
-  safeSummary.hasReach && safeSummary.reach > 0
+  safeSummary.hasReach &&
+  safeSummary.hasImpressions &&
+  safeSummary.reach > 0 &&
+  safeSummary.impressions >= safeSummary.reach
     ? safeSummary.impressions / safeSummary.reach
     : 0;
 
@@ -1900,7 +2013,10 @@ const clickRate =
     : 0;
 
 const leadRate =
-  safeSummary.hasClicks && safeSummary.clicks > 0
+  safeSummary.hasClicks &&
+  safeSummary.hasConversions &&
+  safeSummary.clicks > 0 &&
+  safeSummary.conversions <= safeSummary.clicks
     ? (safeSummary.conversions / safeSummary.clicks) * 100
     : 0;
 
@@ -1972,9 +2088,9 @@ funnelItems.forEach((item, i) => {
 
  if (i < funnelItems.length - 1) {
    const rates = [
-     `Avg Frequency: ${safeSummary.hasReach && safeSummary.hasImpressions ? `${formatNum(avgFrequency, 2)}x` : 'N/A'}`,
+     `Avg Frequency: ${safeSummary.hasReach && safeSummary.hasImpressions && safeSummary.impressions >= safeSummary.reach ? `${formatNum(avgFrequency, 2)}x` : 'N/A'}`,
      `Click Rate: ${safeSummary.hasCtr ? formatPct(clickRate) : 'N/A'}`,
-     `Lead Rate: ${safeSummary.hasClicks && safeSummary.hasConversions ? formatPct(leadRate) : 'N/A'}`,
+     `Lead Rate: ${safeSummary.hasClicks && safeSummary.hasConversions && safeSummary.conversions <= safeSummary.clicks ? formatPct(leadRate) : 'N/A'}`,
    ];
 
    doc.fillColor('#94A3B8')
@@ -2164,7 +2280,7 @@ doc.fillColor(THEME.muted)
   .fontSize(9)
   .font('Helvetica')
   .text(
-    `${String(onlyPlatform.platform || 'Platform').toUpperCase()} contributed 100% of tracked spend and 100% of tracked leads in this report. Since only one platform is present, cross-platform comparison is not available yet.`,
+    `${String(onlyPlatform.platform || 'Platform').toUpperCase()} is the only tracked platform in this report, with ${formatCurrency(onlyPlatform.spend, currency)} spend and ${formatNum(onlyPlatform.conversions)} leads/results. Cross-platform comparison is not rendered because no second platform exists.`,
     55,
     440,
     {
@@ -2172,22 +2288,6 @@ doc.fillColor(THEME.muted)
       lineGap: 4,
     }
   );
-
-   drawCard(35, 500, 525, 130, THEME.softGreen, '#A7F3D0');
-
-   drawNumberBarChart(
-     doc,
-     activePlatforms,
-     {
-       x: 55,
-       y: 535,
-       width: 480,
-    title: 'Tracked Leads by Platform',
-       labelKey: 'platform',
-       valueKey: 'conversions',
-       color: THEME.emerald,
-     }
-   );
  }else {
   drawEmptyState(
     35,
@@ -2307,7 +2407,9 @@ doc.fillColor(THEME.muted)
     410,
     {
       width: 485,
+      height: 62,
       lineGap: 4,
+      ellipsis: true,
     }
   );
 
