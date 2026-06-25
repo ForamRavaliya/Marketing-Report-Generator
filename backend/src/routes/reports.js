@@ -632,7 +632,7 @@ router.post('/generate', async (req, res) => {
     const maxValue = Math.max(...values, 1);
     const minValue = Math.min(...values, 0);
 
-    const chartTop = y + 50;
+   const chartTop = y + 70;
     const chartBottom = y + height - 35;
     const chartHeight = chartBottom - chartTop;
 
@@ -665,8 +665,10 @@ router.post('/generate', async (req, res) => {
       const range = Math.max(maxValue - minValue, 1);
 
       const px = plotX + i * stepX;
-      const py = chartBottom - ((value - minValue) / range) * chartHeight;
-
+     const py = Math.max(
+         chartTop + 18,
+         chartBottom - ((value - minValue) / range) * chartHeight
+     );
       const valueText =
         valueKey === 'spend' || valueKey === 'revenue'
           ? formatCurrency(value, currency)
@@ -692,8 +694,8 @@ router.post('/generate', async (req, res) => {
       let labelAlign = 'center';
 
       if (i === 0) {
-        labelX = px + 10;
-        labelY = py + 10;
+       labelX = Math.max(plotX, px - 20);
+        labelY = py - 22;
         labelAlign = 'left';
       } else if (i === rows.length - 1) {
         labelX = px - 95;
