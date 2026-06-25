@@ -616,64 +616,116 @@ router.post('/generate', async (req, res) => {
       return true;
     };
 
-    const drawLineChart = (doc, rows, options, currency = 'INR') => {
-      const { x, y, width, height = 150, title, labelKey, valueKey, color = THEME.royal } = options;
-      const values = rows.map((r) => Number(r[valueKey] || 0));
-      const maxValue = Math.max(...values, 1);
-     const chartTop = y + 45;
-      const chartHeight = height - 55;
-      const chartBottom = chartTop + chartHeight;
-      const stepX = rows.length > 1 ? width / (rows.length - 1) : width;
+  const drawLineChart = (doc, rows, options, currency = 'INR') => {
+    const {
+      x,
+      y,
+      width,
+      height = 180,
+      title,
+      labelKey,
+      valueKey,
+      color = THEME.royal,
+    } = options;
 
-      doc.fillColor(THEME.text).fontSize(13).font('Helvetica-Bold').text(title, x, y);
-      doc.moveTo(x, chartBottom).lineTo(x + width, chartBottom).strokeColor(THEME.border).lineWidth(1).stroke();
-      doc.moveTo(x, chartTop).lineTo(x, chartBottom).strokeColor(THEME.border).lineWidth(1).stroke();
+    const values = rows.map((r) => Number(r[valueKey] || 0));
+    const maxValue = Math.max(...values, 1);
+    const minValue = Math.min(...values, 0);
 
-      let previousPoint = null;
-      rows.forEach((row, i) => {
-        const value = Number(row[valueKey] || 0);
-        const px = x + i * stepX;
-        const py = chartBottom - (value / maxValue) * chartHeight;
-        const valueText = (valueKey === 'spend' || valueKey === 'revenue') ? formatCurrency(value, currency) : formatNum(value);
-        const valueFont = valueText.length > 12 ? 5.6 : valueText.length > 9 ? 6.2 : 6.8;
-        const valueY = Math.max(chartTop + 2, py - 15);
+    const chartTop = y + 50;
+    const chartBottom = y + height - 35;
+    const chartHeight = chartBottom - chartTop;
 
-        if (previousPoint) {
-          doc.moveTo(previousPoint.x, previousPoint.y).lineTo(px, py).strokeColor(color).lineWidth(2).stroke();
-        }
-        doc.circle(px, py, 4).fill(color);
+    const innerPadX = 28;
+    const plotX = x + innerPadX;
+    const plotWidth = width - innerPadX * 2;
+    const stepX = rows.length > 1 ? plotWidth / (rows.length - 1) : plotWidth;
 
-let labelAlign = 'center';
-let labelX = px - 35;
-let safeValueY = valueY;
+    doc.fillColor(THEME.text)
+      .fontSize(13)
+      .font('Helvetica-Bold')
+      .text(title, x, y);
 
-if (i === 0) {
-  labelAlign = 'left';
-  labelX = px + 18;
- safeValueY = py + 12;
-} else if (i === rows.length - 1) {
-  labelAlign = 'right';
-  labelX = px - 88;
-  safeValueY = py - 18;
-} else {
-  safeValueY = py - 18;
-}
+    doc.moveTo(plotX, chartBottom)
+      .lineTo(plotX + plotWidth, chartBottom)
+      .strokeColor(THEME.border)
+      .lineWidth(1)
+      .stroke();
 
-safeValueY = Math.max(chartTop + 8, Math.min(chartBottom - 18, safeValueY));
+    doc.moveTo(plotX, chartTop)
+      .lineTo(plotX, chartBottom)
+      .strokeColor(THEME.border)
+      .lineWidth(1)
+      .stroke();
 
-doc.fillColor(THEME.text)
-  .fontSize(valueFont)
-  .font('Helvetica-Bold')
-  .text(valueText, labelX, safeValueY, {
-    width: 100,
-    height: 12,
-    align: labelAlign,
-    ellipsis: true,
-  });
-   doc.fillColor(THEME.muted).fontSize(6.5).font('Helvetica').text(String(row[labelKey] || ''), px - 24, chartBottom + 8, { width: 48, height: 14, align: 'center', ellipsis: true });
-        previousPoint = { x: px, y: py };
-      });
-    };
+    let previousPoint = null;
+
+    rows.forEach((row, i) => {
+      const value = Number(row[valueKey] || 0);
+      const range = Math.max(maxValue - minValue, 1);
+
+      const px = plotX + i * stepX;
+      const py = chartBottom - ((value - minValue) / range) * chartHeight;
+
+      const valueText =
+        valueKey === 'spend' || valueKey === 'revenue'
+          ? formatCurrency(value, currency)
+          : formatNum(value);
+
+      const valueFont =
+        valueText.length > 14 ? 5.8 :
+        valueText.length > 11 ? 6.2 :
+        6.8;
+
+      if (previousPoint) {
+        doc.moveTo(previousPoint.x, previousPoint.y)
+          .lineTo(px, py)
+          .strokeColor(color)
+          .lineWidth(2)
+          .stroke();
+      }
+
+      doc.circle(px, py, 4).fill(color);
+
+      let labelX = px - 45;
+      let labelY = py - 22;
+      let labelAlign = 'center';
+
+      if (i === 0) {
+        labelX = px + 10;
+        labelY = py + 10;
+        labelAlign = 'left';
+      } else if (i === rows.length - 1) {
+        labelX = px - 95;
+        labelY = py - 22;
+        labelAlign = 'right';
+      }
+
+      labelY = Math.max(chartTop + 4, Math.min(chartBottom - 24, labelY));
+
+      doc.fillColor(THEME.text)
+        .fontSize(valueFont)
+        .font('Helvetica-Bold')
+        .text(valueText, labelX, labelY, {
+          width: 90,
+          height: 12,
+          align: labelAlign,
+          ellipsis: true,
+        });
+
+      doc.fillColor(THEME.muted)
+        .fontSize(6.5)
+        .font('Helvetica')
+        .text(String(row[labelKey] || ''), px - 30, chartBottom + 10, {
+          width: 60,
+          height: 14,
+          align: 'center',
+          ellipsis: true,
+        });
+
+      previousPoint = { x: px, y: py };
+    });
+  };
 
     const drawBarChart = (doc, rows, options, currency = 'INR') => {
       const { x, y, width, title, valueKey, labelKey, color = THEME.violet } = options;
@@ -1012,7 +1064,17 @@ doc.fillColor(THEME.text)
     drawPageHeader('Charts & Campaign Analytics', 'Visual analysis of spend and campaign performance');
 
     if (hasTrendChart) {
-      drawCard(35, 120, 525, 235, THEME.card, THEME.border);
+      drawCard(35, 120, 525, 250, THEME.card, THEME.border);
+      drawLineChart(doc, displayedTrends, {
+        x: 55,
+        y: 145,
+        width: 480,
+        height: 180,
+        title: 'Monthly Spend Trend',
+        labelKey: 'month',
+        valueKey: 'spend',
+        color: THEME.royal
+      }, currency);
       drawLineChart(doc, displayedTrends, { x: 55, y: 145, width: 480,height: 180 , title: 'Monthly Spend Trend', labelKey: 'month', valueKey: 'spend', color: THEME.royal }, currency);
     } else {
       drawEmptyState(35, 120, 525, 220, 'Trend Analysis Not Available', 'At least two reporting periods are required.');
