@@ -2,11 +2,28 @@ const express = require('express');
 const router = express.Router();
 const PDFDocument = require('pdfkit');
 const path = require('path');
+const https = require('https');
 const fs = require('fs');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
+
+const downloadImageToBuffer = (url) => {
+  return new Promise((resolve) => {
+    if (!url) return resolve(null);
+
+    https
+      .get(url, (response) => {
+        if (response.statusCode !== 200) return resolve(null);
+
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => resolve(Buffer.concat(chunks)));
+      })
+      .on('error', () => resolve(null));
+  });
+};
 
 const CURRENCY_SYMBOLS = {
   INR: 'INR ',
@@ -14,6 +31,7 @@ const CURRENCY_SYMBOLS = {
   EUR: 'EUR ',
   GBP: 'GBP ',
 };
+
 
 const formatNum = (value, decimals = 0) => {
   const num = Number(value || 0);
@@ -247,6 +265,8 @@ router.post('/generate', async (req, res) => {
       [req.user.agency_id]
     );
     const agency = agencyResult.rows[0] || {};
+    console.log("Agency:", agency.name);
+    console.log("Logo URL:", agency.logo_url);
 
     const subscriptionResult = await db.query(
       `SELECT plan_name FROM subscriptions WHERE agency_id = $1 ORDER BY created_at DESC LIMIT 1`,
@@ -261,19 +281,28 @@ router.post('/generate', async (req, res) => {
     const canUseAgencyBranding = isProPlan || isAgencyPlan;
     const canUseExecutivePages = isProPlan || isAgencyPlan;
 
-    let agencyLogoBuffer = null;
-    if (agency.logo_path) {
-      const localizedPath = path.resolve(__dirname, '../../', agency.logo_path);
-      const literalPath = path.resolve(__dirname, '../../public', agency.logo_path);
+   let agencyLogoBuffer = null;
 
-      if (fs.existsSync(agency.logo_path)) {
-        agencyLogoBuffer = fs.readFileSync(agency.logo_path);
-      } else if (fs.existsSync(localizedPath)) {
-        agencyLogoBuffer = fs.readFileSync(localizedPath);
-      } else if (fs.existsSync(literalPath)) {
-        agencyLogoBuffer = fs.readFileSync(literalPath);
-      }
-    }
+   if (agency.logo_url) {
+     agencyLogoBuffer = await downloadImageToBuffer(agency.logo_url);
+     console.log(
+       "Logo buffer size:",
+       agencyLogoBuffer ? agencyLogoBuffer.length : 0
+     );
+   }
+
+   if (!agencyLogoBuffer && agency.logo_path) {
+     const localizedPath = path.resolve(__dirname, '../../', agency.logo_path);
+     const literalPath = path.resolve(__dirname, '../../public', agency.logo_path);
+
+     if (fs.existsSync(agency.logo_path)) {
+       agencyLogoBuffer = fs.readFileSync(agency.logo_path);
+     } else if (fs.existsSync(localizedPath)) {
+       agencyLogoBuffer = fs.readFileSync(localizedPath);
+     } else if (fs.existsSync(literalPath)) {
+       agencyLogoBuffer = fs.readFileSync(literalPath);
+     }
+   }
 
     const summary = summaryResult.rows[0];
     const trends = trendsResult.rows;
