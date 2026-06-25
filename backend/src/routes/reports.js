@@ -3177,6 +3177,7 @@ const router = express.Router();
 const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
+const https = require('https'); // For downloading remote Cloudinary logo urls safely
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
@@ -3245,6 +3246,26 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
     start: previousStart.toISOString().slice(0, 10),
     end: previousEnd.toISOString().slice(0, 10),
   };
+};
+
+// Helper utility function to download remote Cloudinary/storage images into a Buffer safely
+const downloadImageToBuffer = (url) => {
+  return new Promise((resolve, reject) => {
+    if (!url) return resolve(null);
+
+    https.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        return resolve(null); // Resolve with null on error to keep report generation production-safe
+      }
+
+      const data = [];
+      response.on('data', (chunk) => data.push(chunk));
+      response.on('end', () => resolve(Buffer.concat(data)));
+    }).on('error', (err) => {
+      console.error('Cloudinary image download error:', err.message);
+      resolve(null); // Graceful recovery placeholder flag
+    });
+  });
 };
 
 // Generate PDF report
@@ -3383,7 +3404,7 @@ router.post('/generate', async (req, res) => {
           SUM(COALESCE(pd.conversions, 0)) AS conversions,
           CASE WHEN SUM(COALESCE(pd.impressions, 0)) > 0 THEN SUM(COALESCE(pd.clicks, 0))::float / SUM(COALESCE(pd.impressions, 0)) * 100 ELSE 0 END AS ctr,
           CASE WHEN SUM(COALESCE(pd.clicks, 0)) > 0 THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.clicks, 0)) ELSE 0 END AS cpc,
-          CASE WHEN SUM(COALESCE(pd.conversions, 0)) > 0 THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.conversions, 0)) ELSE 0 END AS cpa
+          CASE WHEN SUM(COALESCE(conversions, 0)) > 0 THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0)) ELSE 0 END AS cpa
         FROM performance_data pd
         LEFT JOIN campaigns c ON pd.campaign_id = c.id
         ${campaignWhereClause}
@@ -3435,12 +3456,16 @@ router.post('/generate', async (req, res) => {
     const canUseAgencyBranding = isProPlan || isAgencyPlan;
     const canUseExecutivePages = isProPlan || isAgencyPlan;
 
-    // Comprehensive path resolving sequence to track user uploaded logos across relative routes cleanly
+    // Complete multi-tenant custom logo parsing block (Supports logo_url, logo_path, and absolute storage locations)
     let agencyLogoBuffer = null;
-    if (agency.logo_path) {
+    if (agency.logo_url) {
+      agencyLogoBuffer = await downloadImageToBuffer(agency.logo_url);
+    }
+
+    // Backward compatibility validation check if logo_path field is appended later
+    if (!agencyLogoBuffer && agency.logo_path) {
       const localizedPath = path.resolve(__dirname, '../../', agency.logo_path);
       const literalPath = path.resolve(__dirname, '../../public', agency.logo_path);
-
       if (fs.existsSync(agency.logo_path)) {
         agencyLogoBuffer = fs.readFileSync(agency.logo_path);
       } else if (fs.existsSync(localizedPath)) {
@@ -3660,17 +3685,6 @@ router.post('/generate', async (req, res) => {
       });
     };
 
-    const reportSummaryText =
-      `${client.name} spent ${formatCurrency(safeSummary.spend, currency)} and generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results during ${dateStart} to ${dateEnd}. ` +
-      `${safeSummary.hasCpa ? `Average CPL was ${formatCurrency(safeSummary.cpa, currency)}. ` : 'CPL is not available because spend or lead data is missing. '}` +
-      `${bestCampaign ? `Top campaign by leads was ${bestCampaign.name} with ${formatNum(bestCampaign.conversions)} leads. ` : 'No valid campaign-level rows were available. '}` +
-      `${bestMonth ? `Best month was ${bestMonth.month} with ${formatNum(bestMonth.conversions)} leads. ` : ''}` +
-      `${safeSummary.hasCtr ? `CTR was ${formatPct(safeSummary.ctr)} from ${formatNum(safeSummary.clicks)} clicks and ${formatNum(safeSummary.impressions)} impressions. ` : 'CTR is not available because click or impression data is missing or inconsistent. '}` +
-      `${safeSummary.hasRoas ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} and ROAS was ${formatNum(safeSummary.roas, 2)}x.` : `Weakest area: ${weakestMetricName}. Revenue and ROAS are not available from this source data.`}`;
-
-    const reportTitle = customTitle || title || 'Marketing Performance Report';
-    const planLabel = isFreePlan ? 'Free Plan Report' : isProPlan ? 'Pro Plan Report' : 'Agency White-Label Report';
-
     const drawSectionTitle = (title, x, y, color = THEME.royal) => {
       doc.fillColor(THEME.text).fontSize(17).font('Helvetica-Bold').text(title, x, y);
       doc.roundedRect(x, y + 24, 55, 4, 2).fill(color);
@@ -3710,13 +3724,12 @@ router.post('/generate', async (req, res) => {
             fit: [38, 38],
           });
         } else {
-          // Fallback vector container fits symmetrically if upload configuration is processing
           doc.rect(59, 41, 28, 28).lineWidth(1.5).strokeColor(THEME.royal).stroke();
           doc.circle(73, 55, 6).fill(THEME.violet);
         }
         doc.restore();
       } catch (e) {
-        console.log('Logo render failure bypassed:', e.message);
+        console.log('Logo fallback applied:', e.message);
       }
     };
 
@@ -3790,7 +3803,6 @@ router.post('/generate', async (req, res) => {
         }
         doc.circle(px, py, 4).fill(color);
 
-        // Extended pixel bounding clearance checks to resolve line-chart label overlaps seen on chart edges
         let labelAlign = 'center';
         let labelX = px - 35;
         if (i === 0) {
@@ -3904,19 +3916,14 @@ router.post('/generate', async (req, res) => {
     doc.rect(0, 158, pageW, 52).fill(THEME.royal);
 
     doc.circle(520, 40, 110).fillOpacity(0.16).fill(THEME.cyan).fillOpacity(1);
-    doc.circle(455, 135, 72).fillOpacity(0.18).fill(THEME.violet).fillOpacity(1);
+    doc.circle(455,135, 72).fillOpacity(0.18).fill(THEME.violet).fillOpacity(1);
     doc.circle(95, 55, 85).fillOpacity(0.08).fill('#FFFFFF').fillOpacity(1);
 
-    // Agency Logo Execution
-    drawAgencyLogo();
-
-    doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold').text((agency?.name || 'Your Agency').toUpperCase(), agencyLogoBuffer || canUseAgencyBranding ? 108 : 50, 42, { width: 360, lineBreak: false, ellipsis: true });
+    doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold').text((agency?.name || 'Your Agency').toUpperCase(), 50, 42, { width: 360, lineBreak: false, ellipsis: true });
     doc.fillColor('#FFFFFF').fontSize(26).font('Helvetica-Bold').text(reportTitle, 50, 92, { width: 430, height: 58, lineGap: 3, ellipsis: true });
-
-    // Adjusted header vertical text baseline coordinates downward cleanly to protect title layout blocks
-    doc.fillColor('#DBEAFE').fontSize(13).font('Helvetica').text(client.name, 50, 162, { width: 330, height: 16, ellipsis: true });
-    doc.fillColor('#BFDBFE').fontSize(9).text(dateLabel, 50, 186, { width: 320, height: 12, ellipsis: true });
-    doc.fillColor('#DBEAFE').fontSize(8).font('Helvetica-Bold').text(planLabel, 50, 199);
+    doc.fillColor('#DBEAFE').fontSize(13).font('Helvetica').text(client.name, 50, 158, { width: 330, height: 16, ellipsis: true });
+    doc.fillColor('#BFDBFE').fontSize(9).text(dateLabel, 50, 184, { width: 320, height: 12, ellipsis: true });
+    doc.fillColor('#DBEAFE').fontSize(8).font('Helvetica-Bold').text(planLabel, 50, 198);
 
     if (isAgencyPlan) {
       doc.roundedRect(390, 176, 145, 24, 12).fill('#ECFDF5');
@@ -3968,7 +3975,7 @@ router.post('/generate', async (req, res) => {
       { label: 'Leads / Results', value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'Not Available', description: 'Total leads/results generated', growth: growth.conversions, color: THEME.emerald, bg: THEME.softGreen },
       { label: 'Cost / Lead', value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', description: 'Average cost per lead/result', growth: growth.cpa, color: THEME.amber, bg: THEME.softAmber },
       { label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'Not Available', note: safeSummary.hasClicks ? growth.clicks : 'Not in source file', growth: safeSummary.hasClicks ? growth.clicks : null, color: THEME.amber, bg: THEME.softAmber },
-      { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'Not Available', note: safeSummary.hasCtr ? growth.ctr : 'Requires clicks data', growth: safeSummary.hasCtr ? growth.ctr : null, color: THEME.violet, bg: THEME.softPurple },
+      { label: 'CTR', value: safeSummary.hasResult = safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'Not Available', note: safeSummary.hasCtr ? growth.ctr : 'Requires clicks data', growth: safeSummary.hasCtr ? growth.ctr : null, color: THEME.violet, bg: THEME.softPurple },
       { label: 'CPC', value: safeSummary.hasCpc ? formatCurrency(safeSummary.cpc, currency) : 'Not Available', note: safeSummary.hasCpc ? growth.cpc : 'Requires spend data', growth: safeSummary.hasCpc ? growth.cpc : null, color: THEME.rose, bg: THEME.softRose },
       { label: 'ROAS', value: safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available', note: safeSummary.hasRoas ? growth.roas : 'Requires revenue data', growth: safeSummary.hasRoas ? growth.roas : null, color: THEME.royal, bg: THEME.softBlue },
     ];
@@ -4070,6 +4077,7 @@ router.post('/generate', async (req, res) => {
       drawEmptyState(35, 120, 525, 185, 'Monthly Trend Data Not Available', 'No monthly performance data was available for the selected period.');
     }
 
+    // Dynamic placement based on real coordinate execution parameters
     doc.y = 320;
     ensurePageSpace(115);
     let cardCurrentY = doc.y;
@@ -4087,11 +4095,8 @@ router.post('/generate', async (req, res) => {
     doc.y = cardCurrentY + 110;
 
     if (campaignDisplayRows.length > 0) {
-      // Expanded dynamic layout padding configurations (+30px bottom budget) to prevent campaign grid cut-offs entirely
       const campaignRowHeight = 22;
-      const paddingAndHeaderSpacing = 68;
-      const campaignCardHeight = paddingAndHeaderSpacing + (campaignDisplayRows.length * campaignRowHeight) + 30;
-
+      const campaignCardHeight = 72 + campaignDisplayRows.length * campaignRowHeight;
       ensurePageSpace(campaignCardHeight);
 
       let dynamicCampaignY = doc.y;
@@ -4199,7 +4204,7 @@ router.post('/generate', async (req, res) => {
       { label: 'Total Leads', value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen },
       { label: 'Cost / Lead', value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber },
       { label: 'Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue },
-      { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.violet, bg: THEME.softPurple },
+      { label: 'CTR', value: safeSummary.hasResult = safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.violet, bg: THEME.softPurple },
     ], 35, 125);
 
     if (displayedTrends.length > 0) {
@@ -4245,13 +4250,14 @@ router.post('/generate', async (req, res) => {
       { label: 'Leads', numericValue: safeSummary.hasConversions ? Number(safeSummary.conversions || 0) : 0, available: safeSummary.hasConversions, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', note: 'Final results generated', color: THEME.emerald, bg: THEME.softGreen },
     ];
 
+    // Filter out items that are not available to prevent small fraction breaking the visual scale layout
     const activeFunnelValues = funnelItems.filter(item => item.available).map(item => item.numericValue);
     const funnelMaxValue = activeFunnelValues.length > 0 ? Math.max(...activeFunnelValues, 1) : 1;
 
     funnelItems.forEach((item, i) => {
       const y = 135 + i * 115;
       const rawWidth = item.available ? (Number(item.numericValue || 0) / funnelMaxValue) * 460 : 350;
-      const width = Math.max(260, Math.min(460, rawWidth));
+      const width = Math.max(260, Math.min(460, rawWidth)); // Normalized safety bounds
       const x = 50 + (460 - width) / 2;
 
       drawCard(x, y, width, 75, item.bg, THEME.border);
@@ -4519,6 +4525,4 @@ router.get('/history/:clientId', async (req, res) => {
 });
 
 module.exports = router;
-
-
 
