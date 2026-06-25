@@ -620,7 +620,7 @@ router.post('/generate', async (req, res) => {
       const { x, y, width, height = 150, title, labelKey, valueKey, color = THEME.royal } = options;
       const values = rows.map((r) => Number(r[valueKey] || 0));
       const maxValue = Math.max(...values, 1);
-      const chartTop = y + 35;
+     const chartTop = y + 45;
       const chartHeight = height - 55;
       const chartBottom = chartTop + chartHeight;
       const stepX = rows.length > 1 ? width / (rows.length - 1) : width;
@@ -643,18 +643,34 @@ router.post('/generate', async (req, res) => {
         }
         doc.circle(px, py, 4).fill(color);
 
-        let labelAlign = 'center';
-        let labelX = px - 35;
-        if (i === 0) {
-          labelAlign = 'left';
-          labelX = px + 12;
-        } else if (i === rows.length - 1) {
-          labelAlign = 'right';
-          labelX = px - 82;
-        }
+let labelAlign = 'center';
+let labelX = px - 35;
+let safeValueY = valueY;
 
-        doc.fillColor(THEME.text).fontSize(valueFont).font('Helvetica-Bold').text(valueText, labelX, valueY, { width: 70, height: 10, align: labelAlign, ellipsis: true });
-        doc.fillColor(THEME.muted).fontSize(6.5).font('Helvetica').text(String(row[labelKey] || ''), px - 24, chartBottom + 8, { width: 48, height: 14, align: 'center', ellipsis: true });
+if (i === 0) {
+  labelAlign = 'left';
+  labelX = px + 18;
+ safeValueY = py + 12;
+} else if (i === rows.length - 1) {
+  labelAlign = 'right';
+  labelX = px - 88;
+  safeValueY = py - 18;
+} else {
+  safeValueY = py - 18;
+}
+
+safeValueY = Math.max(chartTop + 8, Math.min(chartBottom - 18, safeValueY));
+
+doc.fillColor(THEME.text)
+  .fontSize(valueFont)
+  .font('Helvetica-Bold')
+  .text(valueText, labelX, safeValueY, {
+    width: 100,
+    height: 12,
+    align: labelAlign,
+    ellipsis: true,
+  });
+   doc.fillColor(THEME.muted).fontSize(6.5).font('Helvetica').text(String(row[labelKey] || ''), px - 24, chartBottom + 8, { width: 48, height: 14, align: 'center', ellipsis: true });
         previousPoint = { x: px, y: py };
       });
     };
@@ -996,8 +1012,8 @@ router.post('/generate', async (req, res) => {
     drawPageHeader('Charts & Campaign Analytics', 'Visual analysis of spend and campaign performance');
 
     if (hasTrendChart) {
-      drawCard(35, 120, 525, 220, THEME.card, THEME.border);
-      drawLineChart(doc, displayedTrends, { x: 55, y: 145, width: 480, height: 160, title: 'Monthly Spend Trend', labelKey: 'month', valueKey: 'spend', color: THEME.royal }, currency);
+      drawCard(35, 120, 525, 235, THEME.card, THEME.border);
+      drawLineChart(doc, displayedTrends, { x: 55, y: 145, width: 480,height: 180 , title: 'Monthly Spend Trend', labelKey: 'month', valueKey: 'spend', color: THEME.royal }, currency);
     } else {
       drawEmptyState(35, 120, 525, 220, 'Trend Analysis Not Available', 'At least two reporting periods are required.');
     }
