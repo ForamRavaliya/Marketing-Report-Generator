@@ -424,6 +424,14 @@ router.post('/generate', async (req, res) => {
     // Defined explicitly to prevent the ReferenceError runtime crash
     const reportTitle = customTitle || title || 'Marketing Performance Report';
 
+       const reportTitle = customTitle || title || 'Marketing Performance Report';
+
+       const planLabel = isFreePlan
+         ? 'Free Plan Report'
+         : isProPlan
+         ? 'Pro Plan Report'
+         : 'Agency White-Label Report';
+
     let currentPageTitle = 'Marketing Performance Report';
     let currentPageSubtitle = dateLabel;
 
