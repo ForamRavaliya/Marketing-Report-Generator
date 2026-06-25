@@ -421,14 +421,7 @@ router.post('/generate', async (req, res) => {
         ? `${new Date(dateStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(dateEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
         : `Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
 
-    // Defined explicitly to prevent the ReferenceError runtime crash
     const reportTitle = customTitle || title || 'Marketing Performance Report';
-
-              const planLabel = isFreePlan
-         ? 'Free Plan Report'
-         : isProPlan
-         ? 'Pro Plan Report'
-         : 'Agency White-Label Report';
 
     let currentPageTitle = 'Marketing Performance Report';
     let currentPageSubtitle = dateLabel;
@@ -637,7 +630,7 @@ router.post('/generate', async (req, res) => {
           doc.moveTo(previousPoint.x, previousPoint.y).lineTo(px, py).strokeColor(color).lineWidth(2).stroke();
         }
         doc.circle(px, py, 4).fill(color);
-        
+
         let labelAlign = 'center';
         let labelX = px - 35;
         if (i === 0) {
@@ -758,7 +751,7 @@ router.post('/generate', async (req, res) => {
 
     doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold').text((agency?.name || 'Your Agency').toUpperCase(), agencyLogoBuffer || canUseAgencyBranding ? 108 : 50, 42, { width: 360, lineBreak: false, ellipsis: true });
     doc.fillColor('#FFFFFF').fontSize(26).font('Helvetica-Bold').text(reportTitle, 50, 92, { width: 430, height: 58, lineGap: 3, ellipsis: true });
-    
+
     doc.fillColor('#DBEAFE').fontSize(13).font('Helvetica').text(client.name, 50, 162, { width: 330, height: 16, ellipsis: true });
     doc.fillColor('#BFDBFE').fontSize(9).text(dateLabel, 50, 186, { width: 320, height: 12, ellipsis: true });
     doc.fillColor('#DBEAFE').fontSize(8).font('Helvetica-Bold').text(planLabel, 50, 199);
@@ -933,8 +926,8 @@ router.post('/generate', async (req, res) => {
 
     if (campaignDisplayRows.length > 0) {
       const campaignRowHeight = 22;
-      const paddingAndHeaderSpacing = 68; 
-      const campaignCardHeight = paddingAndHeaderSpacing + (campaignDisplayRows.length * campaignRowHeight) + 30;
+      const paddingAndHeaderSpacing = 68;
+      const campaignCardHeight = paddingAndHeaderSpacing + (campaignDisplayRows.length * campaignRowHeight) + 35;
       
       ensurePageSpace(campaignCardHeight);
 
