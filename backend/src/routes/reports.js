@@ -3435,13 +3435,18 @@ router.post('/generate', async (req, res) => {
     const canUseAgencyBranding = isProPlan || isAgencyPlan;
     const canUseExecutivePages = isProPlan || isAgencyPlan;
 
-    // Check if real logo image file exists on disk, otherwise fall back beautifully
+    // Comprehensive path resolving sequence to track user uploaded logos across relative routes cleanly
     let agencyLogoBuffer = null;
-    if (agency.logo_path && fs.existsSync(agency.logo_path)) {
-      try {
+    if (agency.logo_path) {
+      const localizedPath = path.resolve(__dirname, '../../', agency.logo_path);
+      const literalPath = path.resolve(__dirname, '../../public', agency.logo_path);
+
+      if (fs.existsSync(agency.logo_path)) {
         agencyLogoBuffer = fs.readFileSync(agency.logo_path);
-      } catch (err) {
-        console.error('Error reading logo file:', err);
+      } else if (fs.existsSync(localizedPath)) {
+        agencyLogoBuffer = fs.readFileSync(localizedPath);
+      } else if (fs.existsSync(literalPath)) {
+        agencyLogoBuffer = fs.readFileSync(literalPath);
       }
     }
 
@@ -3705,13 +3710,13 @@ router.post('/generate', async (req, res) => {
             fit: [38, 38],
           });
         } else {
-          // Beautiful market-ready geometric vector icon if buffer file is absent
+          // Fallback vector container fits symmetrically if upload configuration is processing
           doc.rect(59, 41, 28, 28).lineWidth(1.5).strokeColor(THEME.royal).stroke();
           doc.circle(73, 55, 6).fill(THEME.violet);
         }
         doc.restore();
       } catch (e) {
-        console.log('Logo render fallback applied:', e.message);
+        console.log('Logo render failure bypassed:', e.message);
       }
     };
 
@@ -3785,15 +3790,15 @@ router.post('/generate', async (req, res) => {
         }
         doc.circle(px, py, 4).fill(color);
 
-        // Edge check to prevent clipping labels outside the line chart box boundaries
+        // Extended pixel bounding clearance checks to resolve line-chart label overlaps seen on chart edges
         let labelAlign = 'center';
         let labelX = px - 35;
         if (i === 0) {
           labelAlign = 'left';
-          labelX = px + 4;
+          labelX = px + 12;
         } else if (i === rows.length - 1) {
           labelAlign = 'right';
-          labelX = px - 74;
+          labelX = px - 82;
         }
 
         doc.fillColor(THEME.text).fontSize(valueFont).font('Helvetica-Bold').text(valueText, labelX, valueY, { width: 70, height: 10, align: labelAlign, ellipsis: true });
@@ -3902,13 +3907,13 @@ router.post('/generate', async (req, res) => {
     doc.circle(455, 135, 72).fillOpacity(0.18).fill(THEME.violet).fillOpacity(1);
     doc.circle(95, 55, 85).fillOpacity(0.08).fill('#FFFFFF').fillOpacity(1);
 
-    // Agency Logo Call
+    // Agency Logo Execution
     drawAgencyLogo();
 
     doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold').text((agency?.name || 'Your Agency').toUpperCase(), agencyLogoBuffer || canUseAgencyBranding ? 108 : 50, 42, { width: 360, lineBreak: false, ellipsis: true });
     doc.fillColor('#FFFFFF').fontSize(26).font('Helvetica-Bold').text(reportTitle, 50, 92, { width: 430, height: 58, lineGap: 3, ellipsis: true });
 
-    // Adjusted text position downward slightly to clear header overlaps cleanly
+    // Adjusted header vertical text baseline coordinates downward cleanly to protect title layout blocks
     doc.fillColor('#DBEAFE').fontSize(13).font('Helvetica').text(client.name, 50, 162, { width: 330, height: 16, ellipsis: true });
     doc.fillColor('#BFDBFE').fontSize(9).text(dateLabel, 50, 186, { width: 320, height: 12, ellipsis: true });
     doc.fillColor('#DBEAFE').fontSize(8).font('Helvetica-Bold').text(planLabel, 50, 199);
@@ -4082,10 +4087,10 @@ router.post('/generate', async (req, res) => {
     doc.y = cardCurrentY + 110;
 
     if (campaignDisplayRows.length > 0) {
-      // Dynamic spacing calculation formulas applied to campaign container card to avoid overflows seen in image_301963.png
+      // Expanded dynamic layout padding configurations (+30px bottom budget) to prevent campaign grid cut-offs entirely
       const campaignRowHeight = 22;
       const paddingAndHeaderSpacing = 68;
-      const campaignCardHeight = paddingAndHeaderSpacing + (campaignDisplayRows.length * campaignRowHeight) + 15;
+      const campaignCardHeight = paddingAndHeaderSpacing + (campaignDisplayRows.length * campaignRowHeight) + 30;
 
       ensurePageSpace(campaignCardHeight);
 
@@ -4514,4 +4519,6 @@ router.get('/history/:clientId', async (req, res) => {
 });
 
 module.exports = router;
+
+
 
