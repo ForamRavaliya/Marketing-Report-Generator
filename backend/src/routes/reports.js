@@ -3,7 +3,6 @@ const router = express.Router();
 const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
-const https = require('https'); // For downloading remote Cloudinary logo urls safely
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
@@ -72,26 +71,6 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
     start: previousStart.toISOString().slice(0, 10),
     end: previousEnd.toISOString().slice(0, 10),
   };
-};
-
-// Helper utility function to download remote Cloudinary/storage images into a Buffer safely
-const downloadImageToBuffer = (url) => {
-  return new Promise((resolve, reject) => {
-    if (!url) return resolve(null);
-
-    https.get(url, (response) => {
-      if (response.statusCode !== 200) {
-        return resolve(null); // Resolve with null on error to keep report generation production-safe
-      }
-
-      const data = [];
-      response.on('data', (chunk) => data.push(chunk));
-      response.on('end', () => resolve(Buffer.concat(data)));
-    }).on('error', (err) => {
-      console.error('Cloudinary image download error:', err.message);
-      resolve(null); // Graceful recovery placeholder flag
-    });
-  });
 };
 
 // Generate PDF report
@@ -282,16 +261,11 @@ router.post('/generate', async (req, res) => {
     const canUseAgencyBranding = isProPlan || isAgencyPlan;
     const canUseExecutivePages = isProPlan || isAgencyPlan;
 
-    // Complete multi-tenant custom logo parsing block (Supports logo_url, logo_path, and absolute storage locations)
     let agencyLogoBuffer = null;
-    if (agency.logo_url) {
-      agencyLogoBuffer = await downloadImageToBuffer(agency.logo_url);
-    }
-
-    // Backward compatibility validation check if logo_path field is appended later
-    if (!agencyLogoBuffer && agency.logo_path) {
+    if (agency.logo_path) {
       const localizedPath = path.resolve(__dirname, '../../', agency.logo_path);
       const literalPath = path.resolve(__dirname, '../../public', agency.logo_path);
+
       if (fs.existsSync(agency.logo_path)) {
         agencyLogoBuffer = fs.readFileSync(agency.logo_path);
       } else if (fs.existsSync(localizedPath)) {
@@ -421,8 +395,6 @@ router.post('/generate', async (req, res) => {
         ? `${new Date(dateStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(dateEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
         : `Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
 
-    const reportTitle = customTitle || title || 'Marketing Performance Report';
-
     let currentPageTitle = 'Marketing Performance Report';
     let currentPageSubtitle = dateLabel;
 
@@ -512,6 +484,17 @@ router.post('/generate', async (req, res) => {
         doc.fillColor(THEME.text).fontSize(valueFont).font('Helvetica-Bold').text(valueText, x + 12, y + 36, { width: cardWidth - 20, height: 26, ellipsis: true });
       });
     };
+
+    const reportSummaryText =
+      `${client.name} spent ${formatCurrency(safeSummary.spend, currency)} and generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results during ${dateStart} to ${dateEnd}. ` +
+      `${safeSummary.hasCpa ? `Average CPL was ${formatCurrency(safeSummary.cpa, currency)}. ` : 'CPL is not available because spend or lead data is missing. '}` +
+      `${bestCampaign ? `Top campaign by leads was ${bestCampaign.name} with ${formatNum(bestCampaign.conversions)} leads. ` : 'No valid campaign-level rows were available. '}` +
+      `${bestMonth ? `Best month was ${bestMonth.month} with ${formatNum(bestMonth.conversions)} leads. ` : ''}` +
+      `${safeSummary.hasCtr ? `CTR was ${formatPct(safeSummary.ctr)} from ${formatNum(safeSummary.clicks)} clicks and ${formatNum(safeSummary.impressions)} impressions. ` : 'CTR is not available because click or impression data is missing or inconsistent. '}` +
+      `${safeSummary.hasRoas ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} and ROAS was ${formatNum(safeSummary.roas, 2)}x.` : `Weakest area: ${weakestMetricName}. Revenue and ROAS are not available from this source data.`}`;
+
+    const reportTitle = customTitle || title || 'Marketing Performance Report';
+    const planLabel = isFreePlan ? 'Free Plan Report' : isProPlan ? 'Pro Plan Report' : 'Agency White-Label Report';
 
     const drawSectionTitle = (title, x, y, color = THEME.royal) => {
       doc.fillColor(THEME.text).fontSize(17).font('Helvetica-Bold').text(title, x, y);
@@ -732,7 +715,7 @@ router.post('/generate', async (req, res) => {
         const ly = y - 55 + i * 18;
         const share = total > 0 ? (Number(row.spend || 0) / total) * 100 : 0;
         doc.roundedRect(x + 100, ly, 10, 10, 2).fill(colors[i % colors.length]);
-        doc.fillColor(THEME.text).fontSize(7.2).font('Helvetica').text(`${String(row.platform || 'Platform').toUpperCase()} - ${formatNum(share, 1)}%`, x + 118, ly - 1, { width: 190, height: 12, ellipsis: true });
+        doc.fillColor(THEME.text).fontSize(7.5).font('Helvetica').text(`${String(row.platform || 'Platform').toUpperCase()} - ${formatNum(share, 1)}%`, x + 118, ly - 1, { width: 190, height: 12, ellipsis: true });
       });
     };
 
@@ -925,10 +908,11 @@ router.post('/generate', async (req, res) => {
     doc.y = cardCurrentY + 110;
 
     if (campaignDisplayRows.length > 0) {
+      // Expanded structural padding constraints to hold all row variants safely without leaks
       const campaignRowHeight = 22;
       const paddingAndHeaderSpacing = 68;
       const campaignCardHeight = paddingAndHeaderSpacing + (campaignDisplayRows.length * campaignRowHeight) + 35;
-      
+
       ensurePageSpace(campaignCardHeight);
 
       let dynamicCampaignY = doc.y;
@@ -1071,13 +1055,25 @@ router.post('/generate', async (req, res) => {
     doc.addPage();
     drawPageHeader('Lead Funnel Overview', 'Simple view of how audience activity converted into leads');
 
+    const avgFrequency = (safeSummary.hasReach && safeSummary.hasImpressions && safeSummary.reach > 0) ? safeSummary.impressions / safeSummary.reach : 0;
+    const clickRate = (safeSummary.hasCtr && safeSummary.impressions > 0) ? (safeSummary.clicks / safeSummary.impressions) * 100 : 0;
+    const leadRate = (safeSummary.hasClicks && safeSummary.hasConversions && safeSummary.clicks > 0) ? (safeSummary.conversions / safeSummary.clicks) * 100 : 0;
+
+    const funnelItems = [
+      { label: 'Reach', numericValue: safeSummary.hasReach ? Number(safeSummary.reach || 0) : 0, available: safeSummary.hasReach && safeSummary.reach > 0, value: safeSummary.hasReach && safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'N/A', note: 'People reached', color: THEME.royal, bg: THEME.softBlue },
+      { label: 'Impressions', numericValue: safeSummary.hasImpressions ? Number(safeSummary.impressions || 0) : 0, available: safeSummary.hasImpressions, value: safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'N/A', note: 'Ad views delivered', color: THEME.cyan, bg: '#ECFEFF' },
+      { label: 'Clicks', numericValue: safeSummary.hasClicks ? Number(safeSummary.clicks || 0) : 0, available: safeSummary.hasClicks, value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A', note: 'People who clicked', color: THEME.violet, bg: THEME.softPurple },
+      { label: 'Leads', numericValue: safeSummary.hasConversions ? Number(safeSummary.conversions || 0) : 0, available: safeSummary.hasConversions, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', note: 'Final results generated', color: THEME.emerald, bg: THEME.softGreen },
+    ];
+
+    // Exclude N/A markers from the math sequence to prevent straight block rendering discrepancies
     const activeFunnelValues = funnelItems.filter(item => item.available).map(item => item.numericValue);
     const funnelMaxValue = activeFunnelValues.length > 0 ? Math.max(...activeFunnelValues, 1) : 1;
 
     funnelItems.forEach((item, i) => {
       const y = 135 + i * 115;
       const rawWidth = item.available ? (Number(item.numericValue || 0) / funnelMaxValue) * 460 : 350;
-      const width = Math.max(260, Math.min(460, rawWidth)); 
+      const width = Math.max(260, Math.min(460, rawWidth));
       const x = 50 + (460 - width) / 2;
 
       drawCard(x, y, width, 75, item.bg, THEME.border);
@@ -1111,6 +1107,9 @@ router.post('/generate', async (req, res) => {
     // ===============================
     doc.addPage();
     drawPageHeader('Platform Analytics', 'Platform-wise spend distribution and leads performance');
+
+    const activePlatforms = platforms.filter(p => Number(p.spend || 0) > 0 || Number(p.clicks || 0) > 0 || Number(p.conversions || 0) > 0);
+    const topPlatform = activePlatforms.length > 0 ? activePlatforms.reduce((best, curr) => Number(curr.conversions || 0) > Number(best.conversions || 0) ? curr : best) : null;
 
     if (activePlatforms.length > 1) {
       drawCard(35, 120, 525, 240, THEME.card, THEME.border);
@@ -1148,6 +1147,9 @@ router.post('/generate', async (req, res) => {
     // ===============================
     doc.addPage();
     drawPageHeader('Insights & Recommendations', 'Business-oriented observations and next actions');
+
+    const availableFields = metricAvailability.filter((m) => m.available).length;
+    const completenessScore = Math.round((availableFields / metricAvailability.length) * 100);
 
     const insightCards = [
       { title: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), desc: 'Total advertising budget used.', bg: THEME.softBlue, color: THEME.royal },
@@ -1205,6 +1207,9 @@ router.post('/generate', async (req, res) => {
 
     drawFooter(pageNo++);
 
+    // ===============================
+    // EXECUTIVE WHITE-LABEL EXTRA PAGES
+    // ===============================
     if (canUseExecutivePages) {
       doc.addPage();
       drawPageHeader('Next Month Action Plan', 'Clear next steps to improve campaign performance');
