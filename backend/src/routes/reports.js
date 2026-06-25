@@ -3434,9 +3434,18 @@ router.post('/generate', async (req, res) => {
 
     const canUseAgencyBranding = isProPlan || isAgencyPlan;
     const canUseExecutivePages = isProPlan || isAgencyPlan;
-    let agencyLogoBuffer = null;
-    const summary = summaryResult.rows[0];
 
+    // Check if real logo image file exists on disk, otherwise fall back beautifully
+    let agencyLogoBuffer = null;
+    if (agency.logo_path && fs.existsSync(agency.logo_path)) {
+      try {
+        agencyLogoBuffer = fs.readFileSync(agency.logo_path);
+      } catch (err) {
+        console.error('Error reading logo file:', err);
+      }
+    }
+
+    const summary = summaryResult.rows[0];
     const trends = trendsResult.rows;
     const displayedTrends = trends.slice(-6);
     const platforms = platformsResult.rows;
@@ -3682,6 +3691,30 @@ router.post('/generate', async (req, res) => {
       doc.fillColor(growthColor).fontSize(5.8).font('Helvetica-Bold').text(bottomText, x + 34, y + 47, { width: w - 42, height: 13, ellipsis: true });
     };
 
+    const drawAgencyLogo = () => {
+      try {
+        if (!canUseAgencyBranding) return;
+
+        doc.save();
+        doc.roundedRect(50, 32, 46, 46, 8).fill('#FFFFFF');
+
+        if (agencyLogoBuffer) {
+          doc.image(agencyLogoBuffer, 54, 36, {
+            width: 38,
+            height: 38,
+            fit: [38, 38],
+          });
+        } else {
+          // Beautiful market-ready geometric vector icon if buffer file is absent
+          doc.rect(59, 41, 28, 28).lineWidth(1.5).strokeColor(THEME.royal).stroke();
+          doc.circle(73, 55, 6).fill(THEME.violet);
+        }
+        doc.restore();
+      } catch (e) {
+        console.log('Logo render fallback applied:', e.message);
+      }
+    };
+
     const drawFooter = (pageNo) => {
       doc.save();
       let footerBrand = isAgencyPlan ? `${agency?.name || 'Agency Report'} • ${client.name}` : isProPlan ? `Prepared for ${client.name} • ${agency?.name || 'Agency Report'}` : `Prepared for ${client.name} • Generated with Marketing Report Generator`;
@@ -3751,7 +3784,19 @@ router.post('/generate', async (req, res) => {
           doc.moveTo(previousPoint.x, previousPoint.y).lineTo(px, py).strokeColor(color).lineWidth(2).stroke();
         }
         doc.circle(px, py, 4).fill(color);
-        doc.fillColor(THEME.text).fontSize(valueFont).font('Helvetica-Bold').text(valueText, px - 35, valueY, { width: 70, height: 10, align: 'center', ellipsis: true });
+
+        // Edge check to prevent clipping labels outside the line chart box boundaries
+        let labelAlign = 'center';
+        let labelX = px - 35;
+        if (i === 0) {
+          labelAlign = 'left';
+          labelX = px + 4;
+        } else if (i === rows.length - 1) {
+          labelAlign = 'right';
+          labelX = px - 74;
+        }
+
+        doc.fillColor(THEME.text).fontSize(valueFont).font('Helvetica-Bold').text(valueText, labelX, valueY, { width: 70, height: 10, align: labelAlign, ellipsis: true });
         doc.fillColor(THEME.muted).fontSize(6.5).font('Helvetica').text(String(row[labelKey] || ''), px - 24, chartBottom + 8, { width: 48, height: 14, align: 'center', ellipsis: true });
         previousPoint = { x: px, y: py };
       });
@@ -3857,11 +3902,16 @@ router.post('/generate', async (req, res) => {
     doc.circle(455, 135, 72).fillOpacity(0.18).fill(THEME.violet).fillOpacity(1);
     doc.circle(95, 55, 85).fillOpacity(0.08).fill('#FFFFFF').fillOpacity(1);
 
-    doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold').text((agency?.name || 'Your Agency').toUpperCase(), 50, 42, { width: 360, lineBreak: false, ellipsis: true });
+    // Agency Logo Call
+    drawAgencyLogo();
+
+    doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold').text((agency?.name || 'Your Agency').toUpperCase(), agencyLogoBuffer || canUseAgencyBranding ? 108 : 50, 42, { width: 360, lineBreak: false, ellipsis: true });
     doc.fillColor('#FFFFFF').fontSize(26).font('Helvetica-Bold').text(reportTitle, 50, 92, { width: 430, height: 58, lineGap: 3, ellipsis: true });
-    doc.fillColor('#DBEAFE').fontSize(13).font('Helvetica').text(client.name, 50, 158, { width: 330, height: 16, ellipsis: true });
-    doc.fillColor('#BFDBFE').fontSize(9).text(dateLabel, 50, 184, { width: 320, height: 12, ellipsis: true });
-    doc.fillColor('#DBEAFE').fontSize(8).font('Helvetica-Bold').text(planLabel, 50, 198);
+
+    // Adjusted text position downward slightly to clear header overlaps cleanly
+    doc.fillColor('#DBEAFE').fontSize(13).font('Helvetica').text(client.name, 50, 162, { width: 330, height: 16, ellipsis: true });
+    doc.fillColor('#BFDBFE').fontSize(9).text(dateLabel, 50, 186, { width: 320, height: 12, ellipsis: true });
+    doc.fillColor('#DBEAFE').fontSize(8).font('Helvetica-Bold').text(planLabel, 50, 199);
 
     if (isAgencyPlan) {
       doc.roundedRect(390, 176, 145, 24, 12).fill('#ECFDF5');
@@ -3913,7 +3963,7 @@ router.post('/generate', async (req, res) => {
       { label: 'Leads / Results', value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'Not Available', description: 'Total leads/results generated', growth: growth.conversions, color: THEME.emerald, bg: THEME.softGreen },
       { label: 'Cost / Lead', value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', description: 'Average cost per lead/result', growth: growth.cpa, color: THEME.amber, bg: THEME.softAmber },
       { label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'Not Available', note: safeSummary.hasClicks ? growth.clicks : 'Not in source file', growth: safeSummary.hasClicks ? growth.clicks : null, color: THEME.amber, bg: THEME.softAmber },
-      { label: 'CTR', value: safeSummary.hasResult = safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'Not Available', note: safeSummary.hasCtr ? growth.ctr : 'Requires clicks data', growth: safeSummary.hasCtr ? growth.ctr : null, color: THEME.violet, bg: THEME.softPurple },
+      { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'Not Available', note: safeSummary.hasCtr ? growth.ctr : 'Requires clicks data', growth: safeSummary.hasCtr ? growth.ctr : null, color: THEME.violet, bg: THEME.softPurple },
       { label: 'CPC', value: safeSummary.hasCpc ? formatCurrency(safeSummary.cpc, currency) : 'Not Available', note: safeSummary.hasCpc ? growth.cpc : 'Requires spend data', growth: safeSummary.hasCpc ? growth.cpc : null, color: THEME.rose, bg: THEME.softRose },
       { label: 'ROAS', value: safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available', note: safeSummary.hasRoas ? growth.roas : 'Requires revenue data', growth: safeSummary.hasRoas ? growth.roas : null, color: THEME.royal, bg: THEME.softBlue },
     ];
@@ -4015,7 +4065,6 @@ router.post('/generate', async (req, res) => {
       drawEmptyState(35, 120, 525, 185, 'Monthly Trend Data Not Available', 'No monthly performance data was available for the selected period.');
     }
 
-    // Dynamic placement based on real coordinate execution parameters
     doc.y = 320;
     ensurePageSpace(115);
     let cardCurrentY = doc.y;
@@ -4033,8 +4082,11 @@ router.post('/generate', async (req, res) => {
     doc.y = cardCurrentY + 110;
 
     if (campaignDisplayRows.length > 0) {
+      // Dynamic spacing calculation formulas applied to campaign container card to avoid overflows seen in image_301963.png
       const campaignRowHeight = 22;
-      const campaignCardHeight = 72 + campaignDisplayRows.length * campaignRowHeight;
+      const paddingAndHeaderSpacing = 68;
+      const campaignCardHeight = paddingAndHeaderSpacing + (campaignDisplayRows.length * campaignRowHeight) + 15;
+
       ensurePageSpace(campaignCardHeight);
 
       let dynamicCampaignY = doc.y;
@@ -4142,7 +4194,7 @@ router.post('/generate', async (req, res) => {
       { label: 'Total Leads', value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen },
       { label: 'Cost / Lead', value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber },
       { label: 'Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue },
-      { label: 'CTR', value: safeSummary.hasResult = safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.violet, bg: THEME.softPurple },
+      { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.violet, bg: THEME.softPurple },
     ], 35, 125);
 
     if (displayedTrends.length > 0) {
@@ -4188,14 +4240,13 @@ router.post('/generate', async (req, res) => {
       { label: 'Leads', numericValue: safeSummary.hasConversions ? Number(safeSummary.conversions || 0) : 0, available: safeSummary.hasConversions, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', note: 'Final results generated', color: THEME.emerald, bg: THEME.softGreen },
     ];
 
-    // Filter out items that are not available to prevent small fraction breaking the visual scale layout
     const activeFunnelValues = funnelItems.filter(item => item.available).map(item => item.numericValue);
     const funnelMaxValue = activeFunnelValues.length > 0 ? Math.max(...activeFunnelValues, 1) : 1;
 
     funnelItems.forEach((item, i) => {
       const y = 135 + i * 115;
       const rawWidth = item.available ? (Number(item.numericValue || 0) / funnelMaxValue) * 460 : 350;
-      const width = Math.max(260, Math.min(460, rawWidth)); // Normalized safety bounds
+      const width = Math.max(260, Math.min(460, rawWidth));
       const x = 50 + (460 - width) / 2;
 
       drawCard(x, y, width, 75, item.bg, THEME.border);
