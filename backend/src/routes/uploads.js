@@ -738,7 +738,16 @@ async function processFileWithMapping(
 
     const isInvalidCampaignName = (name) => {
       const n = normalizeHeader(name);
-      return !n || n === 'unknown campaign';
+      return (
+        !n ||
+        n === 'unknown campaign' ||
+        n === 'unknown camp' ||
+        n === 'campaign name n/a' ||
+        n === 'name n/a' ||
+        n === 'n/a' ||
+        n === 'na' ||
+        n === 'not available'
+      );
     };
 
     const normalizeCampaignMetric = (record) => {

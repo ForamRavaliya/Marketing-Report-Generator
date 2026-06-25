@@ -295,8 +295,7 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
          SUM(COALESCE(pd.spend, 0)) > 0
          OR SUM(COALESCE(pd.clicks, 0)) > 0
          OR SUM(COALESCE(pd.conversions, 0)) > 0
-       ORDER BY SUM(COALESCE(pd.spend, 0)) DESC
-       LIMIT 8`,
+       ORDER BY SUM(COALESCE(pd.spend, 0)) DESC`,
      params
    ),
       db.query(
@@ -391,8 +390,8 @@ const bestCampaign = campaigns.length > 0
     })[0]
   : null;
 
-const bestMonth = displayedTrends.length > 0
-  ? [...displayedTrends].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
+const bestMonth = trends.length > 0
+  ? [...trends].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
   : null;
 
     // const aiInsight = aiInsightResult.rows[0] || null;
@@ -611,15 +610,17 @@ const drawEmptyState = (x, y, w, h, title, message) => {
   doc.fillColor(THEME.text)
     .fontSize(13)
     .font('Helvetica-Bold')
-    .text(title, x + 25, y + 35, { width: w - 50, align: 'center' });
+    .text(title, x + 25, y + 35, { width: w - 50, height: 18, align: 'center', ellipsis: true });
 
   doc.fillColor(THEME.muted)
     .fontSize(9)
     .font('Helvetica')
     .text(message, x + 35, y + 62, {
       width: w - 70,
+      height: Math.max(20, h - 76),
       align: 'center',
       lineGap: 3,
+      ellipsis: true,
     });
 };
 const drawMiniMetricCards = (items, startX, startY) => {
@@ -781,8 +782,10 @@ if (isAgencyPlan) {
     .font('Helvetica')
     .text(footerBrand, 50, FOOTER_TOP + 10, {
       width: 430,
+      height: 10,
       align: 'left',
       lineBreak: false,
+      ellipsis: true,
     });
 
   doc.roundedRect(515, FOOTER_TOP + 5, 26, 18, 5).fill(THEME.royal);
@@ -813,13 +816,13 @@ const drawPageHeader = (title = currentPageTitle, subtitle = currentPageSubtitle
   doc.fillColor('#FFFFFF')
     .fontSize(22)
     .font('Helvetica-Bold')
-    .text(title, 50, 34);
+    .text(title, 50, 34, { width: 485, height: 26, ellipsis: true });
 
   if (subtitle) {
     doc.fillColor('#CBD5E1')
       .fontSize(9)
       .font('Helvetica')
-      .text(subtitle, 50, 62);
+      .text(subtitle, 50, 62, { width: 485, height: 14, ellipsis: true });
   }
 
   doc.y = PAGE_CONTENT_TOP;
@@ -882,6 +885,15 @@ const drawLineChart = (doc, rows, options, currency = 'INR') => {
     const value = Number(row[valueKey] || 0);
     const px = x + i * stepX;
     const py = chartBottom - (value / maxValue) * chartHeight;
+    const valueText =
+      valueKey === 'spend' || valueKey === 'revenue'
+        ? formatCurrency(value, currency)
+        : formatNum(value);
+    const valueFont =
+      valueText.length > 12 ? 5.6 :
+      valueText.length > 9 ? 6.2 :
+      6.8;
+    const valueY = Math.max(chartTop + 2, py - 15);
 
     if (previousPoint) {
       doc.moveTo(previousPoint.x, previousPoint.y)
@@ -892,6 +904,16 @@ const drawLineChart = (doc, rows, options, currency = 'INR') => {
     }
 
     doc.circle(px, py, 4).fill(color);
+
+    doc.fillColor(THEME.text)
+      .fontSize(valueFont)
+      .font('Helvetica-Bold')
+      .text(valueText, px - 35, valueY, {
+        width: 70,
+        height: 10,
+        align: 'center',
+        ellipsis: true,
+      });
 
     doc.fillColor(THEME.muted)
       .fontSize(6.5)
@@ -924,8 +946,8 @@ const drawBarChart = (doc, rows, options, currency = 'INR') => {
     .slice(0, 6);
   const values = chartRows.map((r) => Number(r[valueKey] || 0));
   const maxValue = Math.max(...values, 1);
-  const labelW = 190;
-  const valueW = 92;
+  const labelW = 170;
+  const valueW = 120;
   const barX = x + labelW + 8;
   const barW = width - labelW - valueW - 20;
   const rowH = 30;
@@ -938,7 +960,7 @@ const drawBarChart = (doc, rows, options, currency = 'INR') => {
   chartRows.forEach((row, i) => {
     const value = Number(row[valueKey] || 0);
     const by = y + 25 + i * rowH;
-    const bw = Math.max(2, (value / maxValue) * barW);
+    const bw = value > 0 ? Math.max(2, (value / maxValue) * barW) : 0;
 
     doc.fillColor(THEME.text)
       .fontSize(7.2)
@@ -950,12 +972,20 @@ const drawBarChart = (doc, rows, options, currency = 'INR') => {
       });
 
     doc.roundedRect(barX, by, barW, 12, 4).fill('#E2E8F0');
-    doc.roundedRect(barX, by, bw, 12, 4).fill(color);
+    if (bw > 0) {
+      doc.roundedRect(barX, by, bw, 12, 4).fill(color);
+    }
+
+    const valueText = formatCurrency(value, currency);
+    const valueFont =
+      valueText.length > 18 ? 5.8 :
+      valueText.length > 14 ? 6.3 :
+      7;
 
     doc.fillColor(THEME.text)
-      .fontSize(7)
       .font('Helvetica-Bold')
-      .text(formatCurrency(value, currency), barX + barW + 8, by - 1, {
+      .fontSize(valueFont)
+      .text(valueText, barX + barW + 8, by - 1, {
         width: valueW,
         height: 16,
         ellipsis: true,
@@ -972,34 +1002,51 @@ const drawNumberBarChart = (doc, rows, options) => {
     valueKey,
     labelKey,
     color = THEME.emerald,
+    sortByValue = false,
+    maxRows = 6,
   } = options;
 
-  const values = rows.map((r) => Number(r[valueKey] || 0));
+  const chartRows = (sortByValue
+    ? rows.slice().sort((a, b) => Number(b[valueKey] || 0) - Number(a[valueKey] || 0))
+    : rows.slice()
+  ).slice(0, maxRows);
+  const values = chartRows.map((r) => Number(r[valueKey] || 0));
   const maxValue = Math.max(...values, 1);
   const chartHeight = 170;
   const barGap = 14;
-  const barWidth = Math.max(30, (width - barGap * (rows.length - 1)) / Math.max(rows.length, 1));
+  const barWidth = Math.max(30, (width - barGap * (chartRows.length - 1)) / Math.max(chartRows.length, 1));
   const chartBottom = y + chartHeight;
+  const maxBarHeight = 110;
 
   doc.fillColor(THEME.text)
     .fontSize(13)
     .font('Helvetica-Bold')
     .text(title, x, y - 5);
 
-  rows.slice(0, 6).forEach((row, i) => {
+  chartRows.forEach((row, i) => {
     const value = Number(row[valueKey] || 0);
-    const h = (value / maxValue) * 115;
+    const h = value > 0 ? Math.max(2, (value / maxValue) * maxBarHeight) : 0;
     const bx = x + i * (barWidth + barGap);
     const by = chartBottom - h;
 
-    doc.roundedRect(bx, by, barWidth, h, 5).fill(color);
+    if (h > 0) {
+      doc.roundedRect(bx, by, barWidth, h, 5).fill(color);
+    }
+
+    const valueText = formatNum(value);
+    const valueFont =
+      valueText.length > 9 ? 6.2 :
+      valueText.length > 6 ? 7 :
+      8;
 
     doc.fillColor(THEME.text)
-      .fontSize(8)
+      .fontSize(valueFont)
       .font('Helvetica-Bold')
-      .text(formatNum(value), bx - 4, by - 15, {
+      .text(valueText, bx - 4, by - 15, {
         width: barWidth + 8,
+        height: 10,
         align: 'center',
+        ellipsis: true,
       });
 
     doc.fillColor(THEME.muted)
@@ -1017,13 +1064,29 @@ const drawNumberBarChart = (doc, rows, options) => {
 const drawPieChart = (doc, rows, options, currency = 'INR') => {
   const { x, y, radius = 60, title } = options;
 
-  const total = rows.reduce((sum, r) => sum + Number(r.spend || 0), 0);
+  const activeRows = rows
+    .filter((r) => Number(r.spend || 0) > 0)
+    .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0));
+  const topRows = activeRows.length > 6 ? activeRows.slice(0, 5) : activeRows.slice(0, 6);
+  const otherSpend = activeRows.length > 6
+    ? activeRows.slice(5).reduce((sum, r) => sum + Number(r.spend || 0), 0)
+    : 0;
+  const chartRows = otherSpend > 0
+    ? [...topRows, { platform: 'Other platforms', spend: otherSpend }]
+    : topRows;
+  const total = chartRows.reduce((sum, r) => sum + Number(r.spend || 0), 0);
   const colors = [THEME.royal, THEME.violet, THEME.emerald, THEME.amber, THEME.rose, THEME.cyan];
+  const titleX = Math.max(55, x - radius - 120);
+  const titleY = Math.max(PAGE_CONTENT_TOP, y - radius - 40);
 
   doc.fillColor(THEME.text)
     .fontSize(13)
     .font('Helvetica-Bold')
-    .text(title, 55, 140);
+    .text(title, titleX, titleY, {
+      width: 480,
+      height: 16,
+      ellipsis: true,
+    });
 
   if (total <= 0) {
     doc.fillColor(THEME.muted)
@@ -1035,7 +1098,7 @@ const drawPieChart = (doc, rows, options, currency = 'INR') => {
 
   let startAngle = -90;
 
-  rows.slice(0, 6).forEach((row, i) => {
+  chartRows.forEach((row, i) => {
     const value = Number(row.spend || 0);
     const angle = (value / total) * 360;
     const endAngle = startAngle + angle;
@@ -1048,7 +1111,7 @@ const drawPieChart = (doc, rows, options, currency = 'INR') => {
     startAngle = endAngle;
   });
 
-  rows.slice(0, 6).forEach((row, i) => {
+  chartRows.forEach((row, i) => {
     const ly = y - 55 + i * 18;
     const share = total > 0 ? (Number(row.spend || 0) / total) * 100 : 0;
 
@@ -1061,7 +1124,7 @@ const drawPieChart = (doc, rows, options, currency = 'INR') => {
         `${String(row.platform || 'Platform').toUpperCase()} - ${formatNum(share, 1)}%`,
         x + 118,
         ly - 1,
-        { width: 190 }
+        { width: 190, height: 12, ellipsis: true }
       );
   });
 };
@@ -1113,17 +1176,19 @@ doc.fillColor('#FFFFFF')
   .font('Helvetica-Bold')
   .text(reportTitle, 50, 92, {
     width: 430,
+    height: 58,
     lineGap: 3,
+    ellipsis: true,
   });
 
 doc.fillColor('#DBEAFE')
   .fontSize(13)
   .font('Helvetica')
-  .text(client.name, 50, 158);
+  .text(client.name, 50, 158, { width: 330, height: 16, ellipsis: true });
 
 doc.fillColor('#BFDBFE')
   .fontSize(9)
-  .text(dateLabel, 50, 184);
+  .text(dateLabel, 50, 184, { width: 320, height: 12, ellipsis: true });
 
   doc.fillColor('#DBEAFE')
     .fontSize(8)
@@ -1244,7 +1309,9 @@ doc.fillColor(THEME.text)
     240,
     {
       width: 445,
+      height: 28,
       lineGap: 2,
+      ellipsis: true,
     }
   );
 
@@ -1461,7 +1528,7 @@ drawCard(35, 640, 525, 48, '#FFFFFF', '#BFDBFE');
      });
  });
 
- drawCard(35, 690, 525, 45, '#F8FAFC', '#BFDBFE');
+ drawCard(35, 690, 525, 42, '#F8FAFC', '#BFDBFE');
 
  doc.fillColor(THEME.royal)
    .fontSize(7.5)
@@ -1525,6 +1592,7 @@ doc.fillColor('#CBD5E1')
   .fontSize(9)
   .font('Helvetica')
   .text(`${client.name} | ${dateLabel}`, 50, 62);
+setPageContext('Performance Details', `${client.name} | ${dateLabel}`);
 
 if (displayedTrends.length > 0) {
   drawCard(35, 120, 525, 185, THEME.card, THEME.border);
@@ -1607,7 +1675,9 @@ doc.fillColor(THEME.muted)
   .font('Helvetica')
   .text(dataNotes.join('\n'), 55, 475, {
     width: 480,
+    height: 38,
     lineGap: 4,
+    ellipsis: true,
   });
 
 // Major campaign mini strip
@@ -1693,7 +1763,7 @@ if (campaignDisplayRows.length > 0) {
     525,
     135,
     'Major Campaign Data Not Available',
-    'This upload contains aggregate data only. Export campaign-level rows to unlock campaign ranking, campaign spend share and lead efficiency analysis.'
+    'No valid campaign-level rows were available for this report period. Export campaign-level rows with real campaign names to unlock campaign ranking, campaign spend share and lead efficiency analysis.'
   );
 }
 
@@ -1719,6 +1789,7 @@ drawFooter(pageNo++);
     .fontSize(9)
     .font('Helvetica')
     .text('Visual analysis of spend and campaign performance', 50, 62);
+  setPageContext('Charts & Campaign Analytics', 'Visual analysis of spend and campaign performance');
 
  if (hasTrendChart) {
    drawCard(35, 120, 525, 220, THEME.card, THEME.border);
@@ -1853,12 +1924,14 @@ drawFooter(pageNo++);
      .fontSize(9)
      .font('Helvetica')
      .text(
-`This section shows campaign-level rows available in the uploaded export. These values may be lower than the total report summary if some data was available only at aggregate level.`,
+`This section shows the same valid campaign-level source used by the campaign table and campaign chart. Aggregate rows and invalid campaign names are excluded from campaign reporting.`,
        75,
        595,
        {
          width: 430,
+         height: 30,
          lineGap: 4,
+         ellipsis: true,
        }
      );
  } else {
@@ -1892,6 +1965,7 @@ doc.fillColor('#FFFFFF')
     .fontSize(9)
     .font('Helvetica')
     .text('Simple view of leads, cost per lead and monthly lead volume', 50, 62);
+  setPageContext('Lead Generation Analysis', 'Simple view of leads, cost per lead and monthly lead volume');
 
   drawMiniMetricCards(
     [
@@ -2045,6 +2119,7 @@ doc.fillColor('#CBD5E1')
   .fontSize(9)
   .font('Helvetica')
   .text('Simple view of how audience activity converted into leads', 50, 62);
+setPageContext('Lead Funnel Overview', 'Simple view of how audience activity converted into leads');
 
 const avgFrequency =
   safeSummary.hasReach &&
@@ -2070,6 +2145,8 @@ const leadRate =
 const funnelItems = [
   {
     label: 'Reach',
+    numericValue: safeSummary.hasReach ? Number(safeSummary.reach || 0) : 0,
+    available: safeSummary.hasReach && safeSummary.reach > 0,
     value: safeSummary.hasReach && safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'N/A',
     note: 'People reached',
     color: THEME.royal,
@@ -2077,6 +2154,8 @@ const funnelItems = [
   },
   {
     label: 'Impressions',
+    numericValue: safeSummary.hasImpressions ? Number(safeSummary.impressions || 0) : 0,
+    available: safeSummary.hasImpressions,
     value: safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'N/A',
     note: 'Ad views delivered',
     color: THEME.cyan,
@@ -2084,6 +2163,8 @@ const funnelItems = [
   },
   {
     label: 'Clicks',
+    numericValue: safeSummary.hasClicks ? Number(safeSummary.clicks || 0) : 0,
+    available: safeSummary.hasClicks,
     value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A',
     note: 'People who clicked',
     color: THEME.violet,
@@ -2091,6 +2172,8 @@ const funnelItems = [
   },
   {
     label: 'Leads',
+    numericValue: safeSummary.hasConversions ? Number(safeSummary.conversions || 0) : 0,
+    available: safeSummary.hasConversions,
     value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A',
     note: 'Final results generated',
     color: THEME.emerald,
@@ -2098,10 +2181,16 @@ const funnelItems = [
   },
 ];
 
+const funnelMaxValue = Math.max(
+  ...funnelItems.map((item) => (item.available ? Number(item.numericValue || 0) : 0)),
+  1
+);
+
 funnelItems.forEach((item, i) => {
   const y = 135 + i * 115;
-  const width = 460 - i * 55;
-  const x = 50 + i * 28;
+  const rawWidth = item.available ? (Number(item.numericValue || 0) / funnelMaxValue) * 460 : 260;
+  const width = Math.max(260, Math.min(460, rawWidth));
+  const x = 50 + (460 - width) / 2;
 
   drawCard(x, y, width, 75, item.bg, THEME.border);
 
@@ -2118,19 +2207,29 @@ funnelItems.forEach((item, i) => {
   doc.fillColor(THEME.text)
     .fontSize(15)
     .font('Helvetica-Bold')
-    .text(item.label, x + 55, y + 18);
+    .text(item.label, x + 55, y + 18, {
+      width: Math.max(100, width - 180),
+      height: 18,
+      ellipsis: true,
+    });
 
   doc.fillColor(item.color)
     .fontSize(20)
     .font('Helvetica-Bold')
-    .text(item.value, x + 55, y + 40);
+    .text(item.value, x + 55, y + 40, {
+      width: Math.max(100, width - 180),
+      height: 24,
+      ellipsis: true,
+    });
 
   doc.fillColor(THEME.muted)
     .fontSize(8)
     .font('Helvetica')
     .text(item.note, x + width - 135, y + 32, {
       width: 110,
+      height: 18,
       align: 'right',
+      ellipsis: true,
     });
 
  if (i < funnelItems.length - 1) {
@@ -2153,7 +2252,9 @@ funnelItems.forEach((item, i) => {
      .font('Helvetica-Bold')
      .text(rates[i], 315, y + 86, {
        width: 150,
+       height: 10,
        lineBreak: false,
+       ellipsis: true,
      });
  }
 });
@@ -2174,7 +2275,9 @@ doc.fillColor(THEME.muted)
     645,
     {
       width: 480,
+      height: 44,
       lineGap: 4,
+      ellipsis: true,
     }
   );
 
@@ -2198,6 +2301,7 @@ doc.fillColor('#CBD5E1')
   .fontSize(9)
   .font('Helvetica')
   .text('Platform-wise spend distribution and leads performance', 50, 62);
+setPageContext('Platform Analytics', 'Platform-wise spend distribution and leads performance');
 
 const activePlatforms = platforms.filter(
   (p) =>
@@ -2249,7 +2353,7 @@ if (topPlatform) {
       `${String(topPlatform.platform || 'Platform').toUpperCase()} generated ${formatNum(topPlatform.conversions)} leads at ${topPlatformCpl} cost/lead.`,
       55,
       407,
-      { width: 485 }
+      { width: 485, height: 14, ellipsis: true }
     );
 }
 
@@ -2262,10 +2366,11 @@ if (topPlatform) {
       x: 55,
       y: 460,
       width: 480,
-    title: 'Leads by Platform',
+      title: 'Leads by Platform',
       labelKey: 'platform',
       valueKey: 'conversions',
       color: THEME.emerald,
+      sortByValue: true,
     }
   );
 } else if (activePlatforms.length === 1) {
@@ -2332,7 +2437,9 @@ doc.fillColor(THEME.muted)
     440,
     {
       width: 480,
+      height: 30,
       lineGap: 4,
+      ellipsis: true,
     }
   );
  }else {
@@ -2367,6 +2474,7 @@ doc.fillColor('#CBD5E1')
   .fontSize(9)
   .font('Helvetica')
   .text('Business-oriented observations and next actions', 50, 62);
+setPageContext('Insights & Recommendations', 'Business-oriented observations and next actions');
 
   const availableFields = metricAvailability.filter((metric) => metric.available).length;
 
@@ -2431,7 +2539,9 @@ insightCards.forEach((card, i) => {
     .font('Helvetica')
     .text(card.desc, x + 18, y + 67, {
       width: 210,
+      height: 18,
       lineGap: 2,
+      ellipsis: true,
     });
 });
 
@@ -2493,7 +2603,9 @@ doc.fillColor(THEME.muted)
         535,
         {
           width: 480,
+          height: 12,
           lineBreak: false,
+          ellipsis: true,
         }
       );
   }
@@ -2591,6 +2703,7 @@ if (isAgencyPlan) {
     .fontSize(9)
     .font('Helvetica')
     .text('White-label client-ready decision summary', 50, 62);
+  setPageContext('Agency Executive Summary', 'White-label client-ready decision summary');
 
   drawCard(35, 125, 525, 115, '#FFFFFF', '#BFDBFE');
 
@@ -2660,7 +2773,9 @@ if (isAgencyPlan) {
       435,
       {
         width: 480,
+        height: 36,
         lineGap: 4,
+        ellipsis: true,
       }
     );
 
@@ -2680,7 +2795,9 @@ if (isAgencyPlan) {
       575,
       {
         width: 480,
+        height: 30,
         lineGap: 4,
+        ellipsis: true,
       }
     );
 
@@ -2707,6 +2824,7 @@ doc.fillColor('#CBD5E1')
   .fontSize(9)
   .font('Helvetica')
   .text('Clear next steps to improve campaign performance', 50, 62);
+setPageContext('Next Month Action Plan', 'Clear next steps to improve campaign performance');
 
 const actionItems = [
   {
@@ -2766,7 +2884,9 @@ actionItems.forEach((item, i) => {
     .font('Helvetica')
     .text(item.desc, 95, y + 48, {
       width: 420,
+      height: 30,
       lineGap: 4,
+      ellipsis: true,
     });
 });
 
@@ -2788,7 +2908,9 @@ doc.fillColor(THEME.muted)
     690,
     {
       width: 480,
+      height: 22,
       lineGap: 3,
+      ellipsis: true,
     }
   );
 
@@ -2815,6 +2937,7 @@ doc.fillColor('#CBD5E1')
   .fontSize(9)
   .font('Helvetica')
   .text('Final business summary for quick decision making', 50, 62);
+setPageContext('Executive Summary', 'Final business summary for quick decision making');
 
 const bestPlatformName =
   topPlatform
@@ -2905,7 +3028,9 @@ doc.fillColor(THEME.muted)
     510,
     {
       width: 480,
+      height: 36,
       lineGap: 4,
+      ellipsis: true,
     }
   );
 
@@ -2927,7 +3052,9 @@ doc.fillColor(THEME.muted)
     630,
     {
       width: 480,
+      height: 34,
       lineGap: 4,
+      ellipsis: true,
     }
   );
 
@@ -2949,7 +3076,9 @@ doc.fillColor(THEME.muted)
     703,
     {
       width: 345,
+      height: 20,
       lineGap: 2,
+      ellipsis: true,
     }
   );
 drawFooter(pageNo++);
