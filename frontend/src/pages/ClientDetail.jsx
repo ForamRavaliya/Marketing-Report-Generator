@@ -1,7 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getClient,  getTrends, getComparison, getCampaigns, getPlatforms, getAdAccounts, createAdAccount, deleteAdAccount,syncAdAccount,updateAdAccountFrequency,getSyncLogs,
-    getSubscription, generateAIInsights, getAIInsights,} from '../utils/api';
+import {
+  getClient,
+  getTrends,
+  getComparison,
+  getCampaigns,
+  getPlatforms,
+  getSubscription,
+  generateAIInsights,
+  getAIInsights,
+} from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend ,} from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
@@ -40,17 +48,17 @@ export default function ClientDetail() {
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
-const [adAccounts, setAdAccounts] = useState([]);
-const [syncLogs, setSyncLogs] = useState([]);
+//const [adAccounts, setAdAccounts] = useState([]);
+//const [syncLogs, setSyncLogs] = useState([]);
 const [subscription, setSubscription] = useState(null);
 const [aiInsight, setAiInsight] = useState(null);
 const [aiLoading, setAiLoading] = useState(false);
 
-const [adForm, setAdForm] = useState({
+/* const [adForm, setAdForm] = useState({
   platform: 'meta',
   adAccountId: '',
   accessToken: '',
-});
+}); */
   const load = useCallback(async () => {
     setLoading(true);
 
@@ -107,13 +115,13 @@ const [adForm, setAdForm] = useState({
         .then(setAiInsight)
         .catch(() => setAiInsight(null));
 
-      getAdAccounts(id)
+     /* getAdAccounts(id)
         .then(setAdAccounts)
         .catch(() => {});
 
       getSyncLogs(id)
         .then(setSyncLogs)
-        .catch(() => {});
+        .catch(() => {}); */
     } catch (error) {
       console.error('Client detail load error:', error.response?.data || error.message);
       toast.error('Failed to load data');
@@ -155,10 +163,11 @@ const currentMonthMetrics = comparison?.comparison || {};
     'trends',
     'campaigns',
     'platforms',
-    'integrations',
+    //'integrations',
     'ai insights',
   ];
 // Hanlers
+/*
 const handleAddAdAccount = async () => {
   try {
     if (!adForm.adAccountId.trim()) {
@@ -184,8 +193,8 @@ const handleAddAdAccount = async () => {
   } catch {
     toast.error('Failed to connect account');
   }
-};
-
+}; */
+/*
 const handleSyncAdAccount = async (accountId) => {
   try {
     const res = await syncAdAccount(accountId);
@@ -231,7 +240,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
   } catch {
     toast.error('Failed to update sync frequency');
   }
-};
+};*/
   return (
     <div className="fade-in">
       {/* Header */}
@@ -936,10 +945,12 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
 )}
 
 {/* Integrations Tab */}
+{/*
 {activeTab === 'integrations' && (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
+*/}
     {/* Header */}
+    {/*
     <div
       className="card card-pad"
       style={{
@@ -977,8 +988,9 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
         ● Live Data Ready
       </div>
     </div>
-
+*/}
     {/* Platform Cards */}
+      {/*
     <div className="grid grid-3" style={{ gap: 20 }}>
 
       {[
@@ -1178,8 +1190,9 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
         );
       })}
     </div>
-
+*/}
     {/* Sync Logs */}
+    {/*
     <div className="card card-pad">
       <div
         style={{
@@ -1280,7 +1293,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
     </div>
   </div>
 )}
-
+*/}
             </>
           )}
         </div>
