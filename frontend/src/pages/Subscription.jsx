@@ -19,13 +19,13 @@ const plans = [
     id: 'pro',
     name: 'Pro',
     price: 'INR 499/mo',
-    features: ['Unlimited reports', 'PDF export', 'Ad sync', 'Sync history'],
+    features: ['Unlimited reports', 'PDF export', /*'Ad sync',*/ 'Sync history'],
   },
   {
     id: 'agency',
     name: 'Agency',
     price: 'INR 999/mo',
-    features: ['Multiple clients', 'Auto sync', 'Advanced analytics', 'Priority support'],
+    features: ['Multiple clients', /*'Auto sync',*/ 'Advanced analytics', 'Priority support'],
   },
 ];
 
