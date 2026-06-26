@@ -5,7 +5,15 @@ const path = require('path');
 const https = require('https');
 const fs = require('fs');
 const db = require('../db');
+const {
+  getSummaryMetrics,
+  getMonthlyTrends,
+  getPlatformMetrics,
+  getCampaignMetrics,
+} = require('../utils/metrics');
 const { authenticate } = require('../middleware/auth');
+
+
 
 router.use(authenticate);
 
@@ -171,75 +179,18 @@ router.post('/generate', async (req, res) => {
       )
     `;
 
-    const [summaryResult, trendsResult, platformsResult, campaignsResult, aiInsightResult] = await Promise.all([
-      db.query(
-        `SELECT
-          SUM(COALESCE(spend, 0)) as spend,
-          SUM(COALESCE(impressions, 0)) as impressions,
-          SUM(COALESCE(clicks, 0)) as clicks,
-          SUM(COALESCE(conversions, 0)) as conversions,
-          SUM(COALESCE(revenue, 0)) as revenue,
-          CASE WHEN COUNT(*) = 1 THEN MAX(COALESCE(reach, 0)) ELSE NULL END as reach,
-          BOOL_OR(COALESCE((raw_data->'mapping') ? 'spend', false) OR COALESCE(spend, 0) > 0) as has_spend_field,
-          BOOL_OR(COALESCE((raw_data->'mapping') ? 'reach', false) OR COALESCE(reach, 0) > 0) as has_reach_field,
-          BOOL_OR(COALESCE((raw_data->'mapping') ? 'impressions', false) OR COALESCE(impressions, 0) > 0) as has_impressions_field,
-          BOOL_OR(COALESCE((raw_data->'mapping') ? 'clicks', false) OR COALESCE(clicks, 0) > 0) as has_clicks_field,
-          BOOL_OR(COALESCE((raw_data->'mapping') ? 'conversions', false) OR COALESCE(conversions, 0) > 0) as has_conversions_field,
-          BOOL_OR(COALESCE((raw_data->'mapping') ? 'revenue', false) OR COALESCE(revenue, 0) > 0) as has_revenue_field,
-          CASE WHEN SUM(COALESCE(impressions, 0)) > 0 THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100 ELSE 0 END as ctr,
-          CASE WHEN SUM(COALESCE(clicks, 0)) > 0 THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(clicks, 0)) ELSE 0 END as cpc,
-          CASE WHEN SUM(COALESCE(conversions, 0)) > 0 THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0)) ELSE 0 END as cpa,
-          CASE WHEN SUM(COALESCE(spend, 0)) > 0 THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0)) ELSE 0 END as roas
-         FROM performance_data pd ${aggregateWhereClause}`,
-        params
-      ),
-      db.query(
-        `SELECT
-           report_month,
-           TO_CHAR(report_month, 'Mon YYYY') as month,
-           SUM(spend) as spend,
-           SUM(clicks) as clicks,
-           SUM(conversions) as conversions,
-           CASE WHEN SUM(spend) > 0 THEN SUM(revenue) / SUM(spend) ELSE 0 END as roas
-         FROM performance_data pd ${aggregateWhereClause}
-         GROUP BY report_month
-         ORDER BY report_month`,
-        params
-      ),
-      db.query(
-        `SELECT platform,
-          SUM(spend) as spend,
-          SUM(clicks) as clicks,
-          SUM(conversions) as conversions
-         FROM performance_data pd ${aggregateWhereClause}
-         GROUP BY platform
-         ORDER BY SUM(spend) DESC`,
-        params
-      ),
-      db.query(
-        `SELECT
-          COALESCE(pd.campaign_id::text, LOWER(TRIM(pd.external_campaign_name))) AS campaign_key,
-          ${validCampaignNameSql} AS name,
-          pd.platform,
-          SUM(COALESCE(pd.spend, 0)) AS spend,
-          SUM(COALESCE(pd.impressions, 0)) AS impressions,
-          SUM(COALESCE(pd.clicks, 0)) AS clicks,
-          SUM(COALESCE(pd.conversions, 0)) AS conversions,
-          CASE WHEN SUM(COALESCE(pd.impressions, 0)) > 0 THEN SUM(COALESCE(pd.clicks, 0))::float / SUM(COALESCE(pd.impressions, 0)) * 100 ELSE 0 END AS ctr,
-          CASE WHEN SUM(COALESCE(pd.clicks, 0)) > 0 THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.clicks, 0)) ELSE 0 END AS cpc,
-          CASE WHEN SUM(COALESCE(conversions, 0)) > 0 THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0)) ELSE 0 END AS cpa
-        FROM performance_data pd
-        LEFT JOIN campaigns c ON pd.campaign_id = c.id
-        ${campaignWhereClause}
-        AND ${validCampaignNameSql} IS NOT NULL
-        GROUP BY
-          COALESCE(pd.campaign_id::text, LOWER(TRIM(pd.external_campaign_name))),
-          ${validCampaignNameSql},
-          pd.platform
-        HAVING SUM(COALESCE(pd.spend, 0)) > 0 OR SUM(COALESCE(pd.clicks, 0)) > 0 OR SUM(COALESCE(pd.conversions, 0)) > 0
-        ORDER BY SUM(COALESCE(pd.spend, 0)) DESC`,
-        params
-      ),
+    const metricOptions = {
+      clientId,
+      dateStart,
+      dateEnd,
+      platform,
+    };
+
+    const [summary, trends, platforms, campaignsRaw, aiInsightResult] = await Promise.all([
+      getSummaryMetrics(db, metricOptions),
+      getMonthlyTrends(db, metricOptions),
+      getPlatformMetrics(db, metricOptions),
+      getCampaignMetrics(db, metricOptions),
       db.query(
         `SELECT summary, recommendations, created_at
          FROM ai_insights
@@ -304,12 +255,8 @@ router.post('/generate', async (req, res) => {
      }
    }
 
-    const summary = summaryResult.rows[0];
-    const trends = trendsResult.rows;
-    const displayedTrends = trends.slice(-6);
-    const platforms = platformsResult.rows;
-
-    const rawCampaigns = campaignsResult.rows || [];
+  const displayedTrends = trends.slice(-6);
+  const rawCampaigns = campaignsRaw || [];
     const campaigns = rawCampaigns
       .map((campaign) => ({
         ...campaign,
