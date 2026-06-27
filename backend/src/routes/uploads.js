@@ -128,7 +128,7 @@ async function extractHeaders(filePath, fileType) {
   return [];
 }
 
-function suggestColumnMapping(headers) {
+function suggestColumnMapping(headers, reportType = 'ads') {
   const mapping = {};
 
   const find = (words, excluded = []) => {
@@ -181,14 +181,74 @@ function suggestColumnMapping(headers) {
     'total revenue',
   ]);
 
+  if (reportType === 'sales') {
+    mapping.orders = find([
+      'orders',
+      'order',
+      'total orders',
+      'order count',
+      'number of orders',
+      'purchases',
+      'purchase count',
+    ]);
+
+    mapping.quantity = find([
+      'quantity',
+      'qty',
+      'units sold',
+      'items sold',
+      'item quantity',
+      'total quantity',
+    ]);
+
+    mapping.refunds = find([
+      'refund',
+      'refunds',
+      'returns',
+      'returned amount',
+      'refund amount',
+    ]);
+
+    mapping.profit = find([
+      'profit',
+      'gross profit',
+      'net profit',
+      'total profit',
+    ]);
+
+    mapping.margin = find([
+      'margin',
+      'profit margin',
+      'gross margin',
+      'net margin',
+    ]);
+
+    mapping.aov = find([
+      'aov',
+      'average order value',
+      'avg order value',
+    ]);
+
+    mapping.product = find([
+      'product',
+      'product name',
+      'item',
+      'item name',
+      'sku',
+    ]);
+
+    return Object.fromEntries(
+      Object.entries(mapping).filter(([, value]) => value)
+    );
+  }
+
   mapping.conversions = find([
     'results',
     'leads',
-    'orders',
+    'lead',
     'conversions',
-    'purchases',
-    'purchase',
-    'website purchases',
+    'conversion',
+    'website leads',
     'messaging conversations started',
   ], ['cost per result', 'cost per conversion', 'cost per lead', 'cost per purchase']);
 
@@ -297,8 +357,8 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     }
 
     const headers = await extractHeaders(req.file.path, fileType);
-        const suggestedMapping = suggestColumnMapping(headers);
-        const reportType = detectReportType(headers, suggestedMapping);
+    const reportType = detectReportType(headers, {});
+    const suggestedMapping = suggestColumnMapping(headers, reportType);
 
     const uploadResult = await db.query(
       `INSERT INTO report_uploads
@@ -679,11 +739,33 @@ async function processFileWithMapping(
     const availableHeaders = Object.keys(records[0] || {});
     const reportType = existingReportType || detectReportType(availableHeaders, mapping);
 
-    const suggestedColumns = suggestColumnMapping(availableHeaders);
-    const mappedFields = [
-      'campaignName', 'spend', 'impressions', 'clicks', 'conversions',
-      'revenue', 'ctr', 'cpc', 'cpa', 'roas', 'reach', 'followers',
-    ];
+    const suggestedColumns = suggestColumnMapping(availableHeaders, reportType);
+    const mappedFields =
+      reportType === 'sales'
+        ? [
+            'product',
+            'revenue',
+            'orders',
+            'quantity',
+            'refunds',
+            'profit',
+            'margin',
+            'aov',
+          ]
+        : [
+            'campaignName',
+            'spend',
+            'impressions',
+            'clicks',
+            'conversions',
+            'revenue',
+            'ctr',
+            'cpc',
+            'cpa',
+            'roas',
+            'reach',
+            'followers',
+          ];
 
     const resolvedColumns = Object.fromEntries(
       mappedFields.map((field) => {
@@ -781,6 +863,51 @@ async function processFileWithMapping(
       );
     };
 
+const normalizeSalesMetric = (record) => {
+  const revenue = getValue(record, 'revenue');
+  const orders = getValue(record, 'orders');
+  const quantity = getValue(record, 'quantity');
+  const refunds = getValue(record, 'refunds');
+  const profit = getValue(record, 'profit');
+
+  const marginValue = getValue(record, 'margin');
+  const aovValue = getValue(record, 'aov');
+
+  const margin =
+    marginValue > 0
+      ? marginValue
+      : revenue > 0
+      ? (profit / revenue) * 100
+      : 0;
+
+  const aov =
+    aovValue > 0
+      ? aovValue
+      : orders > 0
+      ? revenue / orders
+      : 0;
+
+  return {
+    spend: 0,
+    impressions: 0,
+    clicks: 0,
+    ctr: 0,
+    cpc: 0,
+    conversions: Math.round(orders || 0),
+    cpa: 0,
+    roas: 0,
+    revenue,
+    reach: 0,
+    followers: 0,
+    orders: Math.round(orders || 0),
+    quantity: Math.round(quantity || 0),
+    refunds,
+    profit,
+    margin,
+    aov,
+  };
+};
+
     const normalizeCampaignMetric = (record) => {
       const spend = getValue(record, 'spend');
       const impressions = getValue(record, 'impressions');
@@ -840,11 +967,15 @@ async function processFileWithMapping(
     const detailRowsForAggregate = [];
 
     for (const record of records) {
-      const campaignName =
-        getText(record, 'campaignName') ||
-        getText(record, 'campaign');
+    const campaignName =
+      reportType === 'sales'
+        ? getText(record, 'product') || 'Sales Item'
+        : getText(record, 'campaignName') || getText(record, 'campaign');
 
-      const metrics = normalizeCampaignMetric(record);
+     const metrics =
+       reportType === 'sales'
+         ? normalizeSalesMetric(record)
+         : normalizeCampaignMetric(record);
 
       const hasAnyData =
         metrics.spend ||
@@ -853,7 +984,11 @@ async function processFileWithMapping(
         metrics.conversions ||
         metrics.revenue ||
         metrics.reach ||
-        metrics.followers;
+        metrics.followers ||
+        metrics.orders ||
+        metrics.quantity ||
+        metrics.refunds ||
+        metrics.profit;
 
       if (!hasAnyData) continue;
 
@@ -886,15 +1021,19 @@ async function processFileWithMapping(
       const key = row.name.trim().toLowerCase();
       const existing = campaignsByName.get(key) || {
         name: row.name.trim(),
-        metrics: {
-          spend: 0,
-          impressions: 0,
-          clicks: 0,
-          conversions: 0,
-          revenue: 0,
-          reach: 0,
-          followers: 0,
-        },
+       metrics: {
+         spend: 0,
+         impressions: 0,
+         clicks: 0,
+         conversions: 0,
+         revenue: 0,
+         reach: 0,
+         followers: 0,
+         orders: 0,
+         quantity: 0,
+         refunds: 0,
+         profit: 0,
+       },
         rawData: [],
       };
 
@@ -905,6 +1044,10 @@ async function processFileWithMapping(
       existing.metrics.revenue += row.metrics.revenue;
       existing.metrics.reach += row.metrics.reach;
       existing.metrics.followers += row.metrics.followers;
+      existing.metrics.orders += row.metrics.orders || 0;
+      existing.metrics.quantity += row.metrics.quantity || 0;
+      existing.metrics.refunds += row.metrics.refunds || 0;
+      existing.metrics.profit += row.metrics.profit || 0;
       existing.rawData.push(row.rawData);
       campaignsByName.set(key, existing);
     }
@@ -929,8 +1072,12 @@ async function processFileWithMapping(
         acc.clicks += row.metrics.clicks;
         acc.conversions += row.metrics.conversions;
         acc.revenue += row.metrics.revenue;
-        acc.reach += row.metrics.reach;
-        acc.followers += row.metrics.followers;
+       acc.reach += row.metrics.reach;
+       acc.followers += row.metrics.followers || 0;
+       acc.orders += row.metrics.orders || 0;
+        acc.quantity += row.metrics.quantity || 0;
+        acc.refunds += row.metrics.refunds || 0;
+        acc.profit += row.metrics.profit || 0;
         return acc;
       },
       {
@@ -941,6 +1088,10 @@ async function processFileWithMapping(
         revenue: 0,
         reach: 0,
         followers: 0,
+        orders: 0,
+        quantity: 0,
+        refunds: 0,
+        profit: 0,
       }
     );
 
@@ -959,6 +1110,9 @@ async function processFileWithMapping(
       aggregate.spend > 0 && aggregate.revenue > 0
         ? aggregate.revenue / aggregate.spend
         : 0;
+
+        aggregate.aov = aggregate.orders > 0 ? aggregate.revenue / aggregate.orders : 0;
+        aggregate.margin = aggregate.revenue > 0 ? (aggregate.profit / aggregate.revenue) * 100 : 0;
 
     transactionClient = await db.getClient();
     await transactionClient.query('BEGIN');
@@ -1019,11 +1173,23 @@ async function processFileWithMapping(
         aggregate.reach,
         aggregate.followers,
         reportType,
-        JSON.stringify({
-          ...aggregate,
-          mapping,
-          source: summaryRows.length > 0 ? 'summary_row' : 'campaign_sum',
-        }),
+       JSON.stringify({
+         ...aggregate,
+         reportType,
+         mapping,
+         salesMetrics:
+           reportType === 'sales'
+             ? {
+                 orders: aggregate.orders,
+                 quantity: aggregate.quantity,
+                 refunds: aggregate.refunds,
+                 profit: aggregate.profit,
+                 aov: aggregate.aov,
+                 margin: aggregate.margin,
+               }
+             : null,
+         source: summaryRows.length > 0 ? 'summary_row' : 'campaign_sum',
+       }),
       ]
     );
 
@@ -1108,6 +1274,17 @@ async function processFileWithMapping(
             campaignName,
             reportType,
             mapping,
+            salesMetrics:
+              reportType === 'sales'
+                ? {
+                    orders: m.orders,
+                    quantity: m.quantity,
+                    refunds: m.refunds,
+                    profit: m.profit,
+                    aov: m.aov,
+                    margin: m.margin,
+                  }
+                : null,
             rawData: row.rawData,
           }),
         ]

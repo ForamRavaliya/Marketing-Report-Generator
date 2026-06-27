@@ -2,14 +2,14 @@ const fs = require('fs');
 const path = require('path');
 
 // Parse CSV/Excel data and extract marketing metrics
-const extractFromCSV = async (filePath) => {
+const extractFromCSV = async (filePath, reportType = 'ads') => {
   const { parse } = require('csv-parse/sync');
   const content = fs.readFileSync(filePath, 'utf8');
   const records = parse(content, { columns: true, skip_empty_lines: true });
-  return parseMarketingData(records);
+  return parseMarketingData(records, reportType);
 };
 
-const extractFromExcel = async (filePath) => {
+const extractFromExcel = async (filePath, reportType = 'ads') => {
   const XLSX = require('xlsx');
   const workbook = XLSX.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
@@ -34,7 +34,12 @@ const headerIndex = rows.findIndex(row => {
     text.includes('click') ||
     text.includes('impression') ||
     text.includes('lead') ||
-    text.includes('roas')
+    text.includes('roas') ||
+    text.includes('quantity') ||
+    text.includes('qty') ||
+    text.includes('profit') ||
+    text.includes('margin') ||
+    text.includes('refund')
   );
 });
 
@@ -55,7 +60,7 @@ const headerIndex = rows.findIndex(row => {
       return obj;
     });
 
-  return parseMarketingData(records);
+ return parseMarketingData(records, reportType);
 };
 const extractFromPDF = async (filePath) => {
   try {
@@ -83,41 +88,201 @@ const extractFromImage = async (filePath) => {
 };
 
 const ADS_COLUMN_MAP = {
-  spend: ['amount spent', 'spend', 'cost'],
-  impressions: ['impressions'],
-  clicks: ['clicks', 'link clicks'],
-  conversions: ['leads', 'conversions', 'results'],
-  revenue: ['revenue', 'purchase value'],
+  spend: [
+    'spend',
+    'amount spent',
+    'amount spent inr',
+    'amount spent (inr)',
+    'ad spend',
+    'ads spend',
+    'meta spend',
+    'meta spends',
+    'total spend',
+    'total spent',
+    'marketing spend',
+  ],
+
+  impressions: [
+    'impressions',
+    'impression',
+    'total impressions',
+    'views',
+    'ad views',
+  ],
+
+  clicks: [
+    'clicks',
+    'link clicks',
+    'website clicks',
+    'outbound clicks',
+    'all clicks',
+    'unique clicks',
+  ],
+
+  ctr: [
+    'ctr',
+    'click through rate',
+    'click-through rate',
+    'ctr (%)',
+  ],
+
+  cpc: [
+    'cpc',
+    'cost per click',
+    'average cpc',
+    'avg cpc',
+  ],
+
+  conversions: [
+    'leads',
+    'lead',
+    'results',
+    'result',
+    'conversions',
+    'conversion',
+    'website leads',
+  ],
+
+  cpa: [
+    'cost per result',
+    'cost per lead',
+    'cost per conversion',
+    'cpa',
+  ],
+
+  roas: [
+    'roas',
+    'return on ad spend',
+    'purchase roas',
+  ],
+
+  revenue: [
+    'website revenue',
+    'website revenue (₹)',
+    'purchase value',
+    'conversion value',
+    'website purchase value',
+    'meta reported revenue',
+    'meta reported revenue (₹)',
+  ],
+
+  reach: [
+    'reach',
+    'unique reach',
+  ],
+
+  followers: [
+    'followers',
+    'ig follows',
+    'instagram followers',
+    'new followers',
+    'follows',
+  ],
+
+  campaignName: [
+    'campaign',
+    'campaign name',
+    'campaign_name',
+    'ad campaign',
+  ],
+
+  platform: [
+    'platform',
+    'channel',
+    'network',
+    'source',
+  ],
 };
 
 const SALES_COLUMN_MAP = {
-  revenue: ['sales', 'total sales', 'net sales', 'gross sales', 'revenue'],
-  orders: ['orders', 'total orders', 'order count'],
-  unitsSold: ['units sold', 'quantity', 'qty', 'items sold'],
-  refunds: ['refunds', 'returns', 'returned amount'],
-  product: ['product', 'product name', 'item name'],
-  category: ['category', 'product category'],
-  channel: ['channel', 'sales channel', 'source'],
+  revenue: [
+    'revenue',
+    'sales',
+    'total sales',
+    'gross sales',
+    'net sales',
+    'sales revenue',
+    'total revenue',
+    'order revenue',
+    'sale amount',
+  ],
+
+  orders: [
+    'orders',
+    'order',
+    'total orders',
+    'order count',
+    'number of orders',
+    'purchases',
+    'purchase count',
+  ],
+
+  quantity: [
+    'quantity',
+    'qty',
+    'units sold',
+    'items sold',
+    'item quantity',
+    'total quantity',
+  ],
+
+  refunds: [
+    'refund',
+    'refunds',
+    'returns',
+    'returned amount',
+    'refund amount',
+  ],
+
+  profit: [
+    'profit',
+    'gross profit',
+    'net profit',
+    'total profit',
+  ],
+
+  margin: [
+    'margin',
+    'profit margin',
+    'gross margin',
+    'net margin',
+  ],
+
+  aov: [
+    'aov',
+    'average order value',
+    'avg order value',
+  ],
+
+  product: [
+    'product',
+    'product name',
+    'item',
+    'item name',
+    'sku',
+  ],
+
+  category: [
+    'category',
+    'product category',
+  ],
+
+  channel: [
+    'channel',
+    'sales channel',
+    'source',
+    'platform',
+  ],
+
+  date: [
+    'date',
+    'order date',
+    'created date',
+    'sales date',
+  ],
 };
 
-const detectReportType = (headers = []) => {
-  const text = headers.map(normalizeHeader).join(' ');
 
-  const salesWords = [
-    'order', 'orders', 'sales', 'net sales', 'gross sales',
-    'sku', 'product', 'quantity', 'qty', 'customer', 'refund', 'returns'
-  ];
-
-  const adsWords = [
-    'campaign', 'spend', 'amount spent', 'impressions',
-    'clicks', 'ctr', 'cpc', 'leads', 'roas', 'reach'
-  ];
-
-  const salesScore = salesWords.filter((w) => text.includes(w)).length;
-  const adsScore = adsWords.filter((w) => text.includes(w)).length;
-
-  return salesScore > adsScore ? 'sales' : 'ads';
-};
 
 // Parse raw text (from PDF/OCR) for marketing metrics
 const extractFromText = (text) => {
@@ -153,185 +318,8 @@ const extractFromText = (text) => {
 };
 
 // Map various column name formats to standard fields
-const COLUMN_MAP = {
-  spend: [
-    'spend',
-    'amount spent',
-    'amount spent (inr)',
-    //'cost',
-    'budget used',
-    'total spend',
-    'amount_spent',
-    //'cost_usd',
-    'spend_usd',
-    'meta spends',
-    'meta spend',
-    'meta spends (₹)',
-    'ad spend',
-    'ads spend',
-    'paid spend',
-    'marketing spend',
-  ],
+const COLUMN_MAP = ADS_COLUMN_MAP;
 
-  impressions: [
-    'impressions',
-    'impr',
-    'impressions.',
-    'total impressions',
-    'views',
-    'ad views',
-    'total views',
-  ],
-
-  clicks: [
-    'clicks',
-    'link clicks',
-    'click',
-    'total clicks',
-    'all clicks',
-    'website clicks',
-    'outbound clicks',
-    'unique clicks',
-  ],
-
-  ctr: [
-    'ctr',
-    'click-through rate',
-    'click through rate',
-    'ctr (%)',
-    'link ctr',
-  ],
-
-  cpc: [
-    'cpc',
-    'cost per click',
-    'avg. cpc',
-    'average cpc',
-    'cost_per_click',
-  ],
-
-  conversions: [
-    'conversions',
-    'conversion',
-    'leads',
-    'lead',
-    'results',
-    'result',
-    'actions',
-    'total conversions',
-    'purchase',
-    'purchases',
-    'orders',
-    'order',
-    'sales count',
-    'total orders',
-  ],
-
-  cpa: [
-    'cpa',
-    'cost per result',
-    'cost per conversion',
-    'cost per lead',
-    'cost per acquisition',
-    'cost/conv.',
-    'cost per order',
-  ],
-
-  roas: [
-    'roas',
-    'return on ad spend',
-    'purchase roas',
-    'website purchase roas',
-    'conv. value/cost',
-    'return',
-  ],
-
- revenue: [
-   'website revenue',
-   'website revenue (₹)',
-   'revenue',
-   'total revenue',
-   'sales',
-   'total sales',
-   'meta reported revenue',
-   'meta reported revenue (₹)',
-   'conversion value',
-   'purchase value',
-   'website purchase value',
-   'sale amount',
-   'gross sales',
- ],
-
-  reach: [
-    'reach',
-    'unique reach',
-    'estimated total reach',
-  ],
-
-  followers: [
-    'followers',
-    'ig follows',
-    'instagram follows',
-    'instagram followers',
-    'new followers',
-    'follows',
-  ],
-
-  frequency: [
-    'frequency',
-    'avg. frequency',
-  ],
-
-  date: [
-    'date',
-    'day',
-    'report date',
-    'reporting date',
-  ],
-
-  campaignName: [
-    'campaign',
-    'campaign name',
-    'campaign_name',
-    'ad campaign',
-    'campaign title',
-  ],
-
-  platform: [
-    'platform',
-    'channel',
-    'network',
-    'source',
-  ],
-
-  deliveryLevel: [
-    'delivery level',
-  ],
-
-  adSetName: [
-    'ad set name',
-  ],
-
-  resultType: [
-    'result type',
-  ],
-
-  starts: [
-    'starts',
-  ],
-
-  ends: [
-    'ends',
-  ],
-
-  reportingStarts: [
-    'reporting starts',
-  ],
-
-  reportingEnds: [
-    'reporting ends',
-  ],
-};
 const normalizeHeader = (value) =>
   String(value || '')
     .toLowerCase()
@@ -374,7 +362,7 @@ const findColumn = (headers, fieldVariants, fieldName) => {
   const keywordRules = {
     spend: /(amount spent|spend|spent|budget|ad spend|marketing spend)/,
     revenue: /(revenue|sales|income|earning|purchase value|conversion value)/,
-    conversions: /(order|orders|lead|leads|conversion|purchase|booking|result)/,
+    conversions: /(lead|leads|conversion|conversions|result|results)/,
     clicks: /(click|clicks|tap|taps)/,
     impressions: /(impression|impressions|views|ad views)/,
     reach: /(reach)/,
@@ -399,121 +387,167 @@ const parseNum = (val) => {
   return parseFloat(str) || 0;
 };
 
-const parseMarketingData = (records) => {
-  if (!records || !records.length) return { metrics: {}, campaigns: [], rawText: '' };
+ const resolveMapForType = (reportType) => {
+   return reportType === 'sales' ? SALES_COLUMN_MAP : ADS_COLUMN_MAP;
+ };
 
-  const headers = Object.keys(records[0]);
-  const colMap = {};
-  for (const [field, variants] of Object.entries(COLUMN_MAP)) {
-    colMap[field] = findColumn(headers, variants, field);
-  }
+ const buildColumnMap = (headers, reportType = 'ads') => {
+   const sourceMap = resolveMapForType(reportType);
+   const colMap = {};
 
-  const guessColumnsByValues = (records, headers, colMap) => {
-    const sampleRows = records.slice(0, 10);
+   for (const [field, variants] of Object.entries(sourceMap)) {
+     colMap[field] = findColumn(headers, variants, field);
+   }
 
-    const numericScore = (header) => {
-      let count = 0;
+   return colMap;
+ };
 
-      sampleRows.forEach((row) => {
-        const value = parseNum(row[header]);
-        if (value > 0) count++;
-      });
+ const parseMarketingData = (records, reportType = 'ads') => {
+   if (!records || !records.length) {
+     return { metrics: {}, campaigns: [], rawText: '', reportType };
+   }
 
-      return count;
-    };
+   const headers = Object.keys(records[0]);
+   const colMap = buildColumnMap(headers, reportType);
 
-    const unusedHeaders = headers.filter(
-      (h) => !Object.values(colMap).includes(h)
-    );
+   const campaigns = [];
 
-    for (const header of unusedHeaders) {
-      const h = normalizeHeader(header);
-      const score = numericScore(header);
+   if (reportType === 'sales') {
+     let totalRevenue = 0;
+     let totalOrders = 0;
+     let totalQuantity = 0;
+     let totalRefunds = 0;
+     let totalProfit = 0;
 
-      if (score === 0) continue;
+     for (const record of records) {
+       const revenue = parseNum(colMap.revenue ? record[colMap.revenue] : 0);
+       const orders = parseNum(colMap.orders ? record[colMap.orders] : 0);
+       const quantity = parseNum(colMap.quantity ? record[colMap.quantity] : 0);
+       const refunds = parseNum(colMap.refunds ? record[colMap.refunds] : 0);
+       const profit = parseNum(colMap.profit ? record[colMap.profit] : 0);
 
-      if (!colMap.spend && /(amount spent|spend|spent|budget|ad spend|marketing spend)/i.test(h)) {
-        colMap.spend = header;
-      } else if (!colMap.revenue && /(revenue|sales|income|value|amount|earning)/i.test(h)) {
-        colMap.revenue = header;
-      } else if (!colMap.conversions && /(order|lead|result|purchase|conversion|booking)/i.test(h)) {
-        colMap.conversions = header;
-      } else if (!colMap.clicks && /(click|tap|visit)/i.test(h)) {
-        colMap.clicks = header;
-      } else if (!colMap.impressions && /(impression|view|display)/i.test(h)) {
-        colMap.impressions = header;
-     } else if (!colMap.reach && /(reach)/i.test(h)) {
-       colMap.reach = header;
-     } else if (!colMap.followers && /(follower|follow|ig follows|instagram follows)/i.test(h)) {
-       colMap.followers = header;
+       const margin =
+         colMap.margin
+           ? parseNum(record[colMap.margin])
+           : revenue > 0
+           ? (profit / revenue) * 100
+           : 0;
+
+       const aov =
+         colMap.aov
+           ? parseNum(record[colMap.aov])
+           : orders > 0
+           ? revenue / orders
+           : 0;
+
+       totalRevenue += revenue;
+       totalOrders += orders;
+       totalQuantity += quantity;
+       totalRefunds += refunds;
+       totalProfit += profit;
+
+       campaigns.push({
+         name:
+           (colMap.product && record[colMap.product]) ||
+           (colMap.category && record[colMap.category]) ||
+           'Sales Item',
+         platform:
+           colMap.channel && record[colMap.channel]
+             ? String(record[colMap.channel]).toLowerCase()
+             : 'sales',
+         revenue,
+         orders,
+         quantity,
+         refunds,
+         profit,
+         margin,
+         aov,
+         rawData: record,
+       });
      }
-    }
 
-    return colMap;
-  };
+     const metrics = {
+       revenue: totalRevenue,
+       orders: totalOrders,
+       quantity: totalQuantity,
+       refunds: totalRefunds,
+       profit: totalProfit,
+       aov: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+       margin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
+     };
 
-  guessColumnsByValues(records, headers, colMap);
+     return {
+       metrics,
+       campaigns,
+       rawText: '',
+       reportType: 'sales',
+     };
+   }
 
-  const campaigns = [];
-  let totalSpend = 0,
-    totalImpressions = 0,
-    totalClicks = 0,
-    totalConversions = 0,
-    totalRevenue = 0,
-    totalReach = 0,
-    totalFollowers = 0;
+   let totalSpend = 0;
+   let totalImpressions = 0;
+   let totalClicks = 0;
+   let totalConversions = 0;
+   let totalRevenue = 0;
+   let totalReach = 0;
+   let totalFollowers = 0;
 
-  for (const record of records) {
+   for (const record of records) {
+     const spend = parseNum(colMap.spend ? record[colMap.spend] : 0);
+     const impressions = parseNum(colMap.impressions ? record[colMap.impressions] : 0);
+     const clicks = parseNum(colMap.clicks ? record[colMap.clicks] : 0);
+     const conversions = parseNum(colMap.conversions ? record[colMap.conversions] : 0);
+     const revenue = parseNum(colMap.revenue ? record[colMap.revenue] : 0);
+     const reach = parseNum(colMap.reach ? record[colMap.reach] : 0);
+     const followers = parseNum(colMap.followers ? record[colMap.followers] : 0);
 
-    const spend = parseNum(colMap.spend ? record[colMap.spend] : 0);
-    const impressions = parseNum(colMap.impressions ? record[colMap.impressions] : 0);
-    const clicks = parseNum(colMap.clicks ? record[colMap.clicks] : 0);
-    const conversions = parseNum(colMap.conversions ? record[colMap.conversions] : 0);
-    const revenue = parseNum(colMap.revenue ? record[colMap.revenue] : 0);
-    const reach = parseNum(colMap.reach ? record[colMap.reach] : 0);
-    const followers = parseNum(colMap.followers ? record[colMap.followers] : 0);
-    totalSpend += spend;
-    totalImpressions += impressions;
-    totalClicks += clicks;
-    totalConversions += conversions;
-    totalRevenue += revenue;
-    totalReach += reach;
-    totalFollowers += followers;
+     totalSpend += spend;
+     totalImpressions += impressions;
+     totalClicks += clicks;
+     totalConversions += conversions;
+     totalRevenue += revenue;
+     totalReach += reach;
+     totalFollowers += followers;
 
-    campaigns.push({
-      name: colMap.campaignName ? record[colMap.campaignName] : 'Campaign',
-      platform: colMap.platform ? record[colMap.platform]?.toLowerCase() : 'meta',
-      spend,
-      impressions,
-      clicks,
-      ctr: colMap.ctr ? parseNum(record[colMap.ctr]) : (impressions > 0 ? (clicks / impressions) * 100 : 0),
-      cpc: colMap.cpc ? parseNum(record[colMap.cpc]) : (clicks > 0 ? spend / clicks : 0),
-      conversions,
-      cpa: colMap.cpa ? parseNum(record[colMap.cpa]) : (conversions > 0 ? spend / conversions : 0),
-      roas: colMap.roas ? parseNum(record[colMap.roas]) : (spend > 0 ? revenue / spend : 0),
-      revenue,
-      reach,
-      followers,
-      rawData: record,
-    });
-  }
+     campaigns.push({
+       name: colMap.campaignName ? record[colMap.campaignName] : 'Campaign',
+       platform: colMap.platform ? String(record[colMap.platform] || 'meta').toLowerCase() : 'meta',
+       spend,
+       impressions,
+       clicks,
+       ctr: colMap.ctr ? parseNum(record[colMap.ctr]) : impressions > 0 ? (clicks / impressions) * 100 : 0,
+       cpc: colMap.cpc ? parseNum(record[colMap.cpc]) : clicks > 0 ? spend / clicks : 0,
+       conversions,
+       cpa: colMap.cpa ? parseNum(record[colMap.cpa]) : conversions > 0 ? spend / conversions : 0,
+       roas: colMap.roas ? parseNum(record[colMap.roas]) : spend > 0 ? revenue / spend : 0,
+       revenue,
+       reach,
+       followers,
+       rawData: record,
+     });
+   }
 
-  const metrics = {
-    spend: totalSpend,
-    impressions: totalImpressions,
-    clicks: totalClicks,
-    ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-    cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
-    conversions: totalConversions,
-    cpa: totalConversions > 0 ? totalSpend / totalConversions : 0,
-    roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
-    revenue: totalRevenue,
-    reach: totalReach,
-    followers: totalFollowers,
-  };
+   const metrics = {
+     spend: totalSpend,
+     impressions: totalImpressions,
+     clicks: totalClicks,
+     ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+     cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+     conversions: totalConversions,
+     cpa: totalConversions > 0 ? totalSpend / totalConversions : 0,
+     roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
+     revenue: totalRevenue,
+     reach: totalReach,
+     followers: totalFollowers,
+   };
 
-  return { metrics, campaigns, rawText: '' };
-};
+   return {
+     metrics,
+     campaigns,
+     rawText: '',
+     reportType: 'ads',
+   };
+ };
 
 module.exports = {
   extractFromCSV,
@@ -521,9 +555,10 @@ module.exports = {
   extractFromPDF,
   extractFromImage,
   COLUMN_MAP,
-  normalizeHeader,
-  parseNum,
   ADS_COLUMN_MAP,
   SALES_COLUMN_MAP,
-  //detectReportType,
+  normalizeHeader,
+  parseNum,
+  parseMarketingData,
+  buildColumnMap,
 };
