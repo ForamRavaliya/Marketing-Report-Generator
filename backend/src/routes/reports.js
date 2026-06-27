@@ -101,6 +101,8 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
   };
 };
 
+
+
 // Generate PDF report
 router.post('/generate', async (req, res) => {
   try {

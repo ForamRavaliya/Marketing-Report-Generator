@@ -82,6 +82,43 @@ const extractFromImage = async (filePath) => {
   }
 };
 
+const ADS_COLUMN_MAP = {
+  spend: ['amount spent', 'spend', 'cost'],
+  impressions: ['impressions'],
+  clicks: ['clicks', 'link clicks'],
+  conversions: ['leads', 'conversions', 'results'],
+  revenue: ['revenue', 'purchase value'],
+};
+
+const SALES_COLUMN_MAP = {
+  revenue: ['sales', 'total sales', 'net sales', 'gross sales', 'revenue'],
+  orders: ['orders', 'total orders', 'order count'],
+  unitsSold: ['units sold', 'quantity', 'qty', 'items sold'],
+  refunds: ['refunds', 'returns', 'returned amount'],
+  product: ['product', 'product name', 'item name'],
+  category: ['category', 'product category'],
+  channel: ['channel', 'sales channel', 'source'],
+};
+
+const detectReportType = (headers = []) => {
+  const text = headers.map(normalizeHeader).join(' ');
+
+  const salesWords = [
+    'order', 'orders', 'sales', 'net sales', 'gross sales',
+    'sku', 'product', 'quantity', 'qty', 'customer', 'refund', 'returns'
+  ];
+
+  const adsWords = [
+    'campaign', 'spend', 'amount spent', 'impressions',
+    'clicks', 'ctr', 'cpc', 'leads', 'roas', 'reach'
+  ];
+
+  const salesScore = salesWords.filter((w) => text.includes(w)).length;
+  const adsScore = adsWords.filter((w) => text.includes(w)).length;
+
+  return salesScore > adsScore ? 'sales' : 'ads';
+};
+
 // Parse raw text (from PDF/OCR) for marketing metrics
 const extractFromText = (text) => {
   const metrics = {};
@@ -486,4 +523,7 @@ module.exports = {
   COLUMN_MAP,
   normalizeHeader,
   parseNum,
+  ADS_COLUMN_MAP,
+  SALES_COLUMN_MAP,
+  //detectReportType,
 };

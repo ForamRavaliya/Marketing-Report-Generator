@@ -14,6 +14,7 @@ const {
   extractFromImage,
   COLUMN_MAP,
   normalizeHeader,
+
 } = require('../utils/extractor');
 
 
@@ -648,6 +649,7 @@ async function processFileWithMapping(
 
     const normalizedPlatform = platform || 'meta';
     const availableHeaders = Object.keys(records[0] || {});
+
     const suggestedColumns = suggestColumnMapping(availableHeaders);
     const mappedFields = [
       'campaignName', 'spend', 'impressions', 'clicks', 'conversions',
