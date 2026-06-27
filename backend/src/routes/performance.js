@@ -50,16 +50,16 @@ router.get('/summary/:clientId', async (req, res) => {
 router.get('/trends/:clientId', async (req, res) => {
   try {
     const { clientId } = req.params;
+    const { platform } = req.query;
 
-   const trends = await getMonthlyTrends(db, {
-     clientId,
-     platform,
-   });
+    const trends = await getMonthlyTrends(db, {
+      clientId,
+      platform,
+    });
 
-   res.json(trends);
-
-
+    res.json(trends);
   } catch (error) {
+    console.error('Trends error:', error);
     res.status(500).json({ error: 'Failed to fetch trends' });
   }
 });
