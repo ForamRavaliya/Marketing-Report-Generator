@@ -19,7 +19,7 @@ const plans = [
     id: 'pro',
     name: 'Pro',
     price: 'INR 499/mo',
-    features: ['Unlimited reports', 'PDF export', /*'Ad sync',*/ 'Sync history'],
+    features: ['Unlimited reports', 'PDF export', /*'Ad sync', 'Sync history'*/],
   },
   {
     id: 'agency',

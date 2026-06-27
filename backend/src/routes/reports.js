@@ -6,10 +6,12 @@ const https = require('https');
 const fs = require('fs');
 const db = require('../db');
 const {
-  getSummaryMetrics,
-  getMonthlyTrends,
-  getPlatformMetrics,
-  getCampaignMetrics,
+ getSummaryMetrics,
+   getMonthlyTrends,
+   getPlatformMetrics,
+   getCampaignMetrics,
+   getLatestReportMonth,
+   getPreviousReportMonth,
 } = require('../utils/metrics');
 const { authenticate } = require('../middleware/auth');
 

@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
+const {
+  getSummaryMetrics,
+  getMonthlyTrends,
+  getPlatformMetrics,
+  getCampaignMetrics,
+} = require('../utils/metrics');
 
 router.use(authenticate);
 

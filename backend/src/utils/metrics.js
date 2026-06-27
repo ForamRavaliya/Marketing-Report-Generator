@@ -232,9 +232,45 @@ const getCampaignMetrics = async (db, options) => {
   return result.rows;
 };
 
+const getLatestReportMonth = async (db, options) => {
+  const { whereSql, params } = buildBaseFilters(options);
+
+  const result = await db.query(
+    `
+    SELECT MAX(pd.report_month) AS latest_month
+    FROM performance_data pd
+    WHERE ${whereSql}
+    `,
+    params
+  );
+
+  return result.rows[0]?.latest_month || null;
+};
+
+const getPreviousReportMonth = async (db, options, currentMonth) => {
+  if (!currentMonth) return null;
+
+  const { whereSql, params } = buildBaseFilters(options);
+  params.push(currentMonth);
+
+  const result = await db.query(
+    `
+    SELECT MAX(pd.report_month) AS previous_month
+    FROM performance_data pd
+    WHERE ${whereSql}
+      AND pd.report_month < $${params.length}
+    `,
+    params
+  );
+
+  return result.rows[0]?.previous_month || null;
+};
+
 module.exports = {
   getSummaryMetrics,
   getMonthlyTrends,
   getPlatformMetrics,
   getCampaignMetrics,
+  getLatestReportMonth,
+  getPreviousReportMonth,
 };
