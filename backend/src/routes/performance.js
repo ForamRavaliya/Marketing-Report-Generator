@@ -211,25 +211,16 @@ router.get('/campaigns/:clientId', async (req, res) => {
     const { clientId } = req.params;
     const { startDate, endDate, platform } = req.query;
 
-    let whereClause = 'WHERE pd.client_id = $1 AND pd.campaign_id IS NOT NULL';
-    const params = [clientId];
-    let idx = 2;
+    const campaigns = await getCampaignMetrics(db, {
+      clientId,
+      dateStart: startDate,
+      dateEnd: endDate,
+      platform,
+    });
 
-    if (startDate) { whereClause += ` AND pd.report_month >= $${idx++}`; params.push(new Date(startDate)); }
-    if (endDate) { whereClause += ` AND pd.report_month <= $${idx++}`; params.push(new Date(endDate)); }
-    if (platform && platform !== 'all') { whereClause += ` AND pd.platform = $${idx++}`; params.push(platform); }
-
-   const campaigns = await getCampaignMetrics(db, {
-     clientId,
-     dateStart: startDate,
-     dateEnd: endDate,
-     platform,
-   });
-
-   res.json(campaigns);
-
-
+    res.json(campaigns);
   } catch (error) {
+    console.error('Campaign data error:', error);
     res.status(500).json({ error: 'Failed to fetch campaign data' });
   }
 });
@@ -240,24 +231,6 @@ router.get('/platforms/:clientId', async (req, res) => {
     const { clientId } = req.params;
     const { startDate, endDate, platform } = req.query;
 
-    let whereClause = `
-      WHERE client_id = $1
-      AND external_campaign_name = 'aggregate'
-    `;
-
-    const params = [clientId];
-    let idx = 2;
-
-    if (startDate) {
-      whereClause += ` AND report_month >= $${idx++}`;
-      params.push(new Date(startDate));
-    }
-
-    if (endDate) {
-      whereClause += ` AND report_month <= $${idx++}`;
-      params.push(new Date(endDate));
-    }
-
     const platforms = await getPlatformMetrics(db, {
       clientId,
       dateStart: startDate,
@@ -266,8 +239,6 @@ router.get('/platforms/:clientId', async (req, res) => {
     });
 
     res.json(platforms);
-
-
   } catch (error) {
     console.error('Platform data error:', error);
     res.status(500).json({ error: 'Failed to fetch platform data' });
