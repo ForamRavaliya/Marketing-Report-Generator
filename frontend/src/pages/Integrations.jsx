@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+/*import { useEffect, useMemo, useState } from 'react';
 import {
   getIntegrations,
   demoConnectIntegration,
@@ -322,4 +322,4 @@ export default function Integrations() {
       </div>
     </div>
   );
-}
+}*/

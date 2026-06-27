@@ -1158,7 +1158,7 @@ router.post('/generate', async (req, res) => {
 
     drawCard(35, 610, 525, 90, '#F8FAFC', '#BFDBFE');
     doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Funnel Meaning', 55, 630);
-    doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`This funnel demonstrates structural drop-off thresholds. A consistent baseline helps optimize landing-page configurations and strategic budget pacing models.`, 55, 645, { width: 480, height: 44, lineGap: 4, ellipsis: true });
+    doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`This funnel shows how people moved from reach to impressions, clicks and leads. Use this view to identify where users drop off and where campaign improvements are needed.`, 55, 645, { width: 480, height: 44, lineGap: 4, ellipsis: true });
 
     drawFooter(pageNo++);
 
@@ -1275,9 +1275,9 @@ router.post('/generate', async (req, res) => {
       drawPageHeader('Next Month Action Plan', 'Clear next steps to improve campaign performance');
 
       const actionItems = [
-        { title: 'Improve Tracking', desc: safeSummary.hasRoas ? 'Continue tracking revenue quality for each network deployment.' : 'Add value parameters in next sync upload to calculate baseline profitability structures.', color: THEME.royal, bg: THEME.softBlue },
-        { title: 'Optimize Campaign Budget', desc: hasCampaignChart ? 'Shift programmatic budget parameters towards elements yielding sub-threshold acquisition costs.' : 'Structure localized targeting strategies next session.', color: THEME.violet, bg: THEME.softPurple },
-        { title: 'Improve Lead Quality', desc: 'Audit entry sources, conversion flow velocity, and landing parameters.', color: THEME.emerald, bg: THEME.softGreen },
+        { title: 'Improve Tracking', desc: safeSummary.hasRoas ? 'Review revenue quality by campaign and keep tracking sales value consistently.' : 'Add revenue or sales value tracking so profit and ROAS can be measured.', color: THEME.royal, bg: THEME.softBlue },
+        { title: 'Optimize Campaign Budget', desc: hasCampaignChart ? 'Move more budget toward campaigns with lower cost per lead and stronger lead volume.' : 'Upload campaign-level data to identify where budget should be focused.', color: THEME.violet, bg: THEME.softPurple },
+        { title: 'Improve Lead Quality',desc: 'Review lead sources, landing pages and form quality to improve conversion consistency.', color: THEME.emerald, bg: THEME.softGreen },
         { title: 'Test Creatives', desc: safeSummary.hasCtr ? 'Deploy dynamic matching test scripts across high impressions blocks.' : 'Include micro-copy visual checks next generation.', color: THEME.amber, bg: THEME.softAmber },
       ];
 
@@ -1292,7 +1292,7 @@ router.post('/generate', async (req, res) => {
 
       drawCard(35, 600, 525, 55, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text('Priority Focus', 55, 615);
-      doc.fillColor(THEME.muted).fontSize(8.5).font('Helvetica').text(!safeSummary.hasRoas ? 'First priority targets pixel deployment tracking additions to ensure true profitability validation rules.' : 'Optimize scaling constraints safely.', 150, 615, { width: 380, ellipsis: true });
+       doc.fillColor(THEME.muted).fontSize(8.5).font('Helvetica').text(!safeSummary.hasRoas ? 'First priority: add revenue tracking before increasing campaign budget.' : 'Scale campaigns gradually while monitoring cost per lead and lead quality.', 150, 615, { width: 380, ellipsis: true });
 
       drawFooter(pageNo++);
 
@@ -1323,15 +1323,15 @@ router.post('/generate', async (req, res) => {
 
       drawCard(35, 465, 525, 90, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Final Takeaway', 55, 485);
-      doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`Media deployment models produced ${formatNum(safeSummary.conversions)} conversion nodes. Missing structural tracking metrics can be added to standard properties next upload cycles to refine algorithmic attribution parameters.`, 55, 510, { width: 480, height: 36, lineGap: 4, ellipsis: true });
+     doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`Campaigns generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads from ${formatCurrency(safeSummary.spend, currency)} spend. Add revenue tracking before scaling budgets so profitability can be measured clearly.`, 55, 510, { width: 480, height: 36, lineGap: 4, ellipsis: true });
 
       drawCard(35, 585, 525, 95, THEME.softGreen, '#A7F3D0');
       doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Next Month Priority', 55, 605);
-      doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`Coordinate tracking infrastructure across target frameworks to surface exact conversion attributes.`, 55, 630, { width: 480, height: 34, lineGap: 4, ellipsis: true });
+      doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`Track revenue, lead source and campaign quality so next month’s budget decisions are based on clear business outcomes.`, 55, 630, { width: 480, height: 34, lineGap: 4, ellipsis: true });
 
       drawCard(35, 690, 525, 42, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text('Executive Verdict', 55, 703);
-      doc.fillColor(THEME.muted).fontSize(8.5).font('Helvetica').text('Campaign operations viable. Add telemetry tracking layers prior to scale modifications.', 190, 703, { width: 345, height: 20, lineGap: 2, ellipsis: true });
+     doc.fillColor(THEME.muted).fontSize(8.5).font('Helvetica').text('Campaign performance is stable. Improve revenue tracking and lead quality before scaling budgets.', 190, 703, { width: 345, height: 20, lineGap: 2, ellipsis: true });
 
       drawFooter(pageNo++);
     }

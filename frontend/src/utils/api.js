@@ -31,6 +31,7 @@ export const updateAdAccountFrequency = (id, syncFrequency) =>
 export const getSyncLogs = (clientId) =>
   api.get(`/ad-accounts/client/${clientId}/logs`).then(r => r.data);
 // Ad Accounts
+/*
 export const getAdAccounts = (clientId) =>
   api.get(`/ad-accounts/client/${clientId}`).then(r => r.data);
 
@@ -42,7 +43,7 @@ export const deleteAdAccount = (id) =>
 
 export const syncAdAccount = (id) =>
     api.post(`/ad-accounts/${id}/sync`).then(r => r.data);
-
+*/
 
 // Uploads
 export const uploadFile = (formData, onProgress) =>
@@ -118,6 +119,7 @@ export const generateReceipt = (paymentId) =>
   api.get(`/payments/receipt/${paymentId}`).then(r => r.data);
 
 // Integrations
+/*
 export const getIntegrations = () =>
   api.get('/integrations').then(r => r.data);
 
@@ -129,7 +131,7 @@ export const syncIntegration = (id) =>
 
 export const getIntegrationLogs = () =>
   api.get('/integrations/logs').then(r => r.data);
-
+*/
 // Agency
 export const getAgency = () => api.get('/agency').then(r => r.data);
 export const updateAgency = async (data) => {

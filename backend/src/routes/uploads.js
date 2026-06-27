@@ -6,6 +6,7 @@ const fs = require('fs');
 const XLSX = require('xlsx');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
+const { detectReportType } = require('../utils/reportType');
 
 const {
   extractFromCSV,
@@ -295,6 +296,10 @@ router.post('/preview', upload.single('file'), async (req, res) => {
       return res.status(403).json({ error: 'Client not found' });
     }
 
+    const headers = await extractHeaders(req.file.path, fileType);
+        const suggestedMapping = suggestColumnMapping(headers);
+        const reportType = detectReportType(headers, suggestedMapping);
+
     const uploadResult = await db.query(
       `INSERT INTO report_uploads
        (
@@ -307,9 +312,10 @@ router.post('/preview', upload.single('file'), async (req, res) => {
          platform,
          date_range_start,
          date_range_end,
+         report_type,
          extraction_status
        )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'mapping_required')
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'mapping_required')
        RETURNING *`,
       [
         clientId,
@@ -321,16 +327,17 @@ router.post('/preview', upload.single('file'), async (req, res) => {
         platform || 'meta',
         dateRangeStart || null,
         dateRangeEnd || null,
+        reportType,
       ]
     );
 
-    const headers = await extractHeaders(req.file.path, fileType);
-    const suggestedMapping = suggestColumnMapping(headers);
+
 
     res.status(201).json({
       uploadId: uploadResult.rows[0].id,
       fileType,
       headers,
+      reportType,
       suggestedMapping,
     });
   } catch (error) {
@@ -454,17 +461,18 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
       );
     }
 
-  await processFileWithMapping(
-    uploadRow.id,
-    uploadRow.file_type,
-    uploadRow.file_path,
-    uploadRow.file_name,
-    uploadRow.client_id,
-    uploadRow.platform,
-    uploadRow.date_range_start,
-    uploadRow.date_range_end,
-    mapping
-  );
+ await processFileWithMapping(
+   uploadRow.id,
+   uploadRow.file_type,
+   uploadRow.file_path,
+   uploadRow.file_name,
+   uploadRow.client_id,
+   uploadRow.platform,
+   uploadRow.date_range_start,
+   uploadRow.date_range_end,
+   mapping,
+   uploadRow.report_type
+ );
 
 
 
@@ -497,10 +505,16 @@ router.post('/', upload.single('file'), async (req, res) => {
       return res.status(403).json({ error: 'Client not found' });
     }
 
+const headers = ['csv', 'excel'].includes(fileType)
+  ? await extractHeaders(filePath, fileType)
+  : [];
+
+const reportType = detectReportType(headers, {});
+
     const uploadResult = await db.query(
       `INSERT INTO report_uploads
-       (client_id, uploaded_by, file_name, file_type, file_path, file_size, platform, date_range_start, date_range_end, extraction_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'processing')
+      (client_id, uploaded_by, file_name, file_type, file_path, file_size, platform, date_range_start, date_range_end, report_type, extraction_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'processing')
        RETURNING *`,
       [
         clientId,
@@ -508,20 +522,33 @@ router.post('/', upload.single('file'), async (req, res) => {
         req.file.originalname,
         fileType,
         filePath,
+
         req.file.size,
         platform || 'meta',
         dateRangeStart || null,
         dateRangeEnd || null,
+         reportType,
       ]
     );
 
     const uploadId = uploadResult.rows[0].id;
 
-    processFile(uploadId, fileType, filePath, clientId, platform, dateRangeStart, dateRangeEnd)
-      .catch((err) => console.error('FILE PROCESS ERROR:', err));
+processFileWithMapping(
+  uploadId,
+  fileType,
+  filePath,
+  req.file.originalname,
+  clientId,
+  platform,
+  dateRangeStart,
+  dateRangeEnd,
+  {},
+  reportType
+).catch((err) => console.error('FILE PROCESS ERROR:', err));
 
     res.status(201).json({
       uploadId,
+      reportType,
       message: 'File uploaded. Extraction in progress.',
       fileType,
     });
@@ -574,7 +601,8 @@ async function processFileWithMapping(
   platform,
   dateStart,
   dateEnd,
-  mapping
+  mapping,
+  existingReportType = null
 ) {
   let transactionClient = null;
 
@@ -649,6 +677,7 @@ async function processFileWithMapping(
 
     const normalizedPlatform = platform || 'meta';
     const availableHeaders = Object.keys(records[0] || {});
+    const reportType = existingReportType || detectReportType(availableHeaders, mapping);
 
     const suggestedColumns = suggestColumnMapping(availableHeaders);
     const mappedFields = [
@@ -949,8 +978,8 @@ async function processFileWithMapping(
     await transactionClient.query(
       `INSERT INTO performance_data
         (client_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
-         spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, raw_data)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+         spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, report_type, raw_data)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        ON CONFLICT (client_id, platform, external_campaign_name, report_month)
        DO UPDATE SET
          upload_id = EXCLUDED.upload_id,
@@ -967,6 +996,7 @@ async function processFileWithMapping(
          revenue = EXCLUDED.revenue,
          reach = EXCLUDED.reach,
          followers = EXCLUDED.followers,
+         report_type = EXCLUDED.report_type,
          raw_data = EXCLUDED.raw_data,
          updated_at = NOW()`,
       [
@@ -988,6 +1018,7 @@ async function processFileWithMapping(
         aggregate.revenue,
         aggregate.reach,
         aggregate.followers,
+        reportType,
         JSON.stringify({
           ...aggregate,
           mapping,
@@ -1029,8 +1060,8 @@ async function processFileWithMapping(
       await transactionClient.query(
         `INSERT INTO performance_data
           (client_id, campaign_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
-           spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, raw_data)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+          spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, report_type, raw_data)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
          ON CONFLICT (client_id, platform, external_campaign_name, report_month)
          DO UPDATE SET
            campaign_id = EXCLUDED.campaign_id,
@@ -1049,6 +1080,7 @@ async function processFileWithMapping(
            reach = EXCLUDED.reach,
            followers = EXCLUDED.followers,
            raw_data = EXCLUDED.raw_data,
+           report_type = EXCLUDED.report_type,
            updated_at = NOW()`,
         [
           clientId,
@@ -1070,9 +1102,11 @@ async function processFileWithMapping(
           m.revenue,
           m.reach,
           m.followers,
+          reportType,
           JSON.stringify({
             ...m,
             campaignName,
+            reportType,
             mapping,
             rawData: row.rawData,
           }),
@@ -1084,9 +1118,10 @@ async function processFileWithMapping(
       `UPDATE report_uploads
        SET extraction_status = 'completed',
            date_range_start = COALESCE(date_range_start, $2),
-           date_range_end = COALESCE(date_range_end, $3)
+           date_range_end = COALESCE(date_range_end, $3),
+           report_type = $4
        WHERE id = $1`,
-      [uploadId, finalDateStart, finalDateEnd]
+      [uploadId, finalDateStart, finalDateEnd, reportType]
     );
 
     await transactionClient.query('COMMIT');
