@@ -1323,4 +1323,6 @@ const normalizeSalesMetric = (record) => {
   }
 }
 
-module.exports = router;
+module.exports = {
+  detectPlatform,
+};
