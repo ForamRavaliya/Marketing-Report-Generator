@@ -7,7 +7,11 @@ const XLSX = require('xlsx');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { detectReportType } = require('../utils/reportType');
-const detectPlatform = require('../utils/platformType');
+const platformType = require('../utils/platformType');
+const detectPlatform =
+  typeof platformType === 'function'
+    ? platformType
+    : platformType.detectPlatform;
 
 const {
   extractFromCSV,
