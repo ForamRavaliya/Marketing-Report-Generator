@@ -73,36 +73,39 @@ const [aiLoading, setAiLoading] = useState(false);
 
 
 
-      const trendsData = await getTrends(id, { ...params, months: 6 });
-      const byMonth = {};
+     const trendsData = await getTrends(id, { ...params, months: 6 });
+     const byMonth = {};
 
-      trendsData.forEach(row => {
-        if (!byMonth[row.month]) {
-          byMonth[row.month] = {
-            month: row.month,
-            spend: 0,
-            clicks: 0,
-            conversions: 0,
-            impressions: 0,
-            revenue: 0,
-            roas: 0,
-            orders: 0,
-            quantity: 0,
-            profit: 0,
-          };
+     trendsData.forEach(row => {
+       if (!byMonth[row.month]) {
+         byMonth[row.month] = {
+           month: row.month,
+           spend: 0,
+           clicks: 0,
+           conversions: 0,
+           impressions: 0,
+           revenue: 0,
+           roas: 0,
+           orders: 0,
+           quantity: 0,
+           profit: 0,
+           report_type: row.report_type,
+         };
+       }
 
-        byMonth[row.month].spend += parseFloat(row.spend || 0);
-        byMonth[row.month].clicks += parseFloat(row.clicks || 0);
-        byMonth[row.month].conversions += parseFloat(row.conversions || 0);
-        byMonth[row.month].impressions += parseFloat(row.impressions || 0);
-        byMonth[row.month].revenue += parseFloat(row.revenue || 0);
-        byMonth[row.month].orders += parseFloat(row.orders || 0);
-        byMonth[row.month].quantity += parseFloat(row.quantity || 0);
-        byMonth[row.month].profit += parseFloat(row.profit || 0);
-        byMonth[row.month].roas = byMonth[row.month].spend > 0
-          ? byMonth[row.month].revenue / byMonth[row.month].spend
-          : 0;
-      });
+       byMonth[row.month].spend += parseFloat(row.spend || 0);
+       byMonth[row.month].clicks += parseFloat(row.clicks || 0);
+       byMonth[row.month].conversions += parseFloat(row.conversions || 0);
+       byMonth[row.month].impressions += parseFloat(row.impressions || 0);
+       byMonth[row.month].revenue += parseFloat(row.revenue || 0);
+       byMonth[row.month].orders += parseFloat(row.orders || 0);
+       byMonth[row.month].quantity += parseFloat(row.quantity || 0);
+       byMonth[row.month].profit += parseFloat(row.profit || 0);
+       byMonth[row.month].roas =
+         byMonth[row.month].spend > 0
+           ? byMonth[row.month].revenue / byMonth[row.month].spend
+           : 0;
+     });
 
       setTrends(
         Object.values(byMonth).sort((a, b) =>
@@ -237,6 +240,98 @@ const getCurrentValue = (key) =>
   };
 
   const campaignColumns = getCampaignColumns();
+  const getPlatformColumns = () => {
+    if (normalizedReportType === 'sales_campaign') {
+      return [
+        { key: 'platform', label: 'Platform', format: (p) => p.platform || 'N/A' },
+        { key: 'spend', label: 'Spend', format: (p) => fmtCur(p.spend) },
+        { key: 'conversions', label: 'Purchases', format: (p) => fmt(p.conversions) },
+        { key: 'cpa', label: 'Cost Per Purchase', format: (p) => fmtCur(p.cpa) },
+        { key: 'revenue', label: 'Revenue', format: (p) => fmtCur(p.revenue) },
+        { key: 'roas', label: 'ROAS', format: (p) => `${fmt(p.roas, 2)}x` },
+      ];
+    }
+
+    if (normalizedReportType === 'lead_generation') {
+      return [
+        { key: 'platform', label: 'Platform', format: (p) => p.platform || 'N/A' },
+        { key: 'spend', label: 'Spend', format: (p) => fmtCur(p.spend) },
+        { key: 'conversions', label: 'Leads', format: (p) => fmt(p.conversions) },
+        { key: 'cpa', label: 'Cost Per Lead', format: (p) => fmtCur(p.cpa) },
+        { key: 'ctr', label: 'CTR', format: (p) => fmtPct(p.ctr) },
+        { key: 'cpc', label: 'CPC', format: (p) => fmtCur(p.cpc) },
+      ];
+    }
+
+    if (normalizedReportType === 'sales_data') {
+      return [
+        { key: 'platform', label: 'Channel', format: (p) => p.platform || 'N/A' },
+        { key: 'orders', label: 'Orders', format: (p) => fmt(p.orders) },
+        { key: 'quantity', label: 'Qty Sold', format: (p) => fmt(p.quantity) },
+        { key: 'revenue', label: 'Revenue', format: (p) => fmtCur(p.revenue) },
+        { key: 'profit', label: 'Profit', format: (p) => fmtCur(p.profit) },
+      ];
+    }
+
+    return [
+      { key: 'platform', label: 'Platform', format: (p) => p.platform || 'N/A' },
+      { key: 'spend', label: 'Spend', format: (p) => fmtCur(p.spend) },
+      { key: 'clicks', label: 'Clicks', format: (p) => fmt(p.clicks) },
+      { key: 'conversions', label: 'Conversions', format: (p) => fmt(p.conversions) },
+      { key: 'cpa', label: 'CPA', format: (p) => fmtCur(p.cpa) },
+    ];
+  };
+
+  const platformColumns = getPlatformColumns();
+  const getTrendConfig = () => {
+    switch (normalizedReportType) {
+      case 'sales_campaign':
+        return {
+          title: 'Revenue vs Purchases',
+          firstKey: 'revenue',
+          firstLabel: 'Revenue',
+          secondKey: 'conversions',
+          secondLabel: 'Purchases',
+          tableSecond: 'Revenue',
+          tableThird: 'Purchases',
+        };
+
+      case 'lead_generation':
+        return {
+          title: 'Clicks vs Leads',
+          firstKey: 'clicks',
+          firstLabel: 'Clicks',
+          secondKey: 'conversions',
+          secondLabel: 'Leads',
+          tableSecond: 'Clicks',
+          tableThird: 'Leads',
+        };
+
+      case 'sales_data':
+        return {
+          title: 'Revenue vs Orders',
+          firstKey: 'revenue',
+          firstLabel: 'Revenue',
+          secondKey: 'orders',
+          secondLabel: 'Orders',
+          tableSecond: 'Revenue',
+          tableThird: 'Orders',
+        };
+
+      default:
+        return {
+          title: 'Clicks vs Conversions',
+          firstKey: 'clicks',
+          firstLabel: 'Clicks',
+          secondKey: 'conversions',
+          secondLabel: 'Conversions',
+          tableSecond: 'Clicks',
+          tableThird: 'Conversions',
+        };
+    }
+  };
+
+  const trendConfig = getTrendConfig();
 
   if (!client && !loading) return (
     <div style={{ textAlign: 'center', padding: 60 }}>
@@ -430,6 +525,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                           const numericChange = hasPreviousData ? Number(d.change) : 0;
                          const isCostMetric = ['cpc', 'cpa', 'cpl', 'refunds'].includes(key);
                           const isNeutral = !hasPreviousData || numericChange === 0 || key === 'spend';
+                            const positive = isCostMetric ? numericChange < 0 : numericChange > 0;
 
                           const changeLabel = !hasPreviousData
                             ? 'No previous data'
@@ -486,14 +582,24 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
 
                   <div className="grid grid-2">
                     <div className="card card-pad">
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Clicks vs Conversions</div>
+                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>{trendConfig.title}</div>
                       <ResponsiveContainer width="100%" height={180}>
                         <BarChart data={trends}>
                           <XAxis dataKey="month" tick={{ fontSize: 10 }} />
                           <YAxis tick={{ fontSize: 10 }} />
                           <Tooltip content={<Tooltip_ />} />
-                          <Bar dataKey="clicks" fill="#7C3AED" name="Clicks" radius={[3, 3, 0, 0]} />
-                          <Bar dataKey="conversions" fill="#059669" name="Conv." radius={[3, 3, 0, 0]} />
+                         <Bar
+                           dataKey={trendConfig.firstKey}
+                           fill="#7C3AED"
+                           name={trendConfig.firstLabel}
+                           radius={[3, 3, 0, 0]}
+                         />
+                        <Bar
+                          dataKey={trendConfig.secondKey}
+                          fill="#059669"
+                          name={trendConfig.secondLabel}
+                          radius={[3, 3, 0, 0]}
+                        />
                           <Legend iconSize={10} iconType="circle" />
                         </BarChart>
                       </ResponsiveContainer>
@@ -503,15 +609,26 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                       <div style={{ overflowX: 'auto' }}>
                         <table>
                           <thead>
-                            <tr><th>Month</th><th>Spend</th><th>Clicks</th><th>Conv.</th></tr>
+                            <tr><th>Month</th><th>Spend</th>
+                                              <th>{trendConfig.tableSecond}</th>
+                                              <th>{trendConfig.tableThird}</th></tr>
                           </thead>
                           <tbody>
                             {trends.map(row => (
                               <tr key={row.month}>
                                 <td style={{ fontWeight: 600, fontSize: 12 }}>{row.month}</td>
                                 <td>{fmtCur(row.spend)}</td>
-                                <td>{fmt(row.clicks)}</td>
-                                <td>{fmt(row.conversions)}</td>
+                                <td>
+                                  {trendConfig.firstKey === 'revenue'
+                                    ? fmtCur(row.revenue)
+                                    : fmt(row[trendConfig.firstKey])}
+                                </td>
+
+                                <td>
+                                  {trendConfig.secondKey === 'revenue'
+                                    ? fmtCur(row.revenue)
+                                    : fmt(row[trendConfig.secondKey])}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -659,43 +776,22 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                           </div>
                         </div>
 
-                        <div className="grid grid-2">
-                          <div className="card card-pad">
-                            <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
-                              SPEND
+                      <div className="grid grid-2">
+                        {platformColumns
+                          .filter((col) => col.key !== 'platform')
+                          .slice(0, 4)
+                          .map((col) => (
+                            <div className="card card-pad" key={col.key}>
+                              <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                                {col.label.toUpperCase()}
+                              </div>
+                              <div style={{ fontWeight: 800, marginTop: 8 }}>
+                                {col.format(platforms[0] || {})}
+                              </div>
                             </div>
-                            <div style={{ fontWeight: 800, marginTop: 8 }}>
-                              {fmtCur(platforms[0]?.spend)}
-                            </div>
-                          </div>
+                          ))}
+                      </div>
 
-                          <div className="card card-pad">
-                            <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
-                              CONVERSIONS
-                            </div>
-                            <div style={{ fontWeight: 800, marginTop: 8 }}>
-                              {fmt(platforms[0]?.conversions)}
-                            </div>
-                          </div>
-
-                          <div className="card card-pad">
-                            <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
-                              CLICKS
-                            </div>
-                            <div style={{ fontWeight: 800, marginTop: 8 }}>
-                              {fmt(platforms[0]?.clicks)}
-                            </div>
-                          </div>
-
-                          <div className="card card-pad">
-                            <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
-                              CPA
-                            </div>
-                            <div style={{ fontWeight: 800, marginTop: 8 }}>
-                              {fmtCur(platforms[0]?.cpa)}
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height={250}>
@@ -728,49 +824,51 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                     <table>
                       <thead>
                         <tr>
-                          <th>Platform</th>
-                          <th>Spend</th>
+                          {platformColumns.map((col) => (
+                            <th key={col.key}>{col.label}</th>
+                          ))}
                           <th>Share</th>
-                          <th>Clicks</th>
-                        <th>Conv.</th>
-                        <th>CTR</th>
-                        <th>CPA</th>
-                          <th>ROAS</th>
                         </tr>
                       </thead>
 
                       <tbody>
                         {platforms.map((p, i) => {
                           const spend = parseFloat(p.spend || 0);
-                          const share = totalPlatformSpend > 0
-                            ? (spend / totalPlatformSpend) * 100
-                            : 0;
+                          const share =
+                            totalPlatformSpend > 0 ? (spend / totalPlatformSpend) * 100 : 0;
 
                           return (
                             <tr key={i}>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <div
-                                    style={{
-                                      width: 8,
-                                      height: 8,
-                                      borderRadius: '50%',
-                                      background: COLORS[i % COLORS.length],
-                                    }}
-                                  />
-                                  <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>
-                                    {p.platform}
-                                  </span>
-                                </div>
-                              </td>
-
-                              <td>{fmtCur(p.spend)}</td>
+                              {platformColumns.map((col) => (
+                                <td key={col.key}>
+                                  {col.key === 'platform' ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <div
+                                        style={{
+                                          width: 8,
+                                          height: 8,
+                                          borderRadius: '50%',
+                                          background: COLORS[i % COLORS.length],
+                                        }}
+                                      />
+                                      <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>
+                                        {col.format(p)}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span
+                                      style={{
+                                        fontWeight: ['spend', 'revenue', 'profit', 'roas'].includes(col.key)
+                                          ? 700
+                                          : 500,
+                                      }}
+                                    >
+                                      {col.format(p)}
+                                    </span>
+                                  )}
+                                </td>
+                              ))}
                               <td>{fmt(share, 1)}%</td>
-                              <td>{fmt(p.clicks)}</td>
-                              <td>{fmt(p.conversions)}</td>
-                              <td>{fmtPct(p.ctr)}</td>
-                              <td>{fmtCur(p.cpa)}</td>
-                              <td style={{ fontWeight: 700 }}>{fmt(p.roas, 2)}x</td>
                             </tr>
                           );
                         })}
