@@ -176,15 +176,7 @@ function suggestColumnMapping(headers, reportType = 'ads') {
     'cost',
   ], ['cost per click', 'cost per result', 'cost per lead', 'cost per conversion']);
 
-  mapping.revenue = find([
-    'website revenue',
-    'revenue',
-    'sales revenue',
-    'purchase value',
-    'conversion value',
-    'meta reported revenue',
-    'total revenue',
-  ]);
+ mapping.revenue = find([
 
  if (reportType === 'sales_data') {
     mapping.orders = find([
@@ -248,6 +240,8 @@ function suggestColumnMapping(headers, reportType = 'ads') {
   }
 
   mapping.conversions = find([
+    'purchases',
+    'purchase',
     'results',
     'leads',
     'lead',
@@ -255,7 +249,18 @@ function suggestColumnMapping(headers, reportType = 'ads') {
     'conversion',
     'website leads',
     'messaging conversations started',
-  ], ['cost per result', 'cost per conversion', 'cost per lead', 'cost per purchase']);
+  ], [
+    'cost per result',
+    'cost per conversion',
+    'cost per lead',
+    'cost per purchase',
+    'conversion value',
+    'purchase value',
+    'revenue',
+    'sales value',
+    'website revenue',
+    'total revenue',
+  ]);
 
   mapping.clicks = find([
     'clicks',
