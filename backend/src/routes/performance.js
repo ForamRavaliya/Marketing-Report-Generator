@@ -89,9 +89,9 @@ router.get('/comparison/:clientId', async (req, res) => {
         return res.json({
           currentMonth: null,
           previousMonth: null,
+          reportType: 'needs_review',
           comparison: {},
         });
-      }
 
       current = new Date(latest);
       current.setDate(1);
@@ -140,6 +140,13 @@ router.get('/comparison/:clientId', async (req, res) => {
       cpa: 0,
       roas: 0,
       revenue: 0,
+      orders: 0,
+      quantity: 0,
+      refunds: 0,
+      profit: 0,
+      aov: 0,
+      margin: 0,
+      report_type: 'needs_review',
     };
 
     const [curr, prev] = await Promise.all([
@@ -168,17 +175,25 @@ router.get('/comparison/:clientId', async (req, res) => {
       return ((currentNum - previousNum) / Math.abs(previousNum)) * 100;
     };
 
-    const metrics = [
-      'spend',
-      'impressions',
-      'clicks',
-      'ctr',
-      'cpc',
-      'conversions',
-      'cpa',
-      'roas',
-      'revenue',
-    ];
+   const metrics = [
+     'spend',
+     'impressions',
+     'clicks',
+     'ctr',
+     'cpc',
+     'conversions',
+     'cpa',
+     'roas',
+     'revenue',
+     'orders',
+     'quantity',
+     'refunds',
+     'profit',
+     'aov',
+     'margin',
+   ];
+
+
 
     const comparison = {};
 
@@ -194,11 +209,12 @@ router.get('/comparison/:clientId', async (req, res) => {
       };
     });
 
-    res.json({
-      currentMonth: current ? current.toISOString() : null,
-      previousMonth: previous ? previous.toISOString() : null,
-      comparison,
-    });
+   res.json({
+     currentMonth: current ? current.toISOString() : null,
+     previousMonth: previous ? previous.toISOString() : null,
+     reportType: curr?.report_type || curr?.reportType || 'needs_review',
+     comparison,
+   });
   } catch (error) {
     console.error('Comparison error:', error);
     res.status(500).json({ error: 'Failed to fetch comparison' });

@@ -14,6 +14,7 @@ import { MetricCard } from '../components/MetricCard';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend ,} from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getReportMetricConfig, getMetricFormatter } from '../utils/reportMetricConfig';
 
 const COLORS = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626', '#0891B2'];
 const PLATFORMS = ['all', 'meta', 'google', 'linkedin', 'twitter', 'tiktok', 'other'];
@@ -83,13 +84,24 @@ const [aiLoading, setAiLoading] = useState(false);
             clicks: 0,
             conversions: 0,
             impressions: 0,
+            revenue: 0,
+            roas: 0,
+            orders: 0,
+            quantity: 0,
+            profit: 0,
           };
-        }
 
         byMonth[row.month].spend += parseFloat(row.spend || 0);
         byMonth[row.month].clicks += parseFloat(row.clicks || 0);
         byMonth[row.month].conversions += parseFloat(row.conversions || 0);
         byMonth[row.month].impressions += parseFloat(row.impressions || 0);
+        byMonth[row.month].revenue += parseFloat(row.revenue || 0);
+        byMonth[row.month].orders += parseFloat(row.orders || 0);
+        byMonth[row.month].quantity += parseFloat(row.quantity || 0);
+        byMonth[row.month].profit += parseFloat(row.profit || 0);
+        byMonth[row.month].roas = byMonth[row.month].spend > 0
+          ? byMonth[row.month].revenue / byMonth[row.month].spend
+          : 0;
       });
 
       setTrends(
@@ -150,6 +162,22 @@ const totalCampaignSpend = campaigns.reduce(
 );
 
 const currentMonthMetrics = comparison?.comparison || {};
+
+const detectedReportType =
+  comparison?.reportType ||
+  comparison?.report_type ||
+  comparison?.comparison?.report_type?.current ||
+  campaigns?.[0]?.report_type ||
+  platforms?.[0]?.report_type ||
+  trends?.[0]?.report_type ||
+  'needs_review';
+
+const metricConfig = getReportMetricConfig(detectedReportType);
+const formatMetric = (key, value) =>
+  getMetricFormatter(key, { fmt, fmtCur, fmtPct })(value);
+
+const getCurrentValue = (key) =>
+  currentMonthMetrics?.[key]?.current ?? 0;
   if (!client && !loading) return (
     <div style={{ textAlign: 'center', padding: 60 }}>
       <p>Client not found</p>
@@ -282,57 +310,37 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div>
-              {/* KPI Cards */}
-              <div className="grid grid-4" style={{ marginBottom: 20 }}>
-                <MetricCard label="Total Spend" value={fmtCur(currentMonthMetrics.spend?.current)} icon={DollarSign} color="#2563EB"
-                  change={comparison?.comparison?.spend?.change} changeType="neutral" />
-                <MetricCard label="Impressions" value={fmt(currentMonthMetrics.impressions?.current)} icon={TrendingUp} color="#7C3AED"
-                  change={comparison?.comparison?.impressions?.change} />
-                <MetricCard label="Clicks" value={fmt(currentMonthMetrics.clicks?.current)} icon={MousePointerClick} color="#059669"
-                  change={comparison?.comparison?.clicks?.change} />
-                <MetricCard label="Conversions" value={fmt(currentMonthMetrics.conversions?.current)} icon={Target} color="#D97706"
-                  change={comparison?.comparison?.conversions?.change} />
-              </div>
-              <div className="grid grid-4" style={{ marginBottom: 20 }}>
-                <MetricCard
-                  label="CTR"
-                  value={fmtPct(currentMonthMetrics.ctr?.current)}
-                  color="#0891B2"
-                  change={comparison?.comparison?.ctr?.change}
-                />
+             {/* KPI Cards */}
+             <div className="grid grid-4" style={{ marginBottom: 20 }}>
+               {metricConfig.overviewCards.map((key) => (
+                 <MetricCard
+                   key={key}
+                   label={metricConfig.labels[key] || key}
+                   value={formatMetric(key, getCurrentValue(key))}
+                   icon={
+                     key === 'spend'
+                       ? DollarSign
+                       : key === 'clicks'
+                       ? MousePointerClick
+                       : key === 'conversions' || key === 'orders'
+                       ? Target
+                       : TrendingUp
+                   }
+                   color={
+                     key === 'spend'
+                       ? '#2563EB'
+                       : key === 'revenue' || key === 'roas' || key === 'profit'
+                       ? '#16A34A'
+                       : key === 'cpa' || key === 'refunds'
+                       ? '#DC2626'
+                       : '#7C3AED'
+                   }
+                   change={comparison?.comparison?.[key]?.change}
+                   changeType={['cpc', 'cpa'].includes(key) ? 'negative-good' : 'neutral'}
+                 />
+               ))}
+             </div>
 
-             <MetricCard
-               label="CPC"
-               value={fmtCur(currentMonthMetrics.cpc?.current)}
-               color="#7C3AED"
-               change={comparison?.comparison?.cpc?.change}
-               changeType="negative-good"
-             />
-
-                <MetricCard
-                  label="CPA"
-                  value={fmtCur(currentMonthMetrics.cpa?.current)}
-                  color="#DC2626"
-                  change={comparison?.comparison?.cpa?.change}
-                  changeType="negative-good"
-                />
-
-                <MetricCard
-                  label="Revenue"
-                  value={fmtCur(currentMonthMetrics.revenue?.current)}
-                  color="#16A34A"
-                  change={comparison?.comparison?.revenue?.change}
-                />
-              </div>
-
-              <div className="grid grid-4" style={{ marginBottom: 20 }}>
-                <MetricCard
-                  label="ROAS"
-                  value={`${fmt(currentMonthMetrics.roas?.current, 2)}x`}
-                  color="#059669"
-                  change={comparison?.comparison?.roas?.change}
-                />
-              </div>
 
               {/* MoM Comparison */}
               {comparison && (
@@ -349,16 +357,11 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {[
-                          { key: 'spend', label: 'Spend', fmt: fmtCur },
-                          { key: 'impressions', label: 'Impressions', fmt: fmt },
-                          { key: 'clicks', label: 'Clicks', fmt: fmt },
-                          { key: 'ctr', label: 'CTR', fmt: fmtPct },
-                          { key: 'cpc', label: 'CPC', fmt: fmtCur },
-                          { key: 'conversions', label: 'Conversions', fmt: fmt },
-                          { key: 'cpa', label: 'CPA', fmt: fmtCur },
-                          { key: 'roas', label: 'ROAS', fmt: v => `${fmt(v, 2)}x` },
-                        ].map(({ key, label, fmt: f }) => {
+                        {metricConfig.overviewCards.map((key) => ({
+                           key,
+                           label: metricConfig.labels[key] || key,
+                           fmt: (value) => formatMetric(key, value),
+                         })).map(({ key, label, fmt: f }) => {
                           const d = comparison.comparison[key];
                           if (!d) return null;
                           const hasPreviousData = d.hasPreviousData !== false && d.change !== null && Number.isFinite(Number(d.change));
