@@ -202,9 +202,9 @@ const getCurrentValue = (key) =>
         { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
         { key: 'spend', label: 'Spend', format: (c) => fmtCur(c.spend) },
         { key: 'conversions', label: 'Purchases', format: (c) => fmt(c.conversions) },
-        { key: 'cpa', label: 'Cost Per Purchase', format: (c) => fmtCur(c.cpa) },
+        { key: 'cpa', label: 'Cost / Purchase', format: (c) => fmtCur(c.cpa) },
         { key: 'revenue', label: 'Revenue', format: (c) => fmtCur(c.revenue) },
-        { key: 'roas', label: 'ROAS', format: (c) => `${fmt(c.roas, 2)}x` },
+        { key: 'roas', label: 'Return', format: (c) => `${fmt(c.roas, 2)}x` },
       ];
     }
 
@@ -213,9 +213,9 @@ const getCurrentValue = (key) =>
         { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
         { key: 'spend', label: 'Spend', format: (c) => fmtCur(c.spend) },
         { key: 'conversions', label: 'Leads', format: (c) => fmt(c.conversions) },
-        { key: 'cpa', label: 'Cost Per Lead', format: (c) => fmtCur(c.cpa) },
-        { key: 'ctr', label: 'CTR', format: (c) => fmtPct(c.ctr) },
-        { key: 'cpc', label: 'CPC', format: (c) => fmtCur(c.cpc) },
+        { key: 'cpa', label: 'Cost / Lead', format: (c) => fmtCur(c.cpa) },
+        { key: 'ctr', label: 'Click Rate', format: (c) => fmtPct(c.ctr) },
+        { key: 'cpc', label: 'Cost / Click', format: (c) => fmtCur(c.cpc) },
       ];
     }
 
@@ -234,8 +234,8 @@ const getCurrentValue = (key) =>
       { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
       { key: 'spend', label: 'Spend', format: (c) => fmtCur(c.spend) },
       { key: 'clicks', label: 'Clicks', format: (c) => fmt(c.clicks) },
-      { key: 'conversions', label: 'Conversions', format: (c) => fmt(c.conversions) },
-      { key: 'cpa', label: 'CPA', format: (c) => fmtCur(c.cpa) },
+      { key: 'conversions', label: 'Results', format: (c) => fmt(c.conversions) },
+      { key: 'cpa', label: 'Cost / Result', format: (c) => fmtCur(c.cpa) },
     ];
   };
 
@@ -281,6 +281,30 @@ const getCurrentValue = (key) =>
       { key: 'cpa', label: 'CPA', format: (p) => fmtCur(p.cpa) },
     ];
   };
+
+const topCampaign = campaigns.length
+  ? [...campaigns].sort((a, b) => {
+      if (normalizedReportType === 'sales_data') {
+        return Number(b.profit || 0) - Number(a.profit || 0);
+      }
+
+      if (normalizedReportType === 'lead_generation') {
+        return Number(b.conversions || 0) - Number(a.conversions || 0);
+      }
+
+      return Number(b.roas || 0) - Number(a.roas || 0);
+    })[0]
+  : null;
+
+const lowCampaign = campaigns.length
+  ? [...campaigns].sort((a, b) => {
+      if (normalizedReportType === 'sales_data') {
+        return Number(a.profit || 0) - Number(b.profit || 0);
+      }
+
+      return Number(b.cpa || 0) - Number(a.cpa || 0);
+    })[0]
+  : null;
 
   const platformColumns = getPlatformColumns();
   const getTrendConfig = () => {
@@ -679,12 +703,209 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
             </div>
           )}
 
+
           {/* Campaigns Tab */}
           {activeTab === 'campaigns' && (
             <div className="card">
               <div className="card-pad" style={{ borderBottom: '1px solid var(--border)' }}>
+
+  <div className="grid grid-4" style={{ marginBottom: 20 }}>
+                     <MetricCard
+                       label="Campaigns"
+                       value={campaigns.length}
+                       icon={Target}
+                       color="#2563EB"
+                     />
+
+                     <MetricCard
+                       label={
+                         normalizedReportType === 'sales_data'
+                           ? 'Total Profit'
+                           : 'Total Spend'
+                       }
+                       value={
+                         normalizedReportType === 'sales_data'
+                           ? fmtCur(
+                               campaigns.reduce(
+                                 (s, c) => s + Number(c.profit || 0),
+                                 0
+                               )
+                             )
+                           : fmtCur(
+                               campaigns.reduce(
+                                 (s, c) => s + Number(c.spend || 0),
+                                 0
+                               )
+                             )
+                       }
+                       icon={DollarSign}
+                       color="#16A34A"
+                     />
+
+                     <MetricCard
+                       label={
+                         normalizedReportType === 'sales_data'
+                           ? 'Orders'
+                           : normalizedReportType === 'lead_generation'
+                           ? 'Leads'
+                           : 'Purchases'
+                       }
+                       value={fmt(
+                         campaigns.reduce(
+                           (s, c) => s + Number(c.conversions || c.orders || 0),
+                           0
+                         )
+                       )}
+                       icon={Target}
+                       color="#7C3AED"
+                     />
+
+                     <MetricCard
+                       label={
+                         normalizedReportType === 'sales_data'
+                           ? 'Avg Margin'
+                           : 'Avg ROAS'
+                       }
+                       value={
+                         normalizedReportType === 'sales_data'
+                           ? fmtPct(
+                               campaigns.reduce(
+                                 (s, c) => s + Number(c.margin || 0),
+                                 0
+                               ) / Math.max(campaigns.length, 1)
+                             )
+                           : `${fmt(
+                               campaigns.reduce(
+                                 (s, c) => s + Number(c.roas || 0),
+                                 0
+                               ) / Math.max(campaigns.length, 1),
+                               2
+                             )}x`
+                       }
+                       icon={TrendingUp}
+                       color="#F59E0B"
+                     />
+                   </div>
+
+               <div className="grid grid-2" style={{ marginBottom: 20 }}>
+                 <div className="card card-pad">
+
+
+
+                   <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                     🏆 TOP PERFORMER
+                   </div>
+
+                   <div style={{ fontWeight: 700, marginTop: 10 }}>
+                     {topCampaign?.name || '-'}
+                   </div>
+
+                   <div style={{ marginTop: 6, color: 'var(--text2)', fontSize: 13 }}>
+                     {normalizedReportType === 'sales_data'
+                       ? `Profit ${fmtCur(topCampaign?.profit)}`
+                       : normalizedReportType === 'lead_generation'
+                       ? `${fmt(topCampaign?.conversions)} Leads`
+                       : `${fmt(topCampaign?.roas,2)}x ROAS`}
+                   </div>
+                 </div>
+
+                 <div className="card card-pad">
+                   <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
+                     ⚠️ NEEDS ATTENTION
+                   </div>
+
+                   <div style={{ fontWeight: 700, marginTop: 10 }}>
+                     {lowCampaign?.name || '-'}
+                   </div>
+
+                   <div style={{ marginTop: 6, color: 'var(--text2)', fontSize: 13 }}>
+                     {normalizedReportType === 'sales_data'
+                       ? `Profit ${fmtCur(lowCampaign?.profit)}`
+                       : `Cost ${fmtCur(lowCampaign?.cpa)}`}
+                   </div>
+                 </div>
+               </div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>Campaign Performance</div>
+
               </div>
+
+              <div className="grid grid-2" style={{ marginTop: 20, marginBottom: 20 }}>
+                    {/* chart block */}
+                <div className="card card-pad">
+                  <div style={{ fontWeight: 700, marginBottom: 16 }}>
+                    Top 10 Campaigns
+                  </div>
+
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart
+                      data={[...campaigns]
+                        .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0))
+                        .slice(0, 10)}
+                      layout="vertical"
+                    >
+                      <XAxis type="number" />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={140}
+                        tick={{ fontSize: 11 }}
+                      />
+
+                      <Tooltip content={<Tooltip_ prefix="₹" />} />
+
+                      <Bar
+                        dataKey={
+                          normalizedReportType === 'sales_data'
+                            ? 'profit'
+                            : normalizedReportType === 'lead_generation'
+                            ? 'conversions'
+                            : 'revenue'
+                        }
+                        radius={[0, 6, 6, 0]}
+                        fill="#2563EB"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                  <div className="card card-pad">
+
+                    <div style={{ fontWeight: 700, marginBottom: 16 }}>
+                      Campaign Distribution
+                    </div>
+
+                    <ResponsiveContainer width="100%" height={320}>
+                      <PieChart>
+
+                        <Pie
+                          data={[...campaigns]
+                            .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0))
+                            .slice(0, 6)}
+                          dataKey="spend"
+                          nameKey="name"
+                          outerRadius={100}
+                        >
+                          {[...campaigns]
+                            .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0))
+                            .slice(0, 6)
+                            .map((_, i) => (
+                              <Cell
+                                key={i}
+                                fill={COLORS[i % COLORS.length]}
+                              />
+                            ))}
+                        </Pie>
+
+                        <Tooltip formatter={(v) => fmtCur(v)} />
+                        <Legend />
+
+                      </PieChart>
+                    </ResponsiveContainer>
+
+                  </div>
+
+                </div>
+
               {campaigns.length === 0 ? (
                 <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text3)' }}>
                   No campaign data. Upload reports with campaign names to see breakdown.
@@ -809,8 +1030,13 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                           </div>
 
                           <div style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6 }}>
-                            This client currently spends <strong>100%</strong> of the tracked budget on this platform.
-                            Add Google, LinkedIn, or other platform data to compare performance.
+                           {normalizedReportType === 'sales_campaign'
+                             ? 'This platform generated the tracked purchases and revenue for this report.'
+                             : normalizedReportType === 'lead_generation'
+                             ? 'This platform generated the tracked leads for this report.'
+                             : normalizedReportType === 'sales_data'
+                             ? 'This channel generated the tracked sales for this report.'
+                             : 'This platform contains the tracked performance for this report.'}
                           </div>
                         </div>
 
