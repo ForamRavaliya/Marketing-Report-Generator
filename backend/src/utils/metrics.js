@@ -108,6 +108,10 @@ const getSummaryMetrics = async (db, options) => {
       CASE WHEN SUM(COALESCE(pd.spend, 0)) > 0
         THEN SUM(COALESCE(pd.revenue, 0)) / SUM(COALESCE(pd.spend, 0))
         ELSE 0
+      END AS roas,
+      CASE WHEN SUM(COALESCE(pd.spend, 0)) > 0
+        THEN SUM(COALESCE(pd.revenue, 0)) / SUM(COALESCE(pd.spend, 0))
+        ELSE 0
       END AS roas
     FROM performance_data pd
     CROSS JOIN has_aggregate
