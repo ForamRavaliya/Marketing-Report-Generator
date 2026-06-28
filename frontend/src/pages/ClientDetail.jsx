@@ -333,6 +333,44 @@ const getCurrentValue = (key) =>
 
   const trendConfig = getTrendConfig();
 
+  const getAiConfig = () => {
+    if (normalizedReportType === 'sales_campaign') {
+      return {
+        title: 'Sales Campaign Insights',
+        subtitle: 'AI analysis focused on revenue, purchases, ROAS, and cost per purchase',
+        summaryTitle: 'Sales Performance Summary',
+        recommendationTitle: 'Sales Campaign Recommendations',
+      };
+    }
+
+    if (normalizedReportType === 'lead_generation') {
+      return {
+        title: 'Lead Generation Insights',
+        subtitle: 'AI analysis focused on leads, cost per lead, CTR, and inquiry quality',
+        summaryTitle: 'Lead Performance Summary',
+        recommendationTitle: 'Lead Generation Recommendations',
+      };
+    }
+
+    if (normalizedReportType === 'sales_data') {
+      return {
+        title: 'Sales Data Insights',
+        subtitle: 'AI analysis focused on revenue, orders, profit, margin, and AOV',
+        summaryTitle: 'Sales Data Summary',
+        recommendationTitle: 'Sales Growth Recommendations',
+      };
+    }
+
+    return {
+      title: 'AI Marketing Insights',
+      subtitle: 'AI-powered campaign analysis and recommendations',
+      summaryTitle: 'Performance Summary',
+      recommendationTitle: 'AI Recommendations',
+    };
+  };
+
+  const aiConfig = getAiConfig();
+
   if (!client && !loading) return (
     <div style={{ textAlign: 'center', padding: 60 }}>
       <p>Client not found</p>
@@ -894,7 +932,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
       >
         <div>
           <div style={{ fontWeight: 800, fontSize: 18 }}>
-            AI Marketing Insights
+            {aiConfig.title}
           </div>
 
           <div
@@ -904,7 +942,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
               marginTop: 4,
             }}
           >
-            AI-powered campaign analysis and recommendations
+            {aiConfig.subtitle}
           </div>
         </div>
 
@@ -927,7 +965,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
             }
           }}
         >
-          {aiLoading ? 'Generating...' : 'Generate Insights'}
+          {aiLoading ? 'Generating...' : `Generate ${aiConfig.title}`}
         </button>
       </div>
 
@@ -959,7 +997,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                 marginBottom: 10,
               }}
             >
-              Performance Summary
+              {aiConfig.summaryTitle}
             </div>
 
             <div
@@ -994,7 +1032,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                 marginBottom: 14,
               }}
             >
-              AI Recommendations
+             {aiConfig.recommendationTitle}
             </div>
 
             <div
