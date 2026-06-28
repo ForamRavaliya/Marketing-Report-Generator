@@ -3,42 +3,11 @@ export const REPORT_TYPES = {
   LEAD_GENERATION: 'lead_generation',
   SALES_DATA: 'sales_data',
   NEEDS_REVIEW: 'needs_review',
-    ADS: 'ads',
+
 };
 
 export const getReportMetricConfig = (reportType = REPORT_TYPES.NEEDS_REVIEW) => {
   switch (reportType) {
-    case REPORT_TYPES.SALES_CAMPAIGN:
-      return {
-        title: 'Sales Campaign Report',
-        primaryMetricLabel: 'Purchases',
-        costMetricLabel: 'Cost Per Purchase',
-        revenueLabel: 'Revenue',
-        roasLabel: 'ROAS',
-        showRevenue: true,
-        showRoas: true,
-        overviewCards: [
-          'spend',
-          'revenue',
-          'conversions',
-          'cpa',
-          'roas',
-          'ctr',
-          'cpc',
-          'clicks',
-        ],
-        labels: {
-          spend: 'Total Spend',
-          revenue: 'Revenue',
-          conversions: 'Purchases',
-          cpa: 'Cost Per Purchase',
-          roas: 'ROAS',
-          ctr: 'CTR',
-          cpc: 'CPC',
-          clicks: 'Website Clicks',
-          impressions: 'Impressions',
-        },
-      };
 
     case REPORT_TYPES.LEAD_GENERATION:
       return {

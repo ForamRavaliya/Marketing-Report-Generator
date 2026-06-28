@@ -1,3 +1,25 @@
+
+  const normalizeReportTypeSql = `
+    CASE
+      WHEN MAX(pd.report_type) IN ('sales_campaign', 'lead_generation', 'sales_data')
+        THEN MAX(pd.report_type)
+
+      WHEN MAX(pd.report_type) = 'ads'
+        AND SUM(COALESCE(pd.revenue, 0)) > 0
+        AND SUM(COALESCE(pd.spend, 0)) > 0
+        THEN 'sales_campaign'
+
+      WHEN MAX(pd.report_type) = 'ads'
+        AND SUM(COALESCE(pd.conversions, 0)) > 0
+        THEN 'lead_generation'
+
+      WHEN MAX(pd.report_type) IS NOT NULL
+        THEN MAX(pd.report_type)
+
+      ELSE 'needs_review'
+    END
+  `;
+
 const isAggregateExpr = "LOWER(TRIM(COALESCE(pd.external_campaign_name, ''))) = 'aggregate'";
 const isNotAggregateExpr = "LOWER(TRIM(COALESCE(pd.external_campaign_name, ''))) <> 'aggregate'";
 
@@ -52,7 +74,7 @@ const getSummaryMetrics = async (db, options) => {
       SUM(COALESCE(pd.clicks, 0)) AS clicks,
       SUM(COALESCE(pd.conversions, 0)) AS conversions,
       SUM(COALESCE(pd.revenue, 0)) AS revenue,
-      COALESCE(MAX(pd.report_type), 'needs_review') AS report_type,
+     ${normalizeReportTypeSql} AS report_type,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'orders')::numeric, 0)) AS orders,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'quantity')::numeric, 0)) AS quantity,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'refunds')::numeric, 0)) AS refunds,
@@ -123,7 +145,7 @@ const getMonthlyTrends = async (db, options) => {
       SUM(COALESCE(pd.clicks, 0)) AS clicks,
       SUM(COALESCE(pd.conversions, 0)) AS conversions,
       SUM(COALESCE(pd.revenue, 0)) AS revenue,
-      COALESCE(MAX(pd.report_type), 'needs_review') AS report_type,
+     ${normalizeReportTypeSql} AS report_type,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'orders')::numeric, 0)) AS orders,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'quantity')::numeric, 0)) AS quantity,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'profit')::numeric, 0)) AS profit,
@@ -168,7 +190,7 @@ const getPlatformMetrics = async (db, options) => {
       SUM(COALESCE(pd.clicks, 0)) AS clicks,
       SUM(COALESCE(pd.conversions, 0)) AS conversions,
       SUM(COALESCE(pd.revenue, 0)) AS revenue,
-      COALESCE(MAX(pd.report_type), 'needs_review') AS report_type,
+      ${normalizeReportTypeSql} AS report_type,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'orders')::numeric, 0)) AS orders,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'quantity')::numeric, 0)) AS quantity,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'profit')::numeric, 0)) AS profit
@@ -226,7 +248,7 @@ const getCampaignMetrics = async (db, options) => {
       SUM(COALESCE(pd.clicks, 0)) AS clicks,
       SUM(COALESCE(pd.conversions, 0)) AS conversions,
       SUM(COALESCE(pd.revenue, 0)) AS revenue,
-      COALESCE(MAX(pd.report_type), 'needs_review') AS report_type,
+      ${normalizeReportTypeSql} AS report_type,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'orders')::numeric, 0)) AS orders,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'quantity')::numeric, 0)) AS quantity,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'refunds')::numeric, 0)) AS refunds,

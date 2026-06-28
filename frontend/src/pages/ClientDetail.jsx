@@ -172,13 +172,7 @@ const detectedReportType =
   trends?.[0]?.report_type ||
   'needs_review';
 
-const normalizedReportType =
-  detectedReportType === 'ads'
-    ? Number(getCurrentValue('revenue')) > 0
-      ? 'sales_campaign'
-      : 'lead_generation'
-    : detectedReportType;
-
+const normalizedReportType = detectedReportType || 'needs_review';
 const metricConfig = getReportMetricConfig(normalizedReportType);
 const formatMetric = (key, value) =>
   getMetricFormatter(key, { fmt, fmtCur, fmtPct })(value);
