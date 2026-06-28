@@ -741,9 +741,9 @@ async function processFileWithMapping(
     reportMonth.setDate(1);
     reportMonth.setHours(0, 0, 0, 0);
 
+    const availableHeaders = Object.keys(records[0] || {});
     const detectedPlatform = detectPlatform(availableHeaders, originalFileName);
     const normalizedPlatform = platform || detectedPlatform || 'other';
-    const availableHeaders = Object.keys(records[0] || {});
     const reportType = existingReportType || detectReportType(availableHeaders, mapping);
 
     const suggestedColumns = suggestColumnMapping(availableHeaders, reportType);
@@ -841,6 +841,40 @@ async function processFileWithMapping(
 
     const getText = (record, field) => {
       return String(getRawValue(record, field) || '').trim();
+    };
+    const getRowReportMonth = (record) => {
+      const possibleDateColumns = [
+        'date',
+        'day',
+        'month',
+        'report date',
+        'reporting starts',
+        'reporting start',
+        'start date',
+        'end date',
+        'purchase date',
+        'transaction date',
+      ];
+
+      for (const key of Object.keys(record)) {
+        const normalized = normalizeHeader(key);
+
+        if (possibleDateColumns.includes(normalized)) {
+          const value = record[key];
+
+          if (!value) continue;
+
+          const d = new Date(value);
+
+          if (!Number.isNaN(d.getTime())) {
+            d.setDate(1);
+            d.setHours(0, 0, 0, 0);
+            return d;
+          }
+        }
+      }
+
+      return reportMonth;
     };
 
     const isSummaryRow = (name) => {
@@ -1070,139 +1104,171 @@ const normalizeSalesMetric = (record) => {
       return row;
     });
 
-    const rowsForAggregate = summaryRows.length > 0 ? summaryRows : detailRowsForAggregate;
+const rowsForAggregate = summaryRows.length > 0 ? summaryRows : detailRowsForAggregate;
 
-    const aggregate = rowsForAggregate.reduce(
-      (acc, row) => {
-        acc.spend += row.metrics.spend;
-        acc.impressions += row.metrics.impressions;
-        acc.clicks += row.metrics.clicks;
-        acc.conversions += row.metrics.conversions;
-        acc.revenue += row.metrics.revenue;
-       acc.reach += row.metrics.reach;
-       acc.followers += row.metrics.followers || 0;
-       acc.orders += row.metrics.orders || 0;
-        acc.quantity += row.metrics.quantity || 0;
-        acc.refunds += row.metrics.refunds || 0;
-        acc.profit += row.metrics.profit || 0;
-        return acc;
-      },
-      {
-        spend: 0,
-        impressions: 0,
-        clicks: 0,
-        conversions: 0,
-        revenue: 0,
-        reach: 0,
-        followers: 0,
-        orders: 0,
-        quantity: 0,
-        refunds: 0,
-        profit: 0,
-      }
-    );
+const monthlyAggregates = new Map();
 
-    aggregate.ctr =
-      aggregate.impressions > 0 && aggregate.clicks > 0
-        ? (aggregate.clicks / aggregate.impressions) * 100
-        : 0;
+for (const row of rowsForAggregate) {
+  const rowMonth = getRowReportMonth(row.rawData || {});
+  const monthKey = rowMonth.toISOString().slice(0, 10);
 
-    aggregate.cpc =
-      aggregate.clicks > 0 ? aggregate.spend / aggregate.clicks : 0;
+  const existing = monthlyAggregates.get(monthKey) || {
+    reportMonth: rowMonth,
+    metrics: {
+      spend: 0,
+      impressions: 0,
+      clicks: 0,
+      conversions: 0,
+      revenue: 0,
+      reach: 0,
+      followers: 0,
+      orders: 0,
+      quantity: 0,
+      refunds: 0,
+      profit: 0,
+    },
+  };
 
-    aggregate.cpa =
-      aggregate.conversions > 0 ? aggregate.spend / aggregate.conversions : 0;
+  existing.metrics.spend += row.metrics.spend || 0;
+  existing.metrics.impressions += row.metrics.impressions || 0;
+  existing.metrics.clicks += row.metrics.clicks || 0;
+  existing.metrics.conversions += row.metrics.conversions || 0;
+  existing.metrics.revenue += row.metrics.revenue || 0;
+  existing.metrics.reach += row.metrics.reach || 0;
+  existing.metrics.followers += row.metrics.followers || 0;
+  existing.metrics.orders += row.metrics.orders || 0;
+  existing.metrics.quantity += row.metrics.quantity || 0;
+  existing.metrics.refunds += row.metrics.refunds || 0;
+  existing.metrics.profit += row.metrics.profit || 0;
 
-    aggregate.roas =
-      aggregate.spend > 0 && aggregate.revenue > 0
-        ? aggregate.revenue / aggregate.spend
-        : 0;
-
-        aggregate.aov = aggregate.orders > 0 ? aggregate.revenue / aggregate.orders : 0;
-        aggregate.margin = aggregate.revenue > 0 ? (aggregate.profit / aggregate.revenue) * 100 : 0;
-
+  monthlyAggregates.set(monthKey, existing);
+}
     transactionClient = await db.getClient();
     await transactionClient.query('BEGIN');
     await transactionClient.query(
       'SELECT pg_advisory_xact_lock(hashtext($1))',
-      [`${clientId}:${normalizedPlatform}:${reportMonth.toISOString().slice(0, 10)}`]
+      [`${clientId}:${normalizedPlatform}`]
     );
 
     await transactionClient.query(
       `DELETE FROM performance_data
        WHERE client_id = $1
        AND platform = $2
-       AND report_month = $3`,
-      [clientId, normalizedPlatform, reportMonth]
-    );
-
-    await transactionClient.query(
-      `INSERT INTO performance_data
-        (client_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
-         spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, report_type, raw_data)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-       ON CONFLICT (client_id, platform, external_campaign_name, report_month)
-       DO UPDATE SET
-         upload_id = EXCLUDED.upload_id,
-         date_range_start = EXCLUDED.date_range_start,
-         date_range_end = EXCLUDED.date_range_end,
-         spend = EXCLUDED.spend,
-         impressions = EXCLUDED.impressions,
-         clicks = EXCLUDED.clicks,
-         ctr = EXCLUDED.ctr,
-         cpc = EXCLUDED.cpc,
-         conversions = EXCLUDED.conversions,
-         cpa = EXCLUDED.cpa,
-         roas = EXCLUDED.roas,
-         revenue = EXCLUDED.revenue,
-         reach = EXCLUDED.reach,
-         followers = EXCLUDED.followers,
-         report_type = EXCLUDED.report_type,
-         raw_data = EXCLUDED.raw_data,
-         updated_at = NOW()`,
+       AND COALESCE(date_range_start, report_month) <= $4
+       AND COALESCE(date_range_end, report_month) >= $3`,
       [
         clientId,
-        uploadId,
         normalizedPlatform,
-        'aggregate',
-        reportMonth,
-        finalDateStart,
-        finalDateEnd,
-        aggregate.spend,
-        aggregate.impressions,
-        aggregate.clicks,
-        aggregate.ctr,
-        aggregate.cpc,
-        aggregate.conversions,
-        aggregate.cpa,
-        aggregate.roas,
-        aggregate.revenue,
-        aggregate.reach,
-        aggregate.followers,
-        reportType,
-       JSON.stringify({
-         ...aggregate,
-         reportType,
-         mapping,
-         salesMetrics:
-           reportType === 'sales_data'
-             ? {
-                 orders: aggregate.orders,
-                 quantity: aggregate.quantity,
-                 refunds: aggregate.refunds,
-                 profit: aggregate.profit,
-                 aov: aggregate.aov,
-                 margin: aggregate.margin,
-               }
-             : null,
-         source: summaryRows.length > 0 ? 'summary_row' : 'campaign_sum',
-       }),
+        finalDateStart || reportMonth,
+        finalDateEnd || reportMonth,
       ]
     );
+
+   for (const monthlyAggregate of monthlyAggregates.values()) {
+     const aggregate = monthlyAggregate.metrics;
+     const aggregateReportMonth = monthlyAggregate.reportMonth;
+
+     const monthStart = new Date(aggregateReportMonth);
+     monthStart.setDate(1);
+     monthStart.setHours(0, 0, 0, 0);
+
+     const monthEnd = new Date(monthStart);
+     monthEnd.setMonth(monthEnd.getMonth() + 1);
+     monthEnd.setDate(0);
+     monthEnd.setHours(23, 59, 59, 999);
+
+     aggregate.ctr =
+       aggregate.impressions > 0 && aggregate.clicks > 0
+         ? (aggregate.clicks / aggregate.impressions) * 100
+         : 0;
+
+     aggregate.cpc =
+       aggregate.clicks > 0 ? aggregate.spend / aggregate.clicks : 0;
+
+     aggregate.cpa =
+       aggregate.conversions > 0 ? aggregate.spend / aggregate.conversions : 0;
+
+     aggregate.roas =
+       aggregate.spend > 0 && aggregate.revenue > 0
+         ? aggregate.revenue / aggregate.spend
+         : 0;
+
+     aggregate.aov =
+       aggregate.orders > 0 ? aggregate.revenue / aggregate.orders : 0;
+
+     aggregate.margin =
+       aggregate.revenue > 0 ? (aggregate.profit / aggregate.revenue) * 100 : 0;
+
+     await transactionClient.query(
+       `INSERT INTO performance_data
+         (client_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
+          spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, report_type, raw_data)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+        ON CONFLICT (client_id, platform, external_campaign_name, report_month)
+        DO UPDATE SET
+          upload_id = EXCLUDED.upload_id,
+          date_range_start = EXCLUDED.date_range_start,
+          date_range_end = EXCLUDED.date_range_end,
+          spend = EXCLUDED.spend,
+          impressions = EXCLUDED.impressions,
+          clicks = EXCLUDED.clicks,
+          ctr = EXCLUDED.ctr,
+          cpc = EXCLUDED.cpc,
+          conversions = EXCLUDED.conversions,
+          cpa = EXCLUDED.cpa,
+          roas = EXCLUDED.roas,
+          revenue = EXCLUDED.revenue,
+          reach = EXCLUDED.reach,
+          followers = EXCLUDED.followers,
+          report_type = EXCLUDED.report_type,
+          raw_data = EXCLUDED.raw_data,
+          updated_at = NOW()`,
+       [
+         clientId,
+         uploadId,
+         normalizedPlatform,
+         'aggregate',
+         aggregateReportMonth,
+         monthStart,
+         monthEnd,
+         aggregate.spend,
+         aggregate.impressions,
+         aggregate.clicks,
+         aggregate.ctr,
+         aggregate.cpc,
+         aggregate.conversions,
+         aggregate.cpa,
+         aggregate.roas,
+         aggregate.revenue,
+         aggregate.reach,
+         aggregate.followers,
+         reportType,
+         JSON.stringify({
+           ...aggregate,
+           reportType,
+           mapping,
+           salesMetrics:
+             reportType === 'sales_data'
+               ? {
+                   orders: aggregate.orders,
+                   quantity: aggregate.quantity,
+                   refunds: aggregate.refunds,
+                   profit: aggregate.profit,
+                   aov: aggregate.aov,
+                   margin: aggregate.margin,
+                 }
+               : null,
+           source: summaryRows.length > 0 ? 'summary_row' : 'campaign_sum',
+         }),
+       ]
+     );
+   }
 
     for (const row of campaignRows) {
       const campaignName = row.name;
       const m = row.metrics;
+
+     const rowReportMonth = getRowReportMonth(row.rawData[0] || {});
 
       let campaignId = null;
 
@@ -1261,7 +1327,7 @@ const normalizeSalesMetric = (record) => {
           uploadId,
           normalizedPlatform,
           campaignName,
-          reportMonth,
+          rowReportMonth,
           finalDateStart,
           finalDateEnd,
           m.spend,
