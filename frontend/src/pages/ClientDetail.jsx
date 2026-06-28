@@ -166,13 +166,26 @@ const currentMonthMetrics = comparison?.comparison || {};
 const detectedReportType =
   comparison?.reportType ||
   comparison?.report_type ||
-  comparison?.comparison?.report_type?.current ||
   campaigns?.[0]?.report_type ||
   platforms?.[0]?.report_type ||
   trends?.[0]?.report_type ||
   'needs_review';
 
-const normalizedReportType = detectedReportType || 'needs_review';
+const normalizeFrontendReportType = (type) => {
+  if (type === 'sales_campaign' || type === 'lead_generation' || type === 'sales_data') {
+    return type;
+  }
+
+  // backward compatibility for old uploaded rows
+  if (type === 'ads') {
+    const revenue = Number(currentMonthMetrics?.revenue?.current || 0);
+    return revenue > 0 ? 'sales_campaign' : 'lead_generation';
+  }
+
+  return 'needs_review';
+};
+
+const normalizedReportType = normalizeFrontendReportType(detectedReportType);
 const metricConfig = getReportMetricConfig(normalizedReportType);
 const formatMetric = (key, value) =>
   getMetricFormatter(key, { fmt, fmtCur, fmtPct })(value);
@@ -323,7 +336,9 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
         <button className="btn btn-ghost btn-sm" onClick={() => navigate('/clients')}><ArrowLeft size={15} /></button>
         <div style={{ flex: 1 }}>
           <div className="page-title">{client?.name || '...'}</div>
-          <div className="page-subtitle">{client?.industry || 'Performance Dashboard'}</div>
+         <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+           {metricConfig.title}
+         </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <select className="form-select" style={{ width: 'auto', fontSize: 13 }} value={platform} onChange={e => setPlatform(e.target.value)}>
