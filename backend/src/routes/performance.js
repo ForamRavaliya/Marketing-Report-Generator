@@ -97,7 +97,7 @@ router.get('/comparison/:clientId', async (req, res) => {
       current.setDate(1);
       current.setHours(0, 0, 0, 0);
 
-
+}
     let previous = previousMonth ? new Date(previousMonth) : null;
     if (previous) {
       previous.setDate(1);
