@@ -181,7 +181,7 @@ function suggestColumnMapping(headers, reportType = 'ads') {
     'total revenue',
   ]);
 
-  if (reportType === 'sales') {
+ if (reportType === 'sales_data') {
     mapping.orders = find([
       'orders',
       'order',
@@ -741,7 +741,7 @@ async function processFileWithMapping(
 
     const suggestedColumns = suggestColumnMapping(availableHeaders, reportType);
     const mappedFields =
-      reportType === 'sales'
+      reportType === 'sales_data'
         ? [
             'product',
             'revenue',
@@ -968,12 +968,12 @@ const normalizeSalesMetric = (record) => {
 
     for (const record of records) {
     const campaignName =
-      reportType === 'sales'
+      reportType === 'sales_data'
         ? getText(record, 'product') || 'Sales Item'
         : getText(record, 'campaignName') || getText(record, 'campaign');
 
      const metrics =
-       reportType === 'sales'
+       reportType === 'sales_data'
          ? normalizeSalesMetric(record)
          : normalizeCampaignMetric(record);
 
@@ -1178,7 +1178,7 @@ const normalizeSalesMetric = (record) => {
          reportType,
          mapping,
          salesMetrics:
-           reportType === 'sales'
+           reportType === 'sales_data'
              ? {
                  orders: aggregate.orders,
                  quantity: aggregate.quantity,
@@ -1275,7 +1275,7 @@ const normalizeSalesMetric = (record) => {
             reportType,
             mapping,
             salesMetrics:
-              reportType === 'sales'
+              reportType === 'sales_data'
                 ? {
                     orders: m.orders,
                     quantity: m.quantity,
