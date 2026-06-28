@@ -92,11 +92,11 @@ router.get('/comparison/:clientId', async (req, res) => {
           reportType: 'needs_review',
           comparison: {},
         });
-
+}
       current = new Date(latest);
       current.setDate(1);
       current.setHours(0, 0, 0, 0);
-    }
+
 
     let previous = previousMonth ? new Date(previousMonth) : null;
     if (previous) {
