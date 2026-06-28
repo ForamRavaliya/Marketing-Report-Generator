@@ -172,12 +172,65 @@ const detectedReportType =
   trends?.[0]?.report_type ||
   'needs_review';
 
-const metricConfig = getReportMetricConfig(detectedReportType);
+const normalizedReportType =
+  detectedReportType === 'ads'
+    ? Number(getCurrentValue('revenue')) > 0
+      ? 'sales_campaign'
+      : 'lead_generation'
+    : detectedReportType;
+
+const metricConfig = getReportMetricConfig(normalizedReportType);
 const formatMetric = (key, value) =>
   getMetricFormatter(key, { fmt, fmtCur, fmtPct })(value);
 
 const getCurrentValue = (key) =>
   currentMonthMetrics?.[key]?.current ?? 0;
+
+  const getCampaignColumns = () => {
+    if (normalizedReportType === 'sales_campaign') {
+      return [
+        { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
+        { key: 'spend', label: 'Spend', format: (c) => fmtCur(c.spend) },
+        { key: 'conversions', label: 'Purchases', format: (c) => fmt(c.conversions) },
+        { key: 'cpa', label: 'Cost Per Purchase', format: (c) => fmtCur(c.cpa) },
+        { key: 'revenue', label: 'Revenue', format: (c) => fmtCur(c.revenue) },
+        { key: 'roas', label: 'ROAS', format: (c) => `${fmt(c.roas, 2)}x` },
+      ];
+    }
+
+    if (normalizedReportType === 'lead_generation') {
+      return [
+        { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
+        { key: 'spend', label: 'Spend', format: (c) => fmtCur(c.spend) },
+        { key: 'conversions', label: 'Leads', format: (c) => fmt(c.conversions) },
+        { key: 'cpa', label: 'Cost Per Lead', format: (c) => fmtCur(c.cpa) },
+        { key: 'ctr', label: 'CTR', format: (c) => fmtPct(c.ctr) },
+        { key: 'cpc', label: 'CPC', format: (c) => fmtCur(c.cpc) },
+      ];
+    }
+
+    if (normalizedReportType === 'sales_data') {
+      return [
+        { key: 'name', label: 'Product', format: (c) => c.name || c.campaign_name || 'Unknown' },
+        { key: 'orders', label: 'Orders', format: (c) => fmt(c.orders) },
+        { key: 'quantity', label: 'Qty Sold', format: (c) => fmt(c.quantity) },
+        { key: 'revenue', label: 'Revenue', format: (c) => fmtCur(c.revenue) },
+        { key: 'profit', label: 'Profit', format: (c) => fmtCur(c.profit) },
+        { key: 'margin', label: 'Margin', format: (c) => fmtPct(c.margin) },
+      ];
+    }
+
+    return [
+      { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
+      { key: 'spend', label: 'Spend', format: (c) => fmtCur(c.spend) },
+      { key: 'clicks', label: 'Clicks', format: (c) => fmt(c.clicks) },
+      { key: 'conversions', label: 'Conversions', format: (c) => fmt(c.conversions) },
+      { key: 'cpa', label: 'CPA', format: (c) => fmtCur(c.cpa) },
+    ];
+  };
+
+  const campaignColumns = getCampaignColumns();
+
   if (!client && !loading) return (
     <div style={{ textAlign: 'center', padding: 60 }}>
       <p>Client not found</p>
@@ -336,7 +389,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                        : '#7C3AED'
                    }
                    change={comparison?.comparison?.[key]?.change}
-                   changeType={['cpc', 'cpa'].includes(key) ? 'negative-good' : 'neutral'}
+                  changeType={['cpc', 'cpa', 'refunds'].includes(key) ? 'negative-good' : 'positive-good'}
                  />
                ))}
              </div>
@@ -366,9 +419,9 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                           if (!d) return null;
                           const hasPreviousData = d.hasPreviousData !== false && d.change !== null && Number.isFinite(Number(d.change));
                           const numericChange = hasPreviousData ? Number(d.change) : 0;
-                          const isCostMetric = ['cpc', 'cpa', 'cpl'].includes(key);
+                         const isCostMetric = ['cpc', 'cpa', 'cpl', 'refunds'].includes(key);
                           const isNeutral = !hasPreviousData || numericChange === 0 || key === 'spend';
-                          const positive = isCostMetric ? numericChange < 0 : numericChange > 0;
+
                           const changeLabel = !hasPreviousData
                             ? 'No previous data'
                             : Math.abs(numericChange) > 300
@@ -477,74 +530,28 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                   <table>
                     <thead>
                       <tr>
-                        <th>Campaign</th>
-                        <th>Platform</th>
-                        <th>Spend</th>
-                        <th>Share</th>
-                        <th>Clicks</th>
-                        <th>CTR</th>
-                        <th>CPC</th>
-                        <th>Conv.</th>
-                        <th>CPA</th>
-                        <th>ROAS</th>
+                        {campaignColumns.map((col) => (
+                          <th key={col.key}>{col.label}</th>
+                        ))}
                       </tr>
                     </thead>
+
                     <tbody>
                       {campaigns.map((c, i) => (
                         <tr key={i}>
-                          <td style={{ maxWidth: 200 }}>
-                            <span
-                              className="truncate"
-                              style={{ display: 'block', fontWeight: 600 }}
-                            >
-                              {c.campaign_name || 'Unknown'}
-                            </span>
-                          </td>
-
-                          <td>
-                            <span
-                              className={`badge badge-${
-                                c.platform === 'meta'
-                                  ? 'blue'
-                                  : c.platform === 'google'
-                                  ? 'yellow'
-                                  : 'gray'
-                              }`}
-                            >
-                              {c.platform}
-                            </span>
-                          </td>
-
-                          <td style={{ fontWeight: 600 }}>{fmtCur(c.spend)}</td>
-
-                          <td>
-                            {totalCampaignSpend > 0
-                              ? (
-                                  (parseFloat(c.spend || 0) / totalCampaignSpend) *
-                                  100
-                                ).toFixed(1)
-                              : 0}
-                            %
-                          </td>
-
-                          <td>{fmt(c.clicks)}</td>
-                          <td>{fmtPct(c.ctr)}</td>
-                          <td>{fmtCur(c.cpc)}</td>
-                          <td>{fmt(c.conversions)}</td>
-                          <td>{fmtCur(c.cpa)}</td>
-                          <td>
-                            <span
-                              style={{
-                                fontWeight: 700,
-                                color:
-                                  parseFloat(c.roas) >= 2
-                                    ? 'var(--success)'
-                                    : 'var(--text)',
-                              }}
-                            >
-                              {fmt(c.roas, 2)}x
-                            </span>
-                          </td>
+                          {campaignColumns.map((col) => (
+                            <td key={col.key} style={col.key === 'name' ? { maxWidth: 260 } : undefined}>
+                              {col.key === 'name' ? (
+                                <span className="truncate" style={{ display: 'block', fontWeight: 600 }}>
+                                  {col.format(c)}
+                                </span>
+                              ) : (
+                                <span style={{ fontWeight: ['spend', 'revenue', 'profit', 'roas'].includes(col.key) ? 700 : 500 }}>
+                                  {col.format(c)}
+                                </span>
+                              )}
+                            </td>
+                          ))}
                         </tr>
                       ))}
                     </tbody>
