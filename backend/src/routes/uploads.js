@@ -176,7 +176,15 @@ function suggestColumnMapping(headers, reportType = 'ads') {
     'cost',
   ], ['cost per click', 'cost per result', 'cost per lead', 'cost per conversion']);
 
- mapping.revenue = find([
+mapping.revenue = find([
+  'website revenue',
+  'purchase value',
+  'conversion value',
+  'sales revenue',
+  'meta reported revenue',
+  'total revenue',
+  'revenue',
+]);
 
  if (reportType === 'sales_data') {
     mapping.orders = find([
