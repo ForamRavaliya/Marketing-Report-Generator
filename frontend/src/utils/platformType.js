@@ -7,7 +7,6 @@ const XLSX = require('xlsx');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { detectReportType } = require('../utils/reportType');
-const { detectPlatform } = require('../utils/platformType');
 
 const {
   extractFromCSV,
@@ -358,10 +357,8 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     }
 
     const headers = await extractHeaders(req.file.path, fileType);
-   const reportType = detectReportType(headers, {});
-   const detectedPlatform = detectPlatform(headers, req.file.originalname);
-   const finalPlatform = platform || detectedPlatform || 'other';
-   const suggestedMapping = suggestColumnMapping(headers, reportType);
+    const reportType = detectReportType(headers, {});
+    const suggestedMapping = suggestColumnMapping(headers, reportType);
 
     const uploadResult = await db.query(
       `INSERT INTO report_uploads
@@ -387,7 +384,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
         fileType,
         req.file.path,
         req.file.size,
-        finalPlatform,
+        platform || 'meta',
         dateRangeStart || null,
         dateRangeEnd || null,
         reportType,
@@ -457,8 +454,7 @@ router.get('/client/:clientId', async (req, res) => {
          extraction_error,
          created_at,
          date_range_start,
-         date_range_end,
-         report_type
+         date_range_end
        FROM report_uploads
        WHERE client_id = $1
        ORDER BY created_at DESC
@@ -574,8 +570,6 @@ const headers = ['csv', 'excel'].includes(fileType)
   : [];
 
 const reportType = detectReportType(headers, {});
-const detectedPlatform = detectPlatform(headers, req.file.originalname);
-const finalPlatform = platform || detectedPlatform || 'other';
 
     const uploadResult = await db.query(
       `INSERT INTO report_uploads
@@ -590,7 +584,7 @@ const finalPlatform = platform || detectedPlatform || 'other';
         filePath,
 
         req.file.size,
-        finalPlatform,
+        platform || 'meta',
         dateRangeStart || null,
         dateRangeEnd || null,
          reportType,
@@ -605,7 +599,7 @@ processFileWithMapping(
   filePath,
   req.file.originalname,
   clientId,
-  finalPlatform,
+  platform,
   dateRangeStart,
   dateRangeEnd,
   {},
@@ -741,8 +735,7 @@ async function processFileWithMapping(
     reportMonth.setDate(1);
     reportMonth.setHours(0, 0, 0, 0);
 
-    const detectedPlatform = detectPlatform(availableHeaders, originalFileName);
-    const normalizedPlatform = platform || detectedPlatform || 'other';
+    const normalizedPlatform = platform || 'meta';
     const availableHeaders = Object.keys(records[0] || {});
     const reportType = existingReportType || detectReportType(availableHeaders, mapping);
 
