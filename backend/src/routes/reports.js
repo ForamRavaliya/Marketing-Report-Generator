@@ -378,7 +378,7 @@ router.post('/generate', async (req, res) => {
     let currentPageTitle = 'Marketing Performance Report';
     let currentPageSubtitle = dateLabel;
 
-       const reportType = (client.report_type || '').toLowerCase();
+
 
         const rawReportType = String(client.report_type || '').toLowerCase();
 
