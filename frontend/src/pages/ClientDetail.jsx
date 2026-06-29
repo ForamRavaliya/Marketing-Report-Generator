@@ -242,8 +242,17 @@ const normalizedReportType = (() => {
 
   return 'lead_generation';
 })();
-console.log('TYPE:', normalizedReportType, metricConfig);
 const metricConfig = getReportMetricConfig(normalizedReportType);
+alert(
+  JSON.stringify({
+    type: normalizedReportType,
+    title: metricConfig.title,
+    conversion: metricConfig.labels.conversions,
+    cpa: metricConfig.labels.cpa,
+  })
+);
+console.log('TYPE:', normalizedReportType, metricConfig);
+
 
 const fmtReportCur = (value) => fmtCur(value, reportCurrency);
 const currencySymbol =
