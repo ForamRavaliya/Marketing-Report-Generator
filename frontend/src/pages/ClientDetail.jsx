@@ -12,7 +12,7 @@ import {
   getReportHistory,
 } from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
-import { getMetricLabels } from '../utils/metricLabels';
+
 import {
   LineChart,
   Line,
@@ -26,7 +26,12 @@ import {
 } from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getReportMetricConfig, getMetricFormatter } from '../utils/reportMetricConfig';
+import {
+  getReportMetricConfig,
+  getMetricFormatter,
+  isPositiveChange,
+} from '../utils/reportMetricConfig';
+
 
 const COLORS = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626', '#0891B2'];
 const PLATFORMS = ['all', 'meta', 'google', 'linkedin', 'twitter', 'tiktok', 'other'];
@@ -44,8 +49,7 @@ const CURRENCY_SYMBOLS = {
 const fmtCur = (n, currency = 'INR') =>
   `${CURRENCY_SYMBOLS[currency] || currency} ${fmt(n, 2)}`;
 const fmtPct = (n) => `${fmt(n, 2)}%`;
-const currencySymbol =
-  CURRENCY_SYMBOLS[reportCurrency] || reportCurrency;
+
 
 const Tooltip_ = ({ active, payload, label, prefix = '', suffix = '' }) => {
   if (!active || !payload?.length) return null;
@@ -220,6 +224,8 @@ const normalizeFrontendReportType = (type) => {
 const normalizedReportType = normalizeFrontendReportType(detectedReportType);
 const metricConfig = getReportMetricConfig(normalizedReportType);
 const fmtReportCur = (value) => fmtCur(value, reportCurrency);
+const currencySymbol =
+  CURRENCY_SYMBOLS[reportCurrency] || reportCurrency;
 
 const formatMetric = (key, value) =>
   getMetricFormatter(key, { fmt, fmtCur: fmtReportCur, fmtPct })(value);
@@ -232,8 +238,8 @@ const getCurrentValue = (key) =>
       return [
         { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
         { key: 'spend', label: 'Spend', format: (c) => fmtReportCur(c.spend) },
-        { key: 'conversions', label: 'Purchases', format: (c) => fmt(c.conversions) },
-        { key: 'cpa', label: 'Cost / Purchase', format: (c) =>fmtReportCur(c.cpa) },
+        { key: 'conversions', label: metricConfig.primaryMetricLabel, format: (c) => fmt(c.conversions) },
+        { key: 'cpa',label: metricConfig.costMetricLabel, format: (c) =>fmtReportCur(c.cpa) },
         { key: 'revenue', label: 'Revenue', format: (c) => fmtReportCur(c.revenue) },
         { key: 'roas', label: 'Return', format: (c) => `${fmt(c.roas, 2)}x` },
       ];
@@ -243,8 +249,8 @@ const getCurrentValue = (key) =>
       return [
         { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
         { key: 'spend', label: 'Spend', format: (c) => fmtReportCur(c.spend) },
-        { key: 'conversions', label: 'Leads', format: (c) => fmt(c.conversions) },
-        { key: 'cpa', label: 'Cost / Lead', format: (c) => fmtReportCur(c.cpa) },
+        { key: 'conversions',label: metricConfig.primaryMetricLabel, format: (c) => fmt(c.conversions) },
+        { key: 'cpa', label: metricConfig.costMetricLabel, format: (c) => fmtReportCur(c.cpa) },
         { key: 'ctr', label: 'Click Rate', format: (c) => fmtPct(c.ctr) },
         { key: 'cpc', label: 'Cost / Click', format: (c) => fmtReportCur(c.cpc) },
       ];
@@ -276,8 +282,8 @@ const getCurrentValue = (key) =>
       return [
         { key: 'platform', label: 'Platform', format: (p) => p.platform || 'N/A' },
         { key: 'spend', label: 'Spend', format: (p) => fmtReportCur(p.spend) },
-        { key: 'conversions', label: 'Purchases', format: (p) => fmt(p.conversions) },
-        { key: 'cpa', label: 'Cost Per Purchase', format: (p) => fmtReportCur(p.cpa) },
+        { key: 'conversions', label: metricConfig.primaryMetricLabel, format: (p) => fmt(p.conversions) },
+        { key: 'cpa',label: metricConfig.costMetricLabel, format: (p) => fmtReportCur(p.cpa) },
         { key: 'revenue', label: 'Revenue', format: (p) => fmtReportCur(p.revenue) },
         { key: 'roas', label: 'ROAS', format: (p) => `${fmt(p.roas, 2)}x` },
       ];
@@ -287,8 +293,8 @@ const getCurrentValue = (key) =>
       return [
         { key: 'platform', label: 'Platform', format: (p) => p.platform || 'N/A' },
         { key: 'spend', label: 'Spend', format: (p) => fmtReportCur(p.spend) },
-        { key: 'conversions', label: 'Leads', format: (p) => fmt(p.conversions) },
-        { key: 'cpa', label: 'Cost Per Lead', format: (p) => fmtReportCur(p.cpa) },
+        { key: 'conversions',label: metricConfig.primaryMetricLabel, format: (p) => fmt(p.conversions) },
+        { key: 'cpa', label: metricConfig.costMetricLabel, format: (p) => fmtReportCur(p.cpa) },
         { key: 'ctr', label: 'CTR', format: (p) => fmtPct(p.ctr) },
         { key: 'cpc', label: 'CPC', format: (p) => fmtReportCur(p.cpc) },
       ];
@@ -616,9 +622,8 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                           if (!d) return null;
                           const hasPreviousData = d.hasPreviousData !== false && d.change !== null && Number.isFinite(Number(d.change));
                           const numericChange = hasPreviousData ? Number(d.change) : 0;
-                         const isCostMetric = ['cpc', 'cpa', 'cpl', 'refunds'].includes(key);
-                          const isNeutral = !hasPreviousData || numericChange === 0 || key === 'spend';
-                            const positive = isCostMetric ? numericChange < 0 : numericChange > 0;
+                         const isNeutral = !hasPreviousData || numericChange === 0 || key === 'spend';
+                         const positive = isNeutral ? null : isPositiveChange(key, numericChange);
 
                           const changeLabel = !hasPreviousData
                             ? 'No previous data'

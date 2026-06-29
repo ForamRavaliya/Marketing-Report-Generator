@@ -3,11 +3,30 @@ export const REPORT_TYPES = {
   LEAD_GENERATION: 'lead_generation',
   SALES_DATA: 'sales_data',
   NEEDS_REVIEW: 'needs_review',
-
 };
 
 export const getReportMetricConfig = (reportType = REPORT_TYPES.NEEDS_REVIEW) => {
   switch (reportType) {
+    case REPORT_TYPES.SALES_CAMPAIGN:
+      return {
+        title: 'Sales Campaign Report',
+        primaryMetricLabel: 'Purchases',
+        costMetricLabel: 'Cost Per Purchase',
+        revenueLabel: 'Revenue',
+        roasLabel: 'ROAS',
+        overviewCards: ['spend', 'impressions', 'clicks', 'conversions', 'ctr', 'cpc', 'cpa', 'revenue', 'roas'],
+        labels: {
+          spend: 'Total Spend',
+          impressions: 'Impressions',
+          clicks: 'Clicks',
+          conversions: 'Purchases',
+          ctr: 'CTR',
+          cpc: 'CPC',
+          cpa: 'Cost Per Purchase',
+          revenue: 'Revenue',
+          roas: 'ROAS',
+        },
+      };
 
     case REPORT_TYPES.LEAD_GENERATION:
       return {
@@ -16,17 +35,7 @@ export const getReportMetricConfig = (reportType = REPORT_TYPES.NEEDS_REVIEW) =>
         costMetricLabel: 'Cost Per Lead',
         revenueLabel: 'Revenue',
         roasLabel: 'ROAS',
-        showRevenue: false,
-        showRoas: false,
-        overviewCards: [
-          'spend',
-          'conversions',
-          'cpa',
-          'ctr',
-          'cpc',
-          'clicks',
-          'impressions',
-        ],
+        overviewCards: ['spend', 'conversions', 'cpa', 'ctr', 'cpc', 'clicks', 'impressions'],
         labels: {
           spend: 'Total Spend',
           conversions: 'Leads',
@@ -44,20 +53,10 @@ export const getReportMetricConfig = (reportType = REPORT_TYPES.NEEDS_REVIEW) =>
       return {
         title: 'Sales Data Report',
         primaryMetricLabel: 'Orders',
-        costMetricLabel: 'AOV',
+        costMetricLabel: 'Average Order Value',
         revenueLabel: 'Revenue',
         roasLabel: 'Margin',
-        showRevenue: true,
-        showRoas: false,
-        overviewCards: [
-          'revenue',
-          'orders',
-          'profit',
-          'aov',
-          'margin',
-          'quantity',
-          'refunds',
-        ],
+        overviewCards: ['revenue', 'orders', 'profit', 'aov', 'margin', 'quantity', 'refunds'],
         labels: {
           revenue: 'Revenue',
           orders: 'Orders',
@@ -67,70 +66,26 @@ export const getReportMetricConfig = (reportType = REPORT_TYPES.NEEDS_REVIEW) =>
           quantity: 'Quantity Sold',
           refunds: 'Refunds',
           conversions: 'Orders',
-          cpa: 'AOV',
+          cpa: 'Average Order Value',
         },
       };
-
-        case REPORT_TYPES.SALES_CAMPAIGN:
-          return {
-            title: 'Sales Campaign Report',
-            primaryMetricLabel: 'Purchases',
-            costMetricLabel: 'Cost Per Purchase',
-            revenueLabel: 'Revenue',
-            roasLabel: 'ROAS',
-            showRevenue: true,
-            showRoas: true,
-            overviewCards: [
-              'spend',
-              'revenue',
-              'conversions',
-              'cpa',
-              'roas',
-              'ctr',
-              'cpc',
-              'clicks',
-            ],
-            labels: {
-              spend: 'Total Spend',
-              revenue: 'Revenue',
-              conversions: 'Purchases',
-              cpa: 'Cost Per Purchase',
-              roas: 'ROAS',
-              ctr: 'CTR',
-              cpc: 'CPC',
-              clicks: 'Website Clicks',
-              impressions: 'Impressions',
-            },
-          };
 
     default:
       return {
         title: 'Performance Report',
-        primaryMetricLabel: 'Conversions',
-        costMetricLabel: 'CPA',
+        primaryMetricLabel: 'Results',
+        costMetricLabel: 'Cost Per Result',
         revenueLabel: 'Revenue',
         roasLabel: 'ROAS',
-        showRevenue: true,
-        showRoas: true,
-        overviewCards: [
-          'spend',
-          'impressions',
-          'clicks',
-          'conversions',
-          'ctr',
-          'cpc',
-          'cpa',
-          'revenue',
-          'roas',
-        ],
+        overviewCards: ['spend', 'impressions', 'clicks', 'conversions', 'ctr', 'cpc', 'cpa', 'revenue', 'roas'],
         labels: {
           spend: 'Total Spend',
           impressions: 'Impressions',
           clicks: 'Clicks',
-          conversions: 'Conversions',
+          conversions: 'Results',
           ctr: 'CTR',
           cpc: 'CPC',
-          cpa: 'CPA',
+          cpa: 'Cost Per Result',
           revenue: 'Revenue',
           roas: 'ROAS',
         },
@@ -154,4 +109,19 @@ export const getMetricFormatter = (key, helpers) => {
   }
 
   return fmt;
+};
+
+export const isCostMetric = (key) =>
+  ['cpa', 'cpc', 'aov', 'refunds'].includes(key);
+
+export const isPositiveChange = (key, change) => {
+  const numericChange = Number(change || 0);
+
+  if (numericChange === 0) return null;
+
+  if (isCostMetric(key)) {
+    return numericChange < 0;
+  }
+
+  return numericChange > 0;
 };
