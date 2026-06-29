@@ -12,20 +12,37 @@ const plans = [
   {
     id: 'free',
     name: 'Free',
-    price: 'INR 0',
-    features: ['Basic reports', 'Manual data entry', 'Limited clients'],
+    features: [
+      'Up to 3 clients',
+      'Manual data entry',
+      'Basic dashboard',
+      '5 reports/month',
+    ],
   },
   {
     id: 'pro',
     name: 'Pro',
-    price: 'INR 499/mo',
-    features: ['Unlimited reports', 'PDF export', /*'Ad sync', 'Sync history'*/],
+    features: [
+      'Unlimited reports',
+      'Unlimited clients',
+      'Excel/CSV upload',
+      'Professional PDF export',
+      'White-label PDF',
+      'AI insights',
+      'Report history',
+    ],
   },
   {
     id: 'agency',
     name: 'Agency',
-    price: 'INR 999/mo',
-    features: ['Multiple clients', /*'Auto sync',*/ 'Advanced analytics', 'Priority support'],
+    features: [
+      'Everything in Pro',
+      'Multiple team members',
+      'Multiple client workspaces',
+      'Custom branding & logo',
+      'Advanced analytics',
+      'Priority support',
+    ],
   },
 ];
 
@@ -160,14 +177,14 @@ const handleCancelDowngrade = async () => {
 };
 
 const getPlanPrice = (planId) => {
-  if (planId === 'free') return 'INR 0';
+  if (planId === 'free') return '₹0';
 
   if (planId === 'pro') {
-    return billingCycle === 'yearly' ? 'INR 4,999/yr' : 'INR 499/mo';
+    return billingCycle === 'yearly' ? '₹9,990/year' : '₹999/month';
   }
 
   if (planId === 'agency') {
-    return billingCycle === 'yearly' ? 'INR 9,999/yr' : 'INR 999/mo';
+    return billingCycle === 'yearly' ? '₹25,000/year' : '₹2,500/month';
   }
 
   return '';

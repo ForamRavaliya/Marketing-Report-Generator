@@ -26,8 +26,8 @@ router.post('/create-order', async (req, res) => {
 
     const pricing = {
       free: 0,
-      pro: billingCycle === 'yearly' ? 4999 : 499,
-      agency: billingCycle === 'yearly' ? 9999 : 999,
+      pro: billingCycle === 'yearly' ? 9990 : 999,
+      agency: billingCycle === 'yearly' ? 25000 : 2500,
     };
 
     if (!pricing.hasOwnProperty(planName)) {
@@ -304,11 +304,17 @@ router.get('/receipt/:paymentId', async (req, res) => {
 
     const rows = [
       ['Agency', payment.agency_name || 'Agency'],
-      ['Plan', `${payment.plan_name?.toUpperCase()} (${payment.billing_cycle || 'monthly'})`],
+     [
+       'Plan',
+       `${payment.plan_name?.toUpperCase()} Plan (${payment.billing_cycle || 'monthly'})`,
+     ],
       ['Provider', payment.provider],
       ['Payment ID', payment.provider_payment_id || '-'],
       ['Order ID', payment.provider_order_id || '-'],
-      ['Amount', `${payment.currency} ${Number(payment.amount || 0).toLocaleString('en-IN')}`],
+      [
+        'Amount',
+        `₹${Number(payment.amount || 0).toLocaleString('en-IN')}`,
+      ],
       ['Status', payment.status],
       ['Paid At', payment.paid_at ? new Date(payment.paid_at).toLocaleString() : '-'],
     ];

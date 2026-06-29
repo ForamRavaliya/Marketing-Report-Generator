@@ -393,27 +393,45 @@ const reportType =
             ? 'sales_campaign'
             : 'lead_generation';
 
-       const metricLabels =
-         reportType === 'sales_campaign'
-           ? {
-               conversion: 'Purchases',
-               cpa: 'Cost / Purchase',
-               funnel: 'Purchase Funnel',
-               analysis: 'Sales Performance',
-             }
-           : reportType === 'sales_data'
-           ? {
-               conversion: 'Orders',
-               cpa: 'Cost / Order',
-               funnel: 'Order Funnel',
-               analysis: 'Sales Analysis',
-             }
-           : {
-               conversion: 'Leads',
-               cpa: 'Cost / Lead',
-               funnel: 'Lead Funnel',
-               analysis: 'Lead Generation',
-             };
+     const metricLabels =
+       reportType === 'sales_campaign'
+         ? {
+             conversion: 'Purchases',
+             conversionSingular: 'purchase',
+             conversionLower: 'purchases',
+             cpa: 'Cost / Purchase',
+             cpaFull: 'Cost Per Purchase',
+             cpaShort: 'CPP',
+             volume: 'Purchase Volume',
+             funnel: 'Purchase Funnel',
+             analysis: 'Sales Performance',
+             quality: 'purchase quality',
+           }
+         : reportType === 'sales_data'
+         ? {
+             conversion: 'Orders',
+             conversionSingular: 'order',
+             conversionLower: 'orders',
+             cpa: 'Cost / Order',
+             cpaFull: 'Cost Per Order',
+             cpaShort: 'CPO',
+             volume: 'Order Volume',
+             funnel: 'Order Funnel',
+             analysis: 'Sales Analysis',
+             quality: 'order quality',
+           }
+         : {
+             conversion: 'Leads',
+             conversionSingular: 'lead',
+             conversionLower: 'leads',
+             cpa: 'Cost / Lead',
+             cpaFull: 'Cost Per Lead',
+             cpaShort: 'CPL',
+             volume: 'Lead Volume',
+             funnel: 'Lead Funnel',
+             analysis: 'Lead Generation',
+             quality: 'lead quality',
+           };
 
     const safeSummary = {
       spend: positiveNumber(summary?.spend),
@@ -449,7 +467,7 @@ const reportType =
       : !safeSummary.hasCtr
       ? 'Click-through tracking'
       : safeSummary.hasCpa && safeSummary.cpa > 500
-      ? 'Cost per lead'
+      ? metricLabels.cpaFull
       : 'Campaign scaling';
 
     const calcChange = (current, previous) => {
@@ -508,7 +526,7 @@ const reportType =
         ? `Average ${metricLabels.cpa.toLowerCase()} was ${formatCurrency(safeSummary.cpa, currency)}. `
         : `${metricLabels.cpa} is not available because spend or conversion data is missing. `}` +
       `${bestCampaign ?`Top campaign by ${metricLabels.conversion.toLowerCase()} was ${bestCampaign.name} with ${formatNum(bestCampaign.conversions)} ${metricLabels.conversion.toLowerCase()}. ` : 'No valid campaign-level rows were available. '}` +
-      `${bestMonth ? `Best month was ${bestMonth.month} with ${formatNum(bestMonth.conversions)} leads. ` : ''}` +
+      `${bestMonth ? `Best month was ${bestMonth.month} with ${formatNum(bestMonth.conversions)}  ${metricLabels.conversionLower}. ` : ''}` +
       `${safeSummary.hasCtr ? `CTR was ${formatPct(safeSummary.ctr)} from ${formatNum(safeSummary.clicks)} clicks and ${formatNum(safeSummary.impressions)} impressions. ` : 'CTR is not available because click or impression data is missing or inconsistent. '}` +
       `${safeSummary.hasRoas ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} and ROAS was ${formatNum(safeSummary.roas, 2)}x.` : `Weakest area: ${weakestMetricName}. Revenue and ROAS are not available from this source data.`}`;
 
@@ -533,7 +551,7 @@ const reportType =
       doc.fillColor(THEME.text).fontSize(13).font('Helvetica-Bold').text(item.value, x + 34, y + 30, { width: w - 42, height: 18, ellipsis: true });
 
       const bottomText = item.growth ? `${item.growth}${item.growth.includes('%') ? '' : ' vs prev.'}` : item.subtitle || item.note || item.description || '';
-      const badIncreaseMetrics = ['Cost / Lead', 'CPC'];
+      const badIncreaseMetrics = [metricLabels.cpa, 'CPC'];
       const isBadIncrease = badIncreaseMetrics.includes(item.label) && item.growth && item.growth.startsWith('+');
       const growthColor = item.growth ? (isBadIncrease ? THEME.rose : THEME.emerald) : item.subtitle ? color : THEME.muted;
 
@@ -925,8 +943,8 @@ const reportType =
       { label: 'Clicks', available: safeSummary.hasClicks },
       { label: 'CTR', available: safeSummary.hasCtr },
       { label: 'CPC', available: safeSummary.hasCpc },
-      { label: 'Leads', available: safeSummary.hasConversions },
-      { label: 'CPA', available: safeSummary.hasCpa },
+     { label: metricLabels.conversion, available: safeSummary.hasConversions },
+     { label: metricLabels.cpaShort, available: safeSummary.hasCpa },
       { label: 'Revenue', available: safeSummary.hasRevenue },
       { label: 'ROAS', available: safeSummary.hasRoas },
     ];
@@ -935,7 +953,7 @@ const reportType =
     const missingMetrics = metricAvailability.filter((m) => !m.available).map((m) => m.label);
 
     const scoreBreakdown = [
-      { label: 'Lead Volume', score: leadVolumeScore, max: 30 },
+      { label: metricLabels.volume, score: leadVolumeScore, max: 30 },
       { label: 'Cost Efficiency', score: costEfficiencyScore, max: 25 },
       { label: 'Engagement', score: engagementScore, max: 20 },
       { label: 'Revenue Tracking', score: revenueTrackingScore, max: 25 },
@@ -1113,7 +1131,7 @@ const reportType =
       const campaignMiniCards = [
         { label: 'Campaign', value: (!campaign.name || campaign.name === 'Unknown Campaign') ? 'Name N/A' : campaign.name, color: THEME.royal, bg: THEME.softBlue },
         { label: 'Tracked Spend', value: formatCurrency(campaign.spend, currency), color: THEME.violet, bg: THEME.softPurple },
-        { label: 'Tracked Leads', value: formatNum(campaign.conversions), color: THEME.emerald, bg: THEME.softGreen },
+        { label:`Tracked ${metricLabels.conversion}`, value: formatNum(campaign.conversions), color: THEME.emerald, bg: THEME.softGreen },
         { label: 'CTR', value: campaign.ctr !== null ? formatPct(campaign.ctr) : 'N/A', color: THEME.amber, bg: THEME.softAmber },
       ];
 
@@ -1140,7 +1158,7 @@ const reportType =
     drawFooter(pageNo++);
 
     // ===============================
-    // PAGE 4 - LEAD GENERATION
+    // PAGE 4 -  RESULT PERFORMANCE
     // ===============================
     doc.addPage();
     drawPageHeader(
@@ -1159,14 +1177,14 @@ const reportType =
       drawCard(35, 235, 525, 250, THEME.card, THEME.border);
       drawNumberBarChart(doc, displayedTrends, { x: 55, y: 255, width: 480,title: `${metricLabels.conversion} by Month`, labelKey: 'month', valueKey: 'conversions', color: THEME.emerald });
     } else {
-      drawEmptyState(35, 235, 525, 250, 'Lead Trend Not Available', 'Monthly segment fields missing.');
+      drawEmptyState(35, 235, 525, 250, `${metricLabels.conversion} Trend Not Available`, 'Monthly segment fields missing.');
     }
 
     drawCard(35, 520, 525, 130, '#F8FAFC', '#BFDBFE');
     doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text(`${metricLabels.conversion} Efficiency Scorecard`, 55, 540);
 
     const leadScoreItems = [
-      { label: `${metricLabels.conversion} Volume`, value: !safeSummary.hasConversions ? 'N/A' : safeSummary.conversions >= 1000 ? 'Strong' : safeSummary.conversions >= 300 ? 'Good' : 'Needs Work', color: THEME.emerald },
+      { label: metricLabels.volume,`, value: !safeSummary.hasConversions ? 'N/A' : safeSummary.conversions >= 1000 ? 'Strong' : safeSummary.conversions >= 300 ? 'Good' : 'Needs Work', color: THEME.emerald },
       { label: 'Cost Efficiency',value: !safeSummary.hasCpa
                                    ? 'N/A'
                                    : safeSummary.cpa <= 100
@@ -1302,8 +1320,14 @@ const reportType =
 
     const insightCards = [
       { title: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), desc: 'Total advertising budget used.', bg: THEME.softBlue, color: THEME.royal },
-      { title: 'Lead Volume', value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', desc: 'Total leads generated.', bg: THEME.softGreen, color: THEME.emerald },
-      { title: 'Cost per Lead', value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', desc: 'Average cost per lead asset.', bg: THEME.softAmber, color: THEME.amber },
+     {
+       title: metricLabels.volume,
+       value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A',
+       desc: `Total ${metricLabels.conversionLower} generated.`,
+       bg: THEME.softGreen,
+       color: THEME.emerald
+     },
+      { title: metricLabels.cpaFull, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', desc: `Average ${metricLabels.cpa.toLowerCase()} across tracked data.`, bg: THEME.softAmber, color: THEME.amber },
       { title: 'Data Quality', value: `${completenessScore}%`, desc: `${availableFields}/${metricAvailability.length} tracked metrics available.`, bg: THEME.softPurple, color: THEME.violet },
     ];
 
@@ -1326,9 +1350,11 @@ const reportType =
 
     doc.y = 495;
     const whatsWorking = [
-      `${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results generated.`,
-      `Average cost per lead is ${safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'}.`,
-      safeSummary.hasCtr ? `CTR is ${formatPct(safeSummary.ctr)} from ${formatNum(safeSummary.clicks)} clicks.` : 'Lead metric available, inline engagement records bounded.',
+      `${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} ${metricLabels.conversionLower} generated.`,
+      `Average ${metricLabels.cpa.toLowerCase()} is ${safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'}.`,
+      safeSummary.hasCtr
+        ? `CTR is ${formatPct(safeSummary.ctr)} from ${formatNum(safeSummary.clicks)} clicks.`
+        : `${metricLabels.conversion} metric is available, but engagement data is limited.`,
     ];
 
     const needsAttention = [
@@ -1382,12 +1408,12 @@ const reportType =
         },
         {
           title: `Improve ${metricLabels.conversion}`,
-          desc:
-            reportType === 'lead_generation'
-              ? 'Review lead sources, landing pages and form quality to improve lead quality.'
-              : reportType === 'sales_campaign'
-              ? 'Review product pages, checkout flow and audience targeting to increase purchases.'
-              : 'Review product performance and pricing to improve sales.',
+         desc:
+           reportType === 'lead_generation'
+             ? `Review lead sources, landing pages and form quality to improve ${metricLabels.quality}.`
+             : reportType === 'sales_campaign'
+             ? `Review product pages, checkout flow and audience targeting to increase ${metricLabels.conversionLower}.`
+             : 'Review product performance and pricing to improve sales.',
           color: THEME.emerald,
           bg: THEME.softGreen,
         },
@@ -1412,8 +1438,17 @@ const reportType =
 
       drawCard(35, 600, 525, 55, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text('Priority Focus', 55, 615);
-       doc.fillColor(THEME.muted).fontSize(8.5).font('Helvetica').text(!safeSummary.hasRoas ? 'First priority: add revenue tracking before increasing campaign budget.' : 'Scale campaigns gradually while monitoring cost per lead and lead quality.', 150, 615, { width: 380, ellipsis: true });
-
+      doc.fillColor(THEME.muted)
+        .fontSize(8.5)
+        .font('Helvetica')
+        .text(
+          !safeSummary.hasRoas
+            ? 'First priority: add revenue tracking before increasing campaign budget.'
+            : `Scale campaigns gradually while monitoring ${metricLabels.cpa.toLowerCase()} and ${metricLabels.quality}.`,
+          150,
+          615,
+          { width: 380, ellipsis: true }
+        );
       drawFooter(pageNo++);
 
       // Final Executive Summary Page
@@ -1422,8 +1457,8 @@ const reportType =
 
       const executiveCards = [
         { label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue },
-        { label: 'Total Leads', value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen },
-        { label: 'Average CPL', value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber },
+        { label:`Total ${metricLabels.conversion}`, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen },
+        { label:metricLabels.cpaFull, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber },
         { label: 'Best Platform', value: topPlatform ? String(topPlatform.platform).toUpperCase() : 'N/A', color: THEME.violet, bg: THEME.softPurple },
         { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.cyan, bg: '#ECFEFF' },
         { label: 'ROAS', value: safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'N/A', color: THEME.rose, bg: THEME.softRose },
@@ -1443,11 +1478,11 @@ const reportType =
 
       drawCard(35, 465, 525, 90, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Final Takeaway', 55, 485);
-     doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`Campaigns generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads from ${formatCurrency(safeSummary.spend, currency)} spend. Add revenue tracking before scaling budgets so profitability can be measured clearly.`, 55, 510, { width: 480, height: 36, lineGap: 4, ellipsis: true });
+     doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`${metricLabels.conversionLower}${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads from ${formatCurrency(safeSummary.spend, currency)} spend. Add revenue tracking before scaling budgets so profitability can be measured clearly.`, 55, 510, { width: 480, height: 36, lineGap: 4, ellipsis: true });
 
       drawCard(35, 585, 525, 95, THEME.softGreen, '#A7F3D0');
       doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Next Month Priority', 55, 605);
-      doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`Track revenue, lead source and campaign quality so next month’s budget decisions are based on clear business outcomes.`, 55, 630, { width: 480, height: 34, lineGap: 4, ellipsis: true });
+      doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`Track revenue,${metricLabels.quality} and campaign quality so next month’s budget decisions are based on clear business outcomes.`, 55, 630, { width: 480, height: 34, lineGap: 4, ellipsis: true });
 
       drawCard(35, 690, 525, 42, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text('Executive Verdict', 55, 703);
