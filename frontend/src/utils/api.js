@@ -19,6 +19,9 @@ api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+export const getReportHistory = (clientId) =>
+  api.get(`/reports/history/${clientId}`).then((res) => res.data);
+
 
 // Clients
 export const getClients = () => api.get('/clients').then(r => r.data);

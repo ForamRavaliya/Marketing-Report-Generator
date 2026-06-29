@@ -9,6 +9,7 @@ import {
   getSubscription,
   generateAIInsights,
   getAIInsights,
+  getReportHistory,
 } from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
 import {
@@ -42,6 +43,8 @@ const CURRENCY_SYMBOLS = {
 const fmtCur = (n, currency = 'INR') =>
   `${CURRENCY_SYMBOLS[currency] || currency} ${fmt(n, 2)}`;
 const fmtPct = (n) => `${fmt(n, 2)}%`;
+const currencySymbol =
+  CURRENCY_SYMBOLS[reportCurrency] || reportCurrency;
 
 const Tooltip_ = ({ active, payload, label, prefix = '', suffix = '' }) => {
   if (!active || !payload?.length) return null;
@@ -68,6 +71,7 @@ export default function ClientDetail() {
   const [platforms, setPlatforms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState('all');
+  const [reportCurrency, setReportCurrency] = useState('INR');
   const [activeTab, setActiveTab] = useState('overview');
 //const [adAccounts, setAdAccounts] = useState([]);
 //const [syncLogs, setSyncLogs] = useState([]);
@@ -142,6 +146,10 @@ const [aiLoading, setAiLoading] = useState(false);
       const platformData = await getPlatforms(id, params);
       setPlatforms(platformData);
 
+      const reportHistory = await getReportHistory(id);
+      const latestCurrency = reportHistory?.[0]?.currency || 'INR';
+      setReportCurrency(latestCurrency);
+
       getSubscription()
         .then(setSubscription)
         .catch(() => setSubscription(null));
@@ -210,8 +218,10 @@ const normalizeFrontendReportType = (type) => {
 
 const normalizedReportType = normalizeFrontendReportType(detectedReportType);
 const metricConfig = getReportMetricConfig(normalizedReportType);
+const fmtReportCur = (value) => fmtCur(value, reportCurrency);
+
 const formatMetric = (key, value) =>
-  getMetricFormatter(key, { fmt, fmtCur, fmtPct })(value);
+  getMetricFormatter(key, { fmt, fmtCur: fmtReportCur, fmtPct })(value);
 
 const getCurrentValue = (key) =>
   currentMonthMetrics?.[key]?.current ?? 0;
@@ -220,10 +230,10 @@ const getCurrentValue = (key) =>
     if (normalizedReportType === 'sales_campaign') {
       return [
         { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
-        { key: 'spend', label: 'Spend', format: (c) => fmtCur(c.spend) },
+        { key: 'spend', label: 'Spend', format: (c) => fmtReportCur(c.spend) },
         { key: 'conversions', label: 'Purchases', format: (c) => fmt(c.conversions) },
-        { key: 'cpa', label: 'Cost / Purchase', format: (c) => fmtCur(c.cpa) },
-        { key: 'revenue', label: 'Revenue', format: (c) => fmtCur(c.revenue) },
+        { key: 'cpa', label: 'Cost / Purchase', format: (c) =>fmtReportCur(c.cpa) },
+        { key: 'revenue', label: 'Revenue', format: (c) => fmtReportCur(c.revenue) },
         { key: 'roas', label: 'Return', format: (c) => `${fmt(c.roas, 2)}x` },
       ];
     }
@@ -231,11 +241,11 @@ const getCurrentValue = (key) =>
     if (normalizedReportType === 'lead_generation') {
       return [
         { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
-        { key: 'spend', label: 'Spend', format: (c) => fmtCur(c.spend) },
+        { key: 'spend', label: 'Spend', format: (c) => fmtReportCur(c.spend) },
         { key: 'conversions', label: 'Leads', format: (c) => fmt(c.conversions) },
-        { key: 'cpa', label: 'Cost / Lead', format: (c) => fmtCur(c.cpa) },
+        { key: 'cpa', label: 'Cost / Lead', format: (c) => fmtReportCur(c.cpa) },
         { key: 'ctr', label: 'Click Rate', format: (c) => fmtPct(c.ctr) },
-        { key: 'cpc', label: 'Cost / Click', format: (c) => fmtCur(c.cpc) },
+        { key: 'cpc', label: 'Cost / Click', format: (c) => fmtReportCur(c.cpc) },
       ];
     }
 
@@ -244,18 +254,18 @@ const getCurrentValue = (key) =>
         { key: 'name', label: 'Product', format: (c) => c.name || c.campaign_name || 'Unknown' },
         { key: 'orders', label: 'Orders', format: (c) => fmt(c.orders) },
         { key: 'quantity', label: 'Qty Sold', format: (c) => fmt(c.quantity) },
-        { key: 'revenue', label: 'Revenue', format: (c) => fmtCur(c.revenue) },
-        { key: 'profit', label: 'Profit', format: (c) => fmtCur(c.profit) },
+        { key: 'revenue', label: 'Revenue', format: (c) => fmtReportCur(c.revenue) },
+        { key: 'profit', label: 'Profit', format: (c) => fmtReportCur(c.profit) },
         { key: 'margin', label: 'Margin', format: (c) => fmtPct(c.margin) },
       ];
     }
 
     return [
       { key: 'name', label: 'Campaign', format: (c) => c.name || c.campaign_name || 'Unknown' },
-      { key: 'spend', label: 'Spend', format: (c) => fmtCur(c.spend) },
+      { key: 'spend', label: 'Spend', format: (c) => fmtReportCur(c.spend) },
       { key: 'clicks', label: 'Clicks', format: (c) => fmt(c.clicks) },
       { key: 'conversions', label: 'Results', format: (c) => fmt(c.conversions) },
-      { key: 'cpa', label: 'Cost / Result', format: (c) => fmtCur(c.cpa) },
+      { key: 'cpa', label: 'Cost / Result', format: (c) => fmtReportCur(c.cpa) },
     ];
   };
 
@@ -264,10 +274,10 @@ const getCurrentValue = (key) =>
     if (normalizedReportType === 'sales_campaign') {
       return [
         { key: 'platform', label: 'Platform', format: (p) => p.platform || 'N/A' },
-        { key: 'spend', label: 'Spend', format: (p) => fmtCur(p.spend) },
+        { key: 'spend', label: 'Spend', format: (p) => fmtReportCur(p.spend) },
         { key: 'conversions', label: 'Purchases', format: (p) => fmt(p.conversions) },
-        { key: 'cpa', label: 'Cost Per Purchase', format: (p) => fmtCur(p.cpa) },
-        { key: 'revenue', label: 'Revenue', format: (p) => fmtCur(p.revenue) },
+        { key: 'cpa', label: 'Cost Per Purchase', format: (p) => fmtReportCur(p.cpa) },
+        { key: 'revenue', label: 'Revenue', format: (p) => fmtReportCur(p.revenue) },
         { key: 'roas', label: 'ROAS', format: (p) => `${fmt(p.roas, 2)}x` },
       ];
     }
@@ -275,11 +285,11 @@ const getCurrentValue = (key) =>
     if (normalizedReportType === 'lead_generation') {
       return [
         { key: 'platform', label: 'Platform', format: (p) => p.platform || 'N/A' },
-        { key: 'spend', label: 'Spend', format: (p) => fmtCur(p.spend) },
+        { key: 'spend', label: 'Spend', format: (p) => fmtReportCur(p.spend) },
         { key: 'conversions', label: 'Leads', format: (p) => fmt(p.conversions) },
-        { key: 'cpa', label: 'Cost Per Lead', format: (p) => fmtCur(p.cpa) },
+        { key: 'cpa', label: 'Cost Per Lead', format: (p) => fmtReportCur(p.cpa) },
         { key: 'ctr', label: 'CTR', format: (p) => fmtPct(p.ctr) },
-        { key: 'cpc', label: 'CPC', format: (p) => fmtCur(p.cpc) },
+        { key: 'cpc', label: 'CPC', format: (p) => fmtReportCur(p.cpc) },
       ];
     }
 
@@ -288,17 +298,17 @@ const getCurrentValue = (key) =>
         { key: 'platform', label: 'Channel', format: (p) => p.platform || 'N/A' },
         { key: 'orders', label: 'Orders', format: (p) => fmt(p.orders) },
         { key: 'quantity', label: 'Qty Sold', format: (p) => fmt(p.quantity) },
-        { key: 'revenue', label: 'Revenue', format: (p) => fmtCur(p.revenue) },
-        { key: 'profit', label: 'Profit', format: (p) => fmtCur(p.profit) },
+        { key: 'revenue', label: 'Revenue', format: (p) => fmtReportCur(p.revenue) },
+        { key: 'profit', label: 'Profit', format: (p) => fmtReportCur(p.profit) },
       ];
     }
 
     return [
       { key: 'platform', label: 'Platform', format: (p) => p.platform || 'N/A' },
-      { key: 'spend', label: 'Spend', format: (p) => fmtCur(p.spend) },
+      { key: 'spend', label: 'Spend', format: (p) => fmtReportCur(p.spend) },
       { key: 'clicks', label: 'Clicks', format: (p) => fmt(p.clicks) },
       { key: 'conversions', label: 'Conversions', format: (p) => fmt(p.conversions) },
-      { key: 'cpa', label: 'CPA', format: (p) => fmtCur(p.cpa) },
+      { key: 'cpa', label: 'CPA', format: (p) => fmtReportCur(p.cpa) },
     ];
   };
 
@@ -656,7 +666,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
 
                       <MetricCard
                         label="Total Spend"
-                        value={fmtCur(totalCampaignSpend)}
+                        value={fmtReportCur(totalCampaignSpend)}
                         icon={DollarSign}
                         color="#16A34A"
                       />
@@ -713,8 +723,15 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                     <ResponsiveContainer width="100%" height={220}>
                       <LineChart data={trends}>
                         <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                        <Tooltip content={<Tooltip_ prefix="$" />} />
+                       <YAxis
+                         tickFormatter={(v) =>
+                           `${currencySymbol}${Math.round(v / 1000)}k`
+                         }
+                       />
+
+                       <Tooltip
+                         content={<Tooltip_ prefix={`${currencySymbol} `} />}
+                       />
                         <Line type="monotone" dataKey="spend" stroke="#2563EB" strokeWidth={2.5} dot={{ fill: '#2563EB', r: 3 }} name="Spend" />
                       </LineChart>
                     </ResponsiveContainer>
@@ -757,16 +774,16 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                             {trends.map(row => (
                               <tr key={row.month}>
                                 <td style={{ fontWeight: 600, fontSize: 12 }}>{row.month}</td>
-                                <td>{fmtCur(row.spend)}</td>
+                                <td>{fmtReportCur(row.spend)}</td>
                                 <td>
                                   {trendConfig.firstKey === 'revenue'
-                                    ? fmtCur(row.revenue)
+                                    ? fmtReportCur(row.revenue)
                                     : fmt(row[trendConfig.firstKey])}
                                 </td>
 
                                 <td>
                                   {trendConfig.secondKey === 'revenue'
-                                    ? fmtCur(row.revenue)
+                                    ? fmtReportCur(row.revenue)
                                     : fmt(row[trendConfig.secondKey])}
                                 </td>
                               </tr>
@@ -869,7 +886,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                        color: 'var(--text3)',
                      }}
                    >
-                     {topPlatform ? fmtCur(topPlatform.spend) : 'INR 0.00'}
+                     {topPlatform ? fmtReportCur(topPlatform.spend) : 'INR 0.00'}
                    </div>
                  </div>
 
@@ -879,7 +896,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                       TOTAL PLATFORM SPEND
                     </div>
                     <div style={{ fontSize: 22, fontWeight: 800, marginTop: 8 }}>
-                      {fmtCur(totalPlatformSpend)}
+                      {fmtReportCur(totalPlatformSpend)}
                     </div>
                   </div>
                 </div>

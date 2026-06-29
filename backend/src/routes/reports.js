@@ -1342,11 +1342,29 @@ router.post('/generate', async (req, res) => {
       const BASE_URL = "https://marketing-report-generator-p9wj.onrender.com";
       const fileUrl = `${BASE_URL}/data/reports/${fileName}`;
 
-      await db.query(
-        `INSERT INTO generated_reports (client_id, agency_id, created_by, title, date_range_start, date_range_end, file_path)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [clientId, req.user.agency_id, req.user.id, customTitle || title || `Report - ${client.name}`, dateStart, dateEnd, fileUrl]
-      );
+    await db.query(
+      `INSERT INTO generated_reports (
+         client_id,
+         agency_id,
+         created_by,
+         title,
+         date_range_start,
+         date_range_end,
+         file_path,
+         currency
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [
+        clientId,
+        req.user.agency_id,
+        req.user.id,
+        customTitle || title || `Report - ${client.name}`,
+        dateStart,
+        dateEnd,
+        fileUrl,
+        currency || 'INR',
+      ]
+    );
 
       res.json({ url: fileUrl, fileName });
     });
