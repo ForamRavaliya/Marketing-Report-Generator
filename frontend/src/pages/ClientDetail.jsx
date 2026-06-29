@@ -714,84 +714,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
 
               </div>
 
-              <div className="grid grid-2" style={{ marginTop: 20, marginBottom: 20 }}>
-                    {/* chart block */}
-                <div className="card card-pad">
-                  <div style={{ fontWeight: 700, marginBottom: 16 }}>
-                    Top 10 Campaigns
-                  </div>
-
-                  <ResponsiveContainer width="100%" height={320}>
-                    <BarChart
-                      data={[...campaigns]
-                        .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0))
-                        .slice(0, 10)}
-                      layout="vertical"
-                    >
-                      <XAxis type="number" />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        width={140}
-                        tick={{ fontSize: 11 }}
-                      />
-
-                      <Tooltip content={<Tooltip_ prefix="₹" />} />
-
-                      <Bar
-                        dataKey={
-                          normalizedReportType === 'sales_data'
-                            ? 'profit'
-                            : normalizedReportType === 'lead_generation'
-                            ? 'conversions'
-                            : 'revenue'
-                        }
-                        radius={[0, 6, 6, 0]}
-                        fill="#2563EB"
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                  <div className="card card-pad">
-
-                    <div style={{ fontWeight: 700, marginBottom: 16 }}>
-                      Campaign Distribution
-                    </div>
-
-                    <ResponsiveContainer width="100%" height={320}>
-                      <PieChart>
-
-                        <Pie
-                          data={[...campaigns]
-                            .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0))
-                            .slice(0, 6)}
-                          dataKey="spend"
-                          nameKey="name"
-                          outerRadius={100}
-                        >
-                          {[...campaigns]
-                            .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0))
-                            .slice(0, 6)
-                            .map((_, i) => (
-                              <Cell
-                                key={i}
-                                fill={COLORS[i % COLORS.length]}
-                              />
-                            ))}
-                        </Pie>
-
-                        <Tooltip formatter={(v) => fmtCur(v)} />
-                        <Legend />
-
-                      </PieChart>
-                    </ResponsiveContainer>
-
-                  </div>
-
-                </div>
-
-              {campaigns.length === 0 ? (
+               {campaigns.length === 0 ? (
                 <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text3)' }}>
                   No campaign data. Upload reports with campaign names to see breakdown.
                 </div>
@@ -915,41 +838,48 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                           </div>
 
                           <div style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6 }}>
-                           {normalizedReportType === 'sales_campaign'
-                             ? 'This platform generated the tracked purchases and revenue for this report.'
-                             : normalizedReportType === 'lead_generation'
-                             ? 'This platform generated the tracked leads for this report.'
-                             : normalizedReportType === 'sales_data'
-                             ? 'This channel generated the tracked sales for this report.'
-                             : 'This platform contains the tracked performance for this report.'}
+                            {normalizedReportType === 'sales_campaign'
+                              ? 'This platform generated the tracked purchases and revenue for this report.'
+                              : normalizedReportType === 'lead_generation'
+                              ? 'This platform generated the tracked leads for this report.'
+                              : normalizedReportType === 'sales_data'
+                              ? 'This channel generated the tracked sales for this report.'
+                              : 'This platform contains the tracked performance for this report.'}
                           </div>
                         </div>
 
-                      <div className="grid grid-2">
-                        {platformColumns
-                          .filter((col) => col.key !== 'platform')
-                          .slice(0, 4)
-                          .map((col) => (
-                            <div className="card card-pad" key={col.key}>
-                              <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700 }}>
-                                {col.label.toUpperCase()}
-                              </div>
-                              <div style={{ fontWeight: 800, marginTop: 8 }}>
-                                {col.format(platforms[0] || {})}
-                              </div>
-                            </div>
-                          ))}
-                      </div>
+                        <div style={{ marginTop: 4 }}>
+                          <div
+                            style={{
+                              height: 12,
+                              borderRadius: 999,
+                              background: 'var(--bg3)',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div
+                              style={{
+                                height: '100%',
+                                width: '100%',
+                                background: '#2563EB',
+                              }}
+                            />
+                          </div>
 
+                          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text3)' }}>
+                            100% of tracked platform performance
+                          </div>
+                        </div>
                       </div>
                     ) : (
-                      <ResponsiveContainer width="100%" height={250}>
+                      <ResponsiveContainer width="100%" height={280}>
                         <PieChart>
                           <Pie
                             data={platformData}
                             cx="50%"
                             cy="50%"
-                            outerRadius={90}
+                            innerRadius={65}
+                            outerRadius={95}
                             dataKey="value"
                             nameKey="name"
                           >
@@ -958,8 +888,8 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                             ))}
                           </Pie>
 
-                          <Tooltip formatter={v => fmtCur(v)} />
-                          <Legend />
+                          <Tooltip formatter={(v) => fmtCur(v)} />
+                          <Legend iconType="circle" />
                         </PieChart>
                       </ResponsiveContainer>
                     )}
@@ -967,65 +897,98 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
 
                   <div className="card card-pad">
                     <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
-                      Platform Breakdown
+                      Platform Spend Comparison
                     </div>
 
-                    <table>
-                      <thead>
-                        <tr>
-                          {platformColumns.map((col) => (
-                            <th key={col.key}>{col.label}</th>
-                          ))}
-                          <th>Share</th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {platforms.map((p, i) => {
-                          const spend = parseFloat(p.spend || 0);
-                          const share =
-                            totalPlatformSpend > 0 ? (spend / totalPlatformSpend) * 100 : 0;
-
-                          return (
-                            <tr key={i}>
-                              {platformColumns.map((col) => (
-                                <td key={col.key}>
-                                  {col.key === 'platform' ? (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <div
-                                        style={{
-                                          width: 8,
-                                          height: 8,
-                                          borderRadius: '50%',
-                                          background: COLORS[i % COLORS.length],
-                                        }}
-                                      />
-                                      <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>
-                                        {col.format(p)}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <span
-                                      style={{
-                                        fontWeight: ['spend', 'revenue', 'profit', 'roas'].includes(col.key)
-                                          ? 700
-                                          : 500,
-                                      }}
-                                    >
-                                      {col.format(p)}
-                                    </span>
-                                  )}
-                                </td>
-                              ))}
-                              <td>{fmt(share, 1)}%</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    {platforms.length === 0 ? (
+                      <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)' }}>
+                        No platform data available
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart
+                          data={[...platforms].sort(
+                            (a, b) => Number(b.spend || 0) - Number(a.spend || 0)
+                          )}
+                          layout="vertical"
+                          margin={{ top: 10, right: 20, left: 40, bottom: 10 }}
+                        >
+                          <XAxis type="number" tick={{ fontSize: 11 }} />
+                          <YAxis
+                            type="category"
+                            dataKey="platform"
+                            tick={{ fontSize: 12 }}
+                            width={90}
+                          />
+                          <Tooltip formatter={(v) => fmtCur(v)} />
+                          <Bar dataKey="spend" fill="#2563EB" radius={[0, 6, 6, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 </div>
-              </div>
+
+                <div className="card card-pad">
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
+                    Platform Breakdown
+                  </div>
+
+                  <table>
+                    <thead>
+                      <tr>
+                        {platformColumns.map((col) => (
+                          <th key={col.key}>{col.label}</th>
+                        ))}
+                        <th>Share</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {platforms.map((p, i) => {
+                        const spend = parseFloat(p.spend || 0);
+                        const share =
+                          totalPlatformSpend > 0 ? (spend / totalPlatformSpend) * 100 : 0;
+
+                        return (
+                          <tr key={i}>
+                            {platformColumns.map((col) => (
+                              <td key={col.key}>
+                                {col.key === 'platform' ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div
+                                      style={{
+                                        width: 8,
+                                        height: 8,
+                                        borderRadius: '50%',
+                                        background: COLORS[i % COLORS.length],
+                                      }}
+                                    />
+                                    <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>
+                                      {col.format(p)}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span
+                                    style={{
+                                      fontWeight: ['spend', 'revenue', 'profit', 'roas'].includes(col.key)
+                                        ? 700
+                                        : 500,
+                                    }}
+                                  >
+                                    {col.format(p)}
+                                  </span>
+                                )}
+                              </td>
+                            ))}
+                            <td>{fmt(share, 1)}%</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                </div>
+
             )}
 
              {/* AI Insights Tab */}
