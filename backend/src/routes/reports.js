@@ -380,12 +380,9 @@ router.post('/generate', async (req, res) => {
 
 
 
-        const rawReportType = String(client.report_type || '').toLowerCase();
-
-        const hasSalesRevenue =
-          Number(safeSummary?.revenue || summary?.revenue || 0) > 0 &&
-          Number(safeSummary?.conversions || summary?.conversions || 0) > 0;
-
+  const hasSalesRevenue =
+    Number(summary?.revenue || 0) > 0 &&
+    Number(summary?.conversions || 0) > 0;
         const reportType =
           rawReportType === 'sales_campaign' ||
           rawReportType === 'sales_data' ||
