@@ -224,12 +224,21 @@ const normalizeFrontendReportType = (type) => {
 const normalizedReportType = (() => {
   const normalized = normalizeFrontendReportType(detectedReportType);
 
-  if (normalized !== 'needs_review') return normalized;
+  const revenue =
+    Number(currentMonthMetrics?.revenue?.current || 0) ||
+    trends.reduce((sum, r) => sum + Number(r.revenue || 0), 0) ||
+    campaigns.reduce((sum, c) => sum + Number(c.revenue || 0), 0) ||
+    platforms.reduce((sum, p) => sum + Number(p.revenue || 0), 0);
 
-  const revenue = Number(currentMonthMetrics?.revenue?.current || 0);
-  const conversions = Number(currentMonthMetrics?.conversions?.current || 0);
+  const conversions =
+    Number(currentMonthMetrics?.conversions?.current || 0) ||
+    trends.reduce((sum, r) => sum + Number(r.conversions || 0), 0) ||
+    campaigns.reduce((sum, c) => sum + Number(c.conversions || 0), 0) ||
+    platforms.reduce((sum, p) => sum + Number(p.conversions || 0), 0);
 
   if (revenue > 0 && conversions > 0) return 'sales_campaign';
+
+  if (normalized !== 'needs_review') return normalized;
 
   return 'lead_generation';
 })();
