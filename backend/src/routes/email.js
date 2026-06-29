@@ -64,7 +64,19 @@ router.put('/settings/:clientId', async (req, res) => {
 
 router.post('/test', async (req, res) => {
   try {
+    console.log('📧 Test email route hit');
+    console.log('📧 Body:', req.body);
+    console.log('📧 SMTP USER:', process.env.SMTP_USER);
+    console.log('📧 SMTP FROM:', process.env.SMTP_FROM_EMAIL);
+
     const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required',
+      });
+    }
 
     await sendReportEmail({
       to: email,
@@ -75,9 +87,19 @@ router.post('/test', async (req, res) => {
       `,
     });
 
-    res.json({ success: true, message: 'Email sent successfully' });
+    console.log('✅ Test email sent successfully to:', email);
+
+    res.json({
+      success: true,
+      message: 'Email sent successfully',
+    });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('❌ Test email error:', err);
+
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
   }
 });
 
