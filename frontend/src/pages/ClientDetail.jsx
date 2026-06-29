@@ -73,7 +73,13 @@ export default function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [client, setClient] = useState(null);
-
+const [emailSettings, setEmailSettings] = useState({
+  enabled: false,
+  recipient_email: '',
+  cc_email: '',
+  send_day: 1,
+});
+const [savingEmailSettings, setSavingEmailSettings] = useState(false);
   const [trends, setTrends] = useState([]);
   const [comparison, setComparison] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
@@ -183,6 +189,13 @@ const [aiLoading, setAiLoading] = useState(false);
   }, [id, platform]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!clientId) return;
+
+    getEmailSettings(clientId)
+      .then(setEmailSettings)
+      .catch(() => {});
+  }, [clientId]);
 
   const platformData = platforms.map(p => ({ name: p.platform, value: parseFloat(p.spend || 0) }));
 
@@ -460,6 +473,35 @@ const lowCampaign = campaigns.length
 
   const aiConfig = getAiConfig();
 
+const handleSaveEmailSettings = async () => {
+  try {
+    setSavingEmailSettings(true);
+
+    const saved = await saveEmailSettings(id, emailSettings);
+
+    setEmailSettings(saved);
+
+    toast.success('Email settings saved');
+  } catch {
+    toast.error('Failed to save email settings');
+  } finally {
+    setSavingEmailSettings(false);
+  }
+};
+
+const handleSendTestEmail = async () => {
+  if (!emailSettings.recipient_email) {
+    return toast.error('Recipient email required');
+  }
+
+  try {
+    await sendTestEmail(emailSettings.recipient_email);
+    toast.success('Test email sent');
+  } catch {
+    toast.error('Failed to send test email');
+  }
+};
+
   if (!client && !loading) return (
     <div style={{ textAlign: 'center', padding: 60 }}>
       <p>Client not found</p>
@@ -473,8 +515,10 @@ const lowCampaign = campaigns.length
     'trends',
     'campaigns',
     'platforms',
+    'email reports',
     //'integrations',
     'ai insights',
+  ];
   ];
 // Hanlers
 /*
@@ -1075,6 +1119,120 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                 </div>
 
             )}
+
+{/* Email Reports Tab */}
+{activeTab === 'email reports' && (
+  <div className="card card-pad">
+    <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 6 }}>
+      Monthly Email Reports
+    </div>
+
+    <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 22 }}>
+      Automatically email this client's monthly PDF report after each month ends.
+    </div>
+
+    <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+      <input
+        type="checkbox"
+        checked={Boolean(emailSettings.enabled)}
+        onChange={(e) =>
+          setEmailSettings((prev) => ({
+            ...prev,
+            enabled: e.target.checked,
+          }))
+        }
+      />
+      <span style={{ fontWeight: 700 }}>Enable automatic monthly reports</span>
+    </label>
+
+    <div className="grid grid-3" style={{ gap: 16 }}>
+      <div>
+        <label className="form-label">Recipient Email</label>
+        <input
+          className="form-input"
+          type="email"
+          value={emailSettings.recipient_email || ''}
+          onChange={(e) =>
+            setEmailSettings((prev) => ({
+              ...prev,
+              recipient_email: e.target.value,
+            }))
+          }
+          placeholder="client@example.com"
+        />
+      </div>
+
+      <div>
+        <label className="form-label">CC Email</label>
+        <input
+          className="form-input"
+          type="email"
+          value={emailSettings.cc_email || ''}
+          onChange={(e) =>
+            setEmailSettings((prev) => ({
+              ...prev,
+              cc_email: e.target.value,
+            }))
+          }
+          placeholder="optional@example.com"
+        />
+      </div>
+
+      <div>
+        <label className="form-label">Send Day</label>
+        <select
+          className="form-select"
+          value={emailSettings.send_day || 1}
+          onChange={(e) =>
+            setEmailSettings((prev) => ({
+              ...prev,
+              send_day: Number(e.target.value),
+            }))
+          }
+        >
+          {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+            <option key={day} value={day}>
+              {day}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    <div
+      style={{
+        marginTop: 20,
+        padding: 14,
+        borderRadius: 12,
+        background: '#EFF6FF',
+        border: '1px solid #BFDBFE',
+        fontSize: 13,
+        color: 'var(--text2)',
+        lineHeight: 1.6,
+      }}
+    >
+      Example: if send day is 1 and today is July 1, the system will email the June report.
+      Current month incomplete reports will not be sent automatically.
+    </div>
+
+    <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+      <button
+        className="btn btn-secondary"
+        onClick={handleSendTestEmail}
+      >
+        Send Test Email
+      </button>
+
+      <button
+        className="btn btn-primary"
+        disabled={savingEmailSettings}
+        onClick={handleSaveEmailSettings}
+      >
+        {savingEmailSettings ? 'Saving...' : 'Save Settings'}
+      </button>
+    </div>
+  </div>
+)}
 
              {/* AI Insights Tab */}
 {activeTab === 'ai insights' && (
