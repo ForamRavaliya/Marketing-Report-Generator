@@ -1184,7 +1184,17 @@ const reportType =
     doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text(`${metricLabels.conversion} Efficiency Scorecard`, 55, 540);
 
     const leadScoreItems = [
-      { label: metricLabels.volume,`, value: !safeSummary.hasConversions ? 'N/A' : safeSummary.conversions >= 1000 ? 'Strong' : safeSummary.conversions >= 300 ? 'Good' : 'Needs Work', color: THEME.emerald },
+     {
+       label: metricLabels.volume,
+       value: !safeSummary.hasConversions
+         ? 'N/A'
+         : safeSummary.conversions >= 1000
+         ? 'Strong'
+         : safeSummary.conversions >= 300
+         ? 'Good'
+         : 'Needs Work',
+       color: THEME.emerald,
+     },
       { label: 'Cost Efficiency',value: !safeSummary.hasCpa
                                    ? 'N/A'
                                    : safeSummary.cpa <= 100
