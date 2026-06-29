@@ -18,21 +18,22 @@ async function sendReportEmail({
   attachmentPath,
   attachmentName,
 }) {
-  return transporter.sendMail({
-    from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
-    to,
-    cc,
-    subject,
-    html,
-    attachments: attachmentPath
-      ? [
-          {
-            filename: attachmentName,
-            path: attachmentPath,
-          },
-        ]
-      : [],
-  });
+ const nodemailer = require('nodemailer');
+ const dns = require('dns');
+
+ dns.setDefaultResultOrder('ipv4first');
+
+ const transporter = nodemailer.createTransport({
+   host: process.env.SMTP_HOST || 'smtp.gmail.com',
+   port: Number(process.env.SMTP_PORT || 587),
+   secure: false,
+   requireTLS: true,
+   family: 4,
+   auth: {
+     user: process.env.SMTP_USER,
+     pass: process.env.SMTP_PASS,
+   },
+ });
 }
 
 module.exports = {
