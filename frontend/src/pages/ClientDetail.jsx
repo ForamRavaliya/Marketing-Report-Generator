@@ -190,12 +190,12 @@ const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (!clientId) return;
+    if (!id) return;
 
-    getEmailSettings(clientId)
+    getEmailSettings(id)
       .then(setEmailSettings)
       .catch(() => {});
-  }, [clientId]);
+  }, [id]);
 
   const platformData = platforms.map(p => ({ name: p.platform, value: parseFloat(p.spend || 0) }));
 
@@ -518,7 +518,7 @@ const handleSendTestEmail = async () => {
     'email reports',
     //'integrations',
     'ai insights',
-  ];
+
   ];
 // Hanlers
 /*
