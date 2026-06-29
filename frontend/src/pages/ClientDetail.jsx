@@ -12,6 +12,7 @@ import {
   getReportHistory,
 } from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
+import { getMetricLabels } from '../utils/metricLabels';
 import {
   LineChart,
   Line,

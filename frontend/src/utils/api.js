@@ -22,7 +22,6 @@ api.interceptors.response.use(
 export const getReportHistory = (clientId) =>
   api.get(`/reports/history/${clientId}`).then((res) => res.data);
 
-
 // Clients
 export const getClients = () => api.get('/clients').then(r => r.data);
 export const getClient = (id) => api.get(`/clients/${id}`).then(r => r.data);

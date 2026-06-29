@@ -71,7 +71,7 @@ export const getReportMetricConfig = (reportType = REPORT_TYPES.NEEDS_REVIEW) =>
         },
       };
 
-        case REPORT_TYPES.ADS:
+        case REPORT_TYPES.SALES_CAMPAIGN:
           return {
             title: 'Sales Campaign Report',
             primaryMetricLabel: 'Purchases',
