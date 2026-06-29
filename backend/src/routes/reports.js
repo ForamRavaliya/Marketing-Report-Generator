@@ -378,6 +378,30 @@ router.post('/generate', async (req, res) => {
     let currentPageTitle = 'Marketing Performance Report';
     let currentPageSubtitle = dateLabel;
 
+       const reportType = (client.report_type || '').toLowerCase();
+
+       const metricLabels =
+         reportType === 'sales_campaign'
+           ? {
+               conversion: 'Purchases',
+               cpa: 'Cost / Purchase',
+               funnel: 'Purchase Funnel',
+               analysis: 'Sales Performance',
+             }
+           : reportType === 'sales_data'
+           ? {
+               conversion: 'Orders',
+               cpa: 'Cost / Order',
+               funnel: 'Order Funnel',
+               analysis: 'Sales Analysis',
+             }
+           : {
+               conversion: 'Leads',
+               cpa: 'Cost / Lead',
+               funnel: 'Lead Funnel',
+               analysis: 'Lead Generation',
+             };
+
     const safeSummary = {
       spend: positiveNumber(summary?.spend),
       reach: positiveNumber(summary?.reach),
@@ -466,9 +490,11 @@ router.post('/generate', async (req, res) => {
     };
 
     const reportSummaryText =
-      `${client.name} spent ${formatCurrency(safeSummary.spend, currency)} and generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results during ${dateStart} to ${dateEnd}. ` +
-      `${safeSummary.hasCpa ? `Average CPL was ${formatCurrency(safeSummary.cpa, currency)}. ` : 'CPL is not available because spend or lead data is missing. '}` +
-      `${bestCampaign ? `Top campaign by leads was ${bestCampaign.name} with ${formatNum(bestCampaign.conversions)} leads. ` : 'No valid campaign-level rows were available. '}` +
+      `${client.name} spent ${formatCurrency(safeSummary.spend, currency)} and generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} ${metricLabels.conversion.toLowerCase()} during ${dateStart} to ${dateEnd}. ` +
+      `${safeSummary.hasCpa
+        ? `Average ${metricLabels.cpa.toLowerCase()} was ${formatCurrency(safeSummary.cpa, currency)}. `
+        : `${metricLabels.cpa} is not available because spend or conversion data is missing. `}` +
+      `${bestCampaign ?`Top campaign by ${metricLabels.conversion.toLowerCase()} was ${bestCampaign.name} with ${formatNum(bestCampaign.conversions)} ${metricLabels.conversion.toLowerCase()}. ` : 'No valid campaign-level rows were available. '}` +
       `${bestMonth ? `Best month was ${bestMonth.month} with ${formatNum(bestMonth.conversions)} leads. ` : ''}` +
       `${safeSummary.hasCtr ? `CTR was ${formatPct(safeSummary.ctr)} from ${formatNum(safeSummary.clicks)} clicks and ${formatNum(safeSummary.impressions)} impressions. ` : 'CTR is not available because click or impression data is missing or inconsistent. '}` +
       `${safeSummary.hasRoas ? `Revenue was ${formatCurrency(safeSummary.revenue, currency)} and ROAS was ${formatNum(safeSummary.roas, 2)}x.` : `Weakest area: ${weakestMetricName}. Revenue and ROAS are not available from this source data.`}`;
@@ -822,11 +848,24 @@ router.post('/generate', async (req, res) => {
     drawCard(35, 225, 525, 48, '#F8FAFC', '#BFDBFE');
     doc.circle(60, 249, 12).fill(THEME.royal);
     doc.fillColor('#FFFFFF').fontSize(11).font('Helvetica-Bold').text('i', 57, 243, { width: 12, align: 'center', lineBreak: false });
-    doc.fillColor(THEME.text).fontSize(9).font('Helvetica-Bold').text(`Key Takeaway: Generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads at ${safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'} CPL from total spend of ${formatCurrency(safeSummary.spend, currency)}.`, 85, 240, { width: 445, height: 28, lineGap: 2, ellipsis: true });
+   doc.fillColor(THEME.muted)
+     .fontSize(8)
+     .font('Helvetica')
+     .text(
+       `Key Takeaway: Generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} ${metricLabels.conversion.toLowerCase()} at ${safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'} ${metricLabels.cpa.toLowerCase()} from total spend of ${formatCurrency(safeSummary.spend, currency)}.`,
+       85,
+       240,
+       { width: 445, height: 28, lineGap: 2, ellipsis: true }
+     );
 
     doc.roundedRect(50, 285, 495, 50, 16).fillAndStroke('#FFFFFF', THEME.border);
     doc.fillColor(THEME.text).fontSize(13).font('Helvetica-Bold').text('Executive Snapshot', 70, 298);
-    doc.fillColor(THEME.muted).fontSize(8).font('Helvetica').text(`Spend ${formatCurrency(safeSummary.spend, currency)} generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} leads/results${bestCampaign ? `; best campaign: ${bestCampaign.name}` : ''}${bestMonth ? `; best month: ${bestMonth.month}` : ''}. Weakest area: ${weakestMetricName}.`, 70, 316, { width: 440, height: 24, lineGap: 2, ellipsis: true });
+    doc.fillColor(THEME.muted).fontSize(8).font('Helvetica').text(
+      `Spend ${formatCurrency(safeSummary.spend, currency)} generated ${safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'} ${metricLabels.conversion.toLowerCase()}${bestCampaign ? `; best campaign: ${bestCampaign.name}` : ''}${bestMonth ? `; best month: ${bestMonth.month}` : ''}. Weakest area: ${weakestMetricName}.`,
+      70,
+      316,
+      { width: 440, height: 24, lineGap: 2, ellipsis: true }
+    );
 
     drawSectionTitle('Performance Dashboard', 50, 348, THEME.violet);
 
@@ -836,8 +875,17 @@ router.post('/generate', async (req, res) => {
       { label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), description: 'Total advertising budget used', growth: growth.spend, color: THEME.royal, bg: THEME.softBlue },
       { label: 'Reach', value: safeSummary.hasReach && safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'Not Provided', description: 'Unique people reached', growth: growth.reach, color: THEME.violet, bg: THEME.softPurple },
       { label: 'Impressions', value: safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'Not Available', description: 'Total ad impressions delivered', growth: growth.impressions, color: THEME.cyan, bg: '#ECFEFF' },
-      { label: 'Leads / Results', value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'Not Available', description: 'Total leads/results generated', growth: growth.conversions, color: THEME.emerald, bg: THEME.softGreen },
-      { label: 'Cost / Lead', value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', description: 'Average cost per lead/result', growth: growth.cpa, color: THEME.amber, bg: THEME.softAmber },
+      {
+        label: metricLabels.conversion,
+        value: safeSummary.hasConversions
+          ? formatNum(safeSummary.conversions)
+          : 'Not Available',
+        description: `Total ${metricLabels.conversion.toLowerCase()} generated`,
+        growth: growth.conversions,
+        color: THEME.emerald,
+        bg: THEME.softGreen,
+      },
+      { label: metricLabels.cpa, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', description: `Average ${metricLabels.cpa.toLowerCase()}`, growth: growth.cpa, color: THEME.amber, bg: THEME.softAmber },
       { label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'Not Available', note: safeSummary.hasClicks ? growth.clicks : 'Not in source file', growth: safeSummary.hasClicks ? growth.clicks : null, color: THEME.amber, bg: THEME.softAmber },
       { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'Not Available', note: safeSummary.hasCtr ? growth.ctr : 'Requires clicks data', growth: safeSummary.hasCtr ? growth.ctr : null, color: THEME.violet, bg: THEME.softPurple },
       { label: 'CPC', value: safeSummary.hasCpc ? formatCurrency(safeSummary.cpc, currency) : 'Not Available', note: safeSummary.hasCpc ? growth.cpc : 'Requires spend data', growth: safeSummary.hasCpc ? growth.cpc : null, color: THEME.rose, bg: THEME.softRose },
@@ -969,7 +1017,13 @@ router.post('/generate', async (req, res) => {
       drawCard(35, dynamicCampaignY, 525, campaignCardHeight, THEME.card, THEME.border);
       drawSectionTitle('Campaign-Level Breakdown', 55, dynamicCampaignY + 20, THEME.violet);
 
-      const cHeaders = ['Campaign', 'Spend', '% of Total', 'Leads', 'CPL'];
+     const cHeaders = [
+       'Campaign',
+       'Spend',
+       '% of Total',
+       metricLabels.conversion,
+       metricLabels.cpa,
+     ];
       const cWidths = [210, 95, 60, 55, 65];
       let cY = dynamicCampaignY + 60;
       let cX = 55;
@@ -986,14 +1040,16 @@ router.post('/generate', async (req, res) => {
         doc.roundedRect(55, cY, 485, 22, 5).fill(bg);
 
         const spendShare = safeSummary.spend > 0 ? `${formatNum((Number(row.spend || 0) / safeSummary.spend) * 100, 1)}%` : 'N/A';
-        const cpl = Number(row.conversions || 0) > 0 ? formatCurrency(Number(row.spend || 0) / Number(row.conversions || 0), currency) : 'N/A';
+       const costPerConversion = Number(row.conversions || 0) > 0
+         ? formatCurrency(Number(row.spend || 0) / Number(row.conversions || 0), currency)
+         : 'N/A';
 
         const vals = [
           (!row.name || row.name === 'Unknown Campaign') ? 'Campaign Name N/A' : row.name,
           formatCurrency(row.spend, currency),
           spendShare,
           formatNum(row.conversions),
-          cpl,
+          costPerConversion,
         ];
 
         cX = 55;
@@ -1074,28 +1130,37 @@ router.post('/generate', async (req, res) => {
     // PAGE 4 - LEAD GENERATION
     // ===============================
     doc.addPage();
-    drawPageHeader('Lead Generation Analysis', 'Simple view of leads, cost per lead and monthly lead volume');
+    drawPageHeader(
+      `${metricLabels.analysis} Analysis`,
+      `Simple view of ${metricLabels.conversion.toLowerCase()}, ${metricLabels.cpa.toLowerCase()} and monthly performance`
+    );
 
     drawMiniMetricCards([
-      { label: 'Total Leads', value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen },
-      { label: 'Cost / Lead', value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber },
+      { label: `Total ${metricLabels.conversion}`, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen },
+      { label: metricLabels.cpa, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber },
       { label: 'Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue },
       { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.violet, bg: THEME.softPurple },
     ], 35, 125);
 
     if (displayedTrends.length > 0) {
       drawCard(35, 235, 525, 250, THEME.card, THEME.border);
-      drawNumberBarChart(doc, displayedTrends, { x: 55, y: 255, width: 480, title: 'Leads Generated by Month', labelKey: 'month', valueKey: 'conversions', color: THEME.emerald });
+      drawNumberBarChart(doc, displayedTrends, { x: 55, y: 255, width: 480,title: `${metricLabels.conversion} by Month`, labelKey: 'month', valueKey: 'conversions', color: THEME.emerald });
     } else {
       drawEmptyState(35, 235, 525, 250, 'Lead Trend Not Available', 'Monthly segment fields missing.');
     }
 
     drawCard(35, 520, 525, 130, '#F8FAFC', '#BFDBFE');
-    doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Lead Efficiency Scorecard', 55, 540);
+    doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text(`${metricLabels.conversion} Efficiency Scorecard`, 55, 540);
 
     const leadScoreItems = [
-      { label: 'Lead Volume', value: !safeSummary.hasConversions ? 'N/A' : safeSummary.conversions >= 1000 ? 'Strong' : safeSummary.conversions >= 300 ? 'Good' : 'Needs Work', color: THEME.emerald },
-      { label: 'Cost Efficiency', value: !safeSummary.hasCpa ? 'N/A' : safeSummary.cpa <= 100 ? 'Good' : safeSummary.cpa <= 500 ? 'Average' : 'High CPL', color: THEME.amber },
+      { label: `${metricLabels.conversion} Volume`, value: !safeSummary.hasConversions ? 'N/A' : safeSummary.conversions >= 1000 ? 'Strong' : safeSummary.conversions >= 300 ? 'Good' : 'Needs Work', color: THEME.emerald },
+      { label: 'Cost Efficiency',value: !safeSummary.hasCpa
+                                   ? 'N/A'
+                                   : safeSummary.cpa <= 100
+                                   ? 'Good'
+                                   : safeSummary.cpa <= 500
+                                   ? 'Average'
+                                   : `High ${metricLabels.cpa}`, color: THEME.amber },
       { label: 'Engagement', value: !safeSummary.hasCtr ? 'N/A' : safeSummary.ctr >= 2 ? 'Strong' : safeSummary.ctr >= 1 ? 'Average' : 'Low', color: THEME.violet },
       { label: 'Tracking', value: safeSummary.hasRoas ? 'Complete' : 'Revenue Missing', color: safeSummary.hasRoas ? THEME.emerald : THEME.rose },
     ];
@@ -1113,7 +1178,10 @@ router.post('/generate', async (req, res) => {
     // PAGE 5 - FUNNEL (PROPORTIONAL SCALING)
     // ===============================
     doc.addPage();
-    drawPageHeader('Lead Funnel Overview', 'Simple view of how audience activity converted into leads');
+    drawPageHeader(
+      `${metricLabels.funnel} Overview`,
+      `Simple view of how audience activity converted into ${metricLabels.conversion.toLowerCase()}`
+    );
 
     const avgFrequency = (safeSummary.hasReach && safeSummary.hasImpressions && safeSummary.reach > 0) ? safeSummary.impressions / safeSummary.reach : 0;
     const clickRate = (safeSummary.hasCtr && safeSummary.impressions > 0) ? (safeSummary.clicks / safeSummary.impressions) * 100 : 0;
@@ -1123,7 +1191,7 @@ router.post('/generate', async (req, res) => {
       { label: 'Reach', numericValue: safeSummary.hasReach ? Number(safeSummary.reach || 0) : 0, available: safeSummary.hasReach && safeSummary.reach > 0, value: safeSummary.hasReach && safeSummary.reach > 0 ? formatNum(safeSummary.reach) : 'N/A', note: 'People reached', color: THEME.royal, bg: THEME.softBlue },
       { label: 'Impressions', numericValue: safeSummary.hasImpressions ? Number(safeSummary.impressions || 0) : 0, available: safeSummary.hasImpressions, value: safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'N/A', note: 'Ad views delivered', color: THEME.cyan, bg: '#ECFEFF' },
       { label: 'Clicks', numericValue: safeSummary.hasClicks ? Number(safeSummary.clicks || 0) : 0, available: safeSummary.hasClicks, value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A', note: 'People who clicked', color: THEME.violet, bg: THEME.softPurple },
-      { label: 'Leads', numericValue: safeSummary.hasConversions ? Number(safeSummary.conversions || 0) : 0, available: safeSummary.hasConversions, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', note: 'Final results generated', color: THEME.emerald, bg: THEME.softGreen },
+      { label: metricLabels.conversion, numericValue: safeSummary.hasConversions ? Number(safeSummary.conversions || 0) : 0, available: safeSummary.hasConversions, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A',note: `Final ${metricLabels.conversion.toLowerCase()} generated`, color: THEME.emerald, bg: THEME.softGreen },
     ];
 
     // Exclude N/A markers from the math sequence to prevent straight block rendering discrepancies
@@ -1148,7 +1216,7 @@ router.post('/generate', async (req, res) => {
         const rates = [
           `Avg Frequency: ${safeSummary.hasReach && safeSummary.hasImpressions && safeSummary.impressions >= safeSummary.reach ? `${formatNum(avgFrequency, 2)}x` : 'N/A'}`,
           `Click Rate: ${safeSummary.hasCtr ? formatPct(clickRate) : 'N/A'}`,
-          `Lead Rate: ${safeSummary.hasClicks && safeSummary.hasConversions && safeSummary.conversions <= safeSummary.clicks ? formatPct(leadRate) : 'N/A'}`,
+          `${metricLabels.conversion} Rate: ${safeSummary.hasClicks && safeSummary.hasConversions && safeSummary.conversions <= safeSummary.clicks ? formatPct(leadRate) : 'N/A'}`,
         ];
 
         doc.fillColor('#94A3B8').fontSize(14).font('Helvetica-Bold').text('v', 285, y + 82, { width: 20, align: 'center' });
@@ -1158,7 +1226,12 @@ router.post('/generate', async (req, res) => {
 
     drawCard(35, 610, 525, 90, '#F8FAFC', '#BFDBFE');
     doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Funnel Meaning', 55, 630);
-    doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(`This funnel shows how people moved from reach to impressions, clicks and leads. Use this view to identify where users drop off and where campaign improvements are needed.`, 55, 645, { width: 480, height: 44, lineGap: 4, ellipsis: true });
+   doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
+     `This funnel shows how people moved from reach to impressions, clicks and ${metricLabels.conversion.toLowerCase()}. Use this view to identify where users drop off and where campaign improvements are needed.`,
+     55,
+     645,
+     { width: 480, height: 44, lineGap: 4, ellipsis: true }
+   );
 
     drawFooter(pageNo++);
 
@@ -1166,7 +1239,10 @@ router.post('/generate', async (req, res) => {
     // PAGE 6 - PLATFORMS
     // ===============================
     doc.addPage();
-    drawPageHeader('Platform Analytics', 'Platform-wise spend distribution and leads performance');
+    drawPageHeader(
+      'Platform Analytics',
+      `Platform-wise spend distribution and ${metricLabels.conversion.toLowerCase()} performance`
+    );
 
     const activePlatforms = platforms.filter(p => Number(p.spend || 0) > 0 || Number(p.clicks || 0) > 0 || Number(p.conversions || 0) > 0);
     const topPlatform = activePlatforms.length > 0 ? activePlatforms.reduce((best, curr) => Number(curr.conversions || 0) > Number(best.conversions || 0) ? curr : best) : null;
@@ -1179,14 +1255,14 @@ router.post('/generate', async (req, res) => {
         const topPlatformCpl = Number(topPlatform.conversions || 0) > 0 ? formatCurrency(Number(topPlatform.spend || 0) / Number(topPlatform.conversions || 0), currency) : 'N/A';
         drawCard(35, 375, 525, 55, THEME.softBlue, '#BFDBFE');
         doc.fillColor(THEME.royal).fontSize(8).font('Helvetica-Bold').text('BEST PERFORMING PLATFORM', 55, 390);
-        doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text(`${String(topPlatform.platform || 'Platform').toUpperCase()} generated ${formatNum(topPlatform.conversions)} leads at ${topPlatformCpl} cost/lead.`, 55, 407, { width: 485, height: 14, ellipsis: true });
+        doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text(`${String(topPlatform.platform || 'Platform').toUpperCase()} generated ${formatNum(topPlatform.conversions)} ${metricLabels.conversion.toLowerCase()} at ${topPlatformCpl} ${metricLabels.cpa.toLowerCase()}.`, 55, 407, { width: 485, height: 14, ellipsis: true });
       }
 
       drawCard(35, 445, 525, 210, THEME.softGreen, '#A7F3D0');
-      drawNumberBarChart(doc, activePlatforms, { x: 55, y: 460, width: 480, title: 'Leads by Platform', labelKey: 'platform', valueKey: 'conversions', color: THEME.emerald, sortByValue: true });
+      drawNumberBarChart(doc, activePlatforms, { x: 55, y: 460, width: 480, title: `${metricLabels.conversion} by Platform`, labelKey: 'platform', valueKey: 'conversions', color: THEME.emerald, sortByValue: true });
     } else if (activePlatforms.length === 1) {
       const onlyPlatform = activePlatforms[0];
-      drawEmptyState(35, 125, 525, 145, 'Single Platform Performance', `${String(onlyPlatform.platform || 'Platform').toUpperCase()} is the only tracked data source here. Comparison tools auto-suppress safely.`);
+      drawEmptyState(35, 125, 525, 145, 'Single Platform Performance', `${String(onlyPlatform.platform || 'Platform').toUpperCase()} is the only tracked data source here.Only one platform was available in this report. Platform comparison is not applicable.`);
 
       drawMiniMetricCards([
         { label: 'Platform', value: String(onlyPlatform.platform || 'Meta').toUpperCase(), color: THEME.royal, bg: THEME.softBlue },
@@ -1276,9 +1352,12 @@ router.post('/generate', async (req, res) => {
 
       const actionItems = [
         { title: 'Improve Tracking', desc: safeSummary.hasRoas ? 'Review revenue quality by campaign and keep tracking sales value consistently.' : 'Add revenue or sales value tracking so profit and ROAS can be measured.', color: THEME.royal, bg: THEME.softBlue },
-        { title: 'Optimize Campaign Budget', desc: hasCampaignChart ? 'Move more budget toward campaigns with lower cost per lead and stronger lead volume.' : 'Upload campaign-level data to identify where budget should be focused.', color: THEME.violet, bg: THEME.softPurple },
-        { title: 'Improve Lead Quality',desc: 'Review lead sources, landing pages and form quality to improve conversion consistency.', color: THEME.emerald, bg: THEME.softGreen },
-        { title: 'Test Creatives', desc: safeSummary.hasCtr ? 'Deploy dynamic matching test scripts across high impressions blocks.' : 'Include micro-copy visual checks next generation.', color: THEME.amber, bg: THEME.softAmber },
+        { title: 'Optimize Campaign Budget', desc: hasCampaignChart ? `Move more budget toward campaigns with lower ${metricLabels.cpa.toLowerCase()} and higher ${metricLabels.conversion.toLowerCase()}.` : 'Upload campaign-level data to identify where budget should be focused.', color: THEME.violet, bg: THEME.softPurple },
+        { title: `Improve ${metricLabels.conversion}`,desc: reportType === 'lead_generation'
+                                                              ? 'Review lead sources, landing pages and form quality to improve lead quality.'
+                                                              : reportType === 'sales_campaign'
+                                                              ? 'Review product pages, checkout flow and audience targeting to increase purchases.'
+                                                              : 'Review product performance and pricing to improve sales.'o-copy visual checks next generation.', color: THEME.amber, bg: THEME.softAmber },
       ];
 
       actionItems.forEach((item, i) => {
@@ -1331,7 +1410,11 @@ router.post('/generate', async (req, res) => {
 
       drawCard(35, 690, 525, 42, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text('Executive Verdict', 55, 703);
-     doc.fillColor(THEME.muted).fontSize(8.5).font('Helvetica').text('Campaign performance is stable. Improve revenue tracking and lead quality before scaling budgets.', 190, 703, { width: 345, height: 20, lineGap: 2, ellipsis: true });
+     doc.fillColor(THEME.muted).fontSize(8.5).font('Helvetica').text(reportType === 'lead_generation'
+                                                                       ? 'Campaign performance is stable. Improve lead quality before increasing budget.'
+                                                                       : reportType === 'sales_campaign'
+                                                                       ? 'Campaign performance is stable. Improve purchase tracking and ROAS before scaling budget.'
+                                                                       : 'Campaign performance is stable. Continue improving sales performance before increasing investment.', 190, 703, { width: 345, height: 20, lineGap: 2, ellipsis: true });
 
       drawFooter(pageNo++);
     }
