@@ -1351,13 +1351,41 @@ router.post('/generate', async (req, res) => {
       drawPageHeader('Next Month Action Plan', 'Clear next steps to improve campaign performance');
 
       const actionItems = [
-        { title: 'Improve Tracking', desc: safeSummary.hasRoas ? 'Review revenue quality by campaign and keep tracking sales value consistently.' : 'Add revenue or sales value tracking so profit and ROAS can be measured.', color: THEME.royal, bg: THEME.softBlue },
-        { title: 'Optimize Campaign Budget', desc: hasCampaignChart ? `Move more budget toward campaigns with lower ${metricLabels.cpa.toLowerCase()} and higher ${metricLabels.conversion.toLowerCase()}.` : 'Upload campaign-level data to identify where budget should be focused.', color: THEME.violet, bg: THEME.softPurple },
-        { title: `Improve ${metricLabels.conversion}`,desc: reportType === 'lead_generation'
-                                                              ? 'Review lead sources, landing pages and form quality to improve lead quality.'
-                                                              : reportType === 'sales_campaign'
-                                                              ? 'Review product pages, checkout flow and audience targeting to increase purchases.'
-                                                              : 'Review product performance and pricing to improve sales.'o-copy visual checks next generation.', color: THEME.amber, bg: THEME.softAmber },
+        {
+          title: 'Improve Tracking',
+          desc: safeSummary.hasRoas
+            ? 'Review revenue quality by campaign and keep tracking sales value consistently.'
+            : 'Add revenue or sales value tracking so profit and ROAS can be measured.',
+          color: THEME.royal,
+          bg: THEME.softBlue,
+        },
+        {
+          title: 'Optimize Campaign Budget',
+          desc: hasCampaignChart
+            ? `Move more budget toward campaigns with lower ${metricLabels.cpa.toLowerCase()} and higher ${metricLabels.conversion.toLowerCase()}.`
+            : 'Upload campaign-level data to identify where budget should be focused.',
+          color: THEME.violet,
+          bg: THEME.softPurple,
+        },
+        {
+          title: `Improve ${metricLabels.conversion}`,
+          desc:
+            reportType === 'lead_generation'
+              ? 'Review lead sources, landing pages and form quality to improve lead quality.'
+              : reportType === 'sales_campaign'
+              ? 'Review product pages, checkout flow and audience targeting to increase purchases.'
+              : 'Review product performance and pricing to improve sales.',
+          color: THEME.emerald,
+          bg: THEME.softGreen,
+        },
+        {
+          title: 'Test Creatives',
+          desc: safeSummary.hasCtr
+            ? 'Test new creatives, headlines and CTAs on high-impression campaigns.'
+            : 'Add creative and copy testing so future reports can identify what improves performance.',
+          color: THEME.amber,
+          bg: THEME.softAmber,
+        },
       ];
 
       actionItems.forEach((item, i) => {
