@@ -243,14 +243,7 @@ const normalizedReportType = (() => {
   return 'lead_generation';
 })();
 const metricConfig = getReportMetricConfig(normalizedReportType);
-alert(
-  JSON.stringify({
-    type: normalizedReportType,
-    title: metricConfig.title,
-    conversion: metricConfig.labels.conversions,
-    cpa: metricConfig.labels.cpa,
-  })
-);
+
 console.log('TYPE:', normalizedReportType, metricConfig);
 
 
