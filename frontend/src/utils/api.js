@@ -19,8 +19,7 @@ api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
-export const getReportHistory = (clientId) =>
-  api.get(`/reports/history/${clientId}`).then((res) => res.data);
+
 
 // Clients
 export const getClients = () => api.get('/clients').then(r => r.data);
@@ -79,7 +78,10 @@ export const getAIInsights = (clientId) =>
 
 // Reports
 export const generateReport = (data) => api.post('/reports/generate', data).then(r => r.data);
-export const getReportHistory = (clientId) => api.get(`/reports/history/${clientId}`).then(r => r.data);
+export const getReportHistory = async (clientId) => {
+  const res = await api.get(`/reports/history/${clientId}`);
+  return res.data;
+};
 export const deleteReport = (reportId) =>
   api.delete(`/reports/${reportId}`).then(r => r.data);
 
