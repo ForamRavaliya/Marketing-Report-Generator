@@ -221,7 +221,18 @@ const normalizeFrontendReportType = (type) => {
   return 'needs_review';
 };
 
-const normalizedReportType = normalizeFrontendReportType(detectedReportType);
+const normalizedReportType = (() => {
+  const normalized = normalizeFrontendReportType(detectedReportType);
+
+  if (normalized !== 'needs_review') return normalized;
+
+  const revenue = Number(currentMonthMetrics?.revenue?.current || 0);
+  const conversions = Number(currentMonthMetrics?.conversions?.current || 0);
+
+  if (revenue > 0 && conversions > 0) return 'sales_campaign';
+
+  return 'lead_generation';
+})();
 const metricConfig = getReportMetricConfig(normalizedReportType);
 const fmtReportCur = (value) => fmtCur(value, reportCurrency);
 const currencySymbol =
