@@ -11,7 +11,17 @@ import {
   getAIInsights,
 } from '../utils/api';
 import { MetricCard } from '../components/MetricCard';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend ,} from 'recharts';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getReportMetricConfig, getMetricFormatter } from '../utils/reportMetricConfig';
@@ -20,7 +30,17 @@ const COLORS = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626', '#0891B2'
 const PLATFORMS = ['all', 'meta', 'google', 'linkedin', 'twitter', 'tiktok', 'other'];
 
 const fmt = (n, d = 0) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
-const fmtCur = (n) => `INR ${fmt(n, 2)}`;
+const CURRENCY_SYMBOLS = {
+  INR: '₹',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  AED: 'د.إ',
+  SGD: 'S$',
+};
+
+const fmtCur = (n, currency = 'INR') =>
+  `${CURRENCY_SYMBOLS[currency] || currency} ${fmt(n, 2)}`;
 const fmtPct = (n) => `${fmt(n, 2)}%`;
 
 const Tooltip_ = ({ active, payload, label, prefix = '', suffix = '' }) => {
@@ -618,8 +638,66 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                   </div>
                 </div>
               )}
+
+           {/* Campaign Summary */}
+                {campaigns.length > 0 && (
+                  <div className="card card-pad" style={{ marginTop: 20 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
+                      Campaign Summary
+                    </div>
+
+                    <div className="grid grid-4" style={{ gap: 12 }}>
+                      <MetricCard
+                        label="Campaigns"
+                        value={campaigns.length}
+                        icon={Target}
+                        color="#2563EB"
+                      />
+
+                      <MetricCard
+                        label="Total Spend"
+                        value={fmtCur(totalCampaignSpend)}
+                        icon={DollarSign}
+                        color="#16A34A"
+                      />
+
+                      <MetricCard
+                        label={metricConfig.primaryMetricLabel}
+                        value={fmt(
+                          campaigns.reduce(
+                            (sum, c) => sum + Number(c.conversions || c.orders || 0),
+                            0
+                          )
+                        )}
+                        icon={Target}
+                        color="#7C3AED"
+                      />
+
+                      <MetricCard
+                        label={metricConfig.roasLabel}
+                        value={
+                          normalizedReportType === 'sales_data'
+                            ? fmtPct(
+                                campaigns.reduce((sum, c) => sum + Number(c.margin || 0), 0) /
+                                  Math.max(campaigns.length, 1)
+                              )
+                            : `${fmt(
+                                campaigns.reduce((sum, c) => sum + Number(c.roas || 0), 0) /
+                                  Math.max(campaigns.length, 1),
+                                2
+                              )}x`
+                        }
+                        icon={TrendingUp}
+                        color="#F59E0B"
+                      />
+                    </div>
+                  </div>
+                )}
+
             </div>
           )}
+
+
 
           {/* Trends Tab */}
           {activeTab === 'trends' && (
@@ -806,127 +884,83 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                   </div>
                 </div>
 
-                <div className="grid grid-2" style={{ gap: 20 }}>
-                  <div className="card card-pad">
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
-                      Budget Allocation by Platform
-                    </div>
+               <div className="card card-pad">
+                 <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
+                   Platform Summary
+                 </div>
 
-                    {platformData.length === 0 ? (
-                      <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)' }}>
-                        No platform data available
-                      </div>
-                    ) : platformData.length === 1 ? (
-                      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div
-                          style={{
-                            padding: 20,
-                            borderRadius: 12,
-                            background: '#EFF6FF',
-                            border: '1px solid #BFDBFE',
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 18,
-                              fontWeight: 700,
-                              marginBottom: 8,
-                              textTransform: 'capitalize',
-                            }}
-                          >
-                            {platformData[0].name}
-                          </div>
+                 {platforms.length === 0 ? (
+                   <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)' }}>
+                     No platform data available
+                   </div>
+                 ) : (
+                   <div
+                     style={{
+                       display: 'grid',
+                       gridTemplateColumns: '1.2fr 2fr',
+                       gap: 20,
+                       alignItems: 'stretch',
+                     }}
+                   >
+                     <div
+                       style={{
+                         padding: 20,
+                         borderRadius: 12,
+                         background: '#EFF6FF',
+                         border: '1px solid #BFDBFE',
+                       }}
+                     >
+                       <div
+                         style={{
+                           fontSize: 18,
+                           fontWeight: 800,
+                           textTransform: 'capitalize',
+                           marginBottom: 8,
+                         }}
+                       >
+                         {topPlatform?.platform || platforms[0]?.platform || 'N/A'}
+                       </div>
 
-                          <div style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6 }}>
-                            {normalizedReportType === 'sales_campaign'
-                              ? 'This platform generated the tracked purchases and revenue for this report.'
-                              : normalizedReportType === 'lead_generation'
-                              ? 'This platform generated the tracked leads for this report.'
-                              : normalizedReportType === 'sales_data'
-                              ? 'This channel generated the tracked sales for this report.'
-                              : 'This platform contains the tracked performance for this report.'}
-                          </div>
-                        </div>
+                       <div style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6 }}>
+                         {platforms.length === 1
+                           ? normalizedReportType === 'sales_campaign'
+                             ? 'This report contains sales campaign data from one platform.'
+                             : normalizedReportType === 'lead_generation'
+                             ? 'This report contains lead generation data from one platform.'
+                             : normalizedReportType === 'sales_data'
+                             ? 'This report contains sales data from one channel.'
+                             : 'This report contains tracked performance from one platform.'
+                           : 'This report contains data from multiple platforms.'}
+                       </div>
+                     </div>
 
-                        <div style={{ marginTop: 4 }}>
-                          <div
-                            style={{
-                              height: 12,
-                              borderRadius: 999,
-                              background: 'var(--bg3)',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            <div
-                              style={{
-                                height: '100%',
-                                width: '100%',
-                                background: '#2563EB',
-                              }}
-                            />
-                          </div>
+                     <div className="grid grid-4" style={{ gap: 12 }}>
+                       {platformColumns
+                         .filter((col) => col.key !== 'platform')
+                         .slice(0, 4)
+                         .map((col) => (
+                           <div
+                             key={col.key}
+                             style={{
+                               padding: 16,
+                               borderRadius: 12,
+                               border: '1px solid var(--border)',
+                               background: 'var(--bg2)',
+                             }}
+                           >
+                             <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700 }}>
+                               {col.label.toUpperCase()}
+                             </div>
 
-                          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text3)' }}>
-                            100% of tracked platform performance
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={280}>
-                        <PieChart>
-                          <Pie
-                            data={platformData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={65}
-                            outerRadius={95}
-                            dataKey="value"
-                            nameKey="name"
-                          >
-                            {platformData.map((_, i) => (
-                              <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                            ))}
-                          </Pie>
-
-                          <Tooltip formatter={(v) => fmtCur(v)} />
-                          <Legend iconType="circle" />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-
-                  <div className="card card-pad">
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
-                      Platform Spend Comparison
-                    </div>
-
-                    {platforms.length === 0 ? (
-                      <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)' }}>
-                        No platform data available
-                      </div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={280}>
-                        <BarChart
-                          data={[...platforms].sort(
-                            (a, b) => Number(b.spend || 0) - Number(a.spend || 0)
-                          )}
-                          layout="vertical"
-                          margin={{ top: 10, right: 20, left: 40, bottom: 10 }}
-                        >
-                          <XAxis type="number" tick={{ fontSize: 11 }} />
-                          <YAxis
-                            type="category"
-                            dataKey="platform"
-                            tick={{ fontSize: 12 }}
-                            width={90}
-                          />
-                          <Tooltip formatter={(v) => fmtCur(v)} />
-                          <Bar dataKey="spend" fill="#2563EB" radius={[0, 6, 6, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </div>
+                             <div style={{ fontSize: 16, fontWeight: 800, marginTop: 8 }}>
+                               {col.format(topPlatform || platforms[0] || {})}
+                             </div>
+                           </div>
+                         ))}
+                     </div>
+                   </div>
+                 )}
+               </div>
 
                 <div className="card card-pad">
                   <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
