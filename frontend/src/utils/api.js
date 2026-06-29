@@ -20,6 +20,21 @@ api.interceptors.response.use(
   }
 );
 
+//Emails
+export const getEmailSettings = async (clientId) => {
+  const res = await api.get(`/email/settings/${clientId}`);
+  return res.data;
+};
+
+export const saveEmailSettings = async (clientId, data) => {
+  const res = await api.put(`/email/settings/${clientId}`, data);
+  return res.data;
+};
+
+export const sendTestEmail = async (email) => {
+  const res = await api.post('/email/test', { email });
+  return res.data;
+};
 
 // Clients
 export const getClients = () => api.get('/clients').then(r => r.data);

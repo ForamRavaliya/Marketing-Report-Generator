@@ -10,7 +10,11 @@ import {
   generateAIInsights,
   getAIInsights,
   getReportHistory,
+  getEmailSettings,
+    saveEmailSettings,
+    sendTestEmail,
 } from '../utils/api';
+
 import { MetricCard } from '../components/MetricCard';
 
 import {
