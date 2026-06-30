@@ -614,7 +614,11 @@ const reportType =
 
         doc.fillColor(item.color).fontSize(8).font('Helvetica-Bold').text(item.label.toUpperCase(), x + 12, y + 14, { width: 95 });
         const valueText = String(item.value || '');
-        const valueFont = valueText.length > 14 ? 10 : valueText.length > 10 ? 11 : 14;
+       const valueFont =
+         valueText.length > 18 ? 8 :
+         valueText.length > 14 ? 10 :
+         valueText.length > 10 ? 12 :
+         15;
 
         doc.fillColor(THEME.text).fontSize(valueFont).font('Helvetica-Bold').text(valueText, x + 12, y + 36, { width: cardWidth - 20, height: 26, ellipsis: true });
       });
@@ -641,6 +645,28 @@ const reportType =
     const drawCard = (x, y, w, h, bg = THEME.card, border = THEME.border) => {
       doc.roundedRect(x + 2, y + 3, w, h, 12).fill('#CBD5E1');
       doc.roundedRect(x, y, w, h, 12).fillAndStroke(bg, border);
+    };
+    const getGrowthColor = (label, growth) => {
+      if (!growth) return THEME.muted;
+
+      const costMetrics = [
+        'CPC',
+        'CPL',
+        'CPA',
+        'CPP',
+        'CPO',
+        metricLabels.cpa,
+        metricLabels.cpaFull,
+        metricLabels.cpaShort,
+      ].map(x => String(x).toLowerCase());
+
+      const isCostMetric = costMetrics.includes(
+        String(label).toLowerCase()
+      );
+
+      return isCostMetric
+        ? (growth.positive ? THEME.rose : THEME.emerald)
+        : (growth.positive ? THEME.emerald : THEME.rose);
     };
 
     const drawKpiCard = (x, y, w, h, item, color, bg) => {
@@ -1128,7 +1154,7 @@ const reportType =
         const x = 55 + i * 120;
 
         doc.fillColor(THEME.muted)
-          .fontSize(6.4)
+          .fontSize(7.2)
           .font('Helvetica-Bold')
           .text(label, x, 266, { width: 108, height: 18, ellipsis: false });
 
@@ -1178,18 +1204,18 @@ const reportType =
           valueText.length > 9 ? 12 :
           15;
 
-        doc.fillColor(THEME.text)
-          .fontSize(valueFont)
-          .font('Helvetica-Bold')
-          .text(valueText, x + 18, y + 44, {
-            width: 125,
-            height: 22,
-            ellipsis: false,
-          });
+    doc.fillColor(THEME.text)
+      .fontSize(valueFont)
+      .font('Helvetica-Bold')
+      .text(valueText, x + 18, y + 44, {
+        width: 125,
+        height: 26,
+        ellipsis: true,
+      });
 
         if (item.growth) {
           doc
-            .fillColor(item.growth.isGood ? THEME.emerald : THEME.rose)
+            .fillColor(getGrowthColor(item.label, item.growth))
             .fontSize(6.2)
             .font('Helvetica-Bold')
             .text(item.growth.fullText, x + 18, y + 62, {
@@ -1254,7 +1280,7 @@ const reportType =
           .text(check.label, checkX + 28, checkY + 2, { width: 108, height: 12, ellipsis: true });
       });
 
-     drawCard(35, 668, 525, 76, '#F8FAFC', '#BFDBFE');
+     drawCard(35, 668, 525, 95, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text('Business Summary', 55, 680);
       let takeaway = '';
 
@@ -1272,15 +1298,15 @@ const reportType =
 
 
       doc.fillColor(THEME.muted)
-         .fontSize(6)
+         .fontSize(7.2)
          .font('Helvetica')
          .text(
             reportSummaryText,
            55,
-           700,
+           698,
             {
                width: 480,
-               height: 40,
+               height: 60,
                lineGap: 1,
                ellipsis: false
             }
@@ -1380,8 +1406,13 @@ const reportType =
           x += momWidths[i];
         });
 
-        const badgeColor = row.change?.isGood ? THEME.emerald : THEME.rose;
-        const badgeBg = row.change?.isGood ? THEME.softGreen : THEME.softRose;
+       const badgeColor = row.change
+           ? getGrowthColor(row.label, row.change)
+           : THEME.muted;
+      const badgeBg =
+        row.change && getGrowthColor(row.label, row.change) === THEME.emerald
+          ? THEME.softGreen
+          : THEME.softRose;
         doc.roundedRect(x + 8, my + 2, 82, 10, 5).fill(badgeBg);
         doc.fillColor(badgeColor).fontSize(6.2).font('Helvetica-Bold').text(
           row.change ? row.change.shortText : 'N/A',
@@ -1583,7 +1614,7 @@ const reportType =
           });
       });
 
-     drawCard(35, 270, 525, 235, THEME.card, THEME.border);
+     drawCard(35, 270, 525, 255, THEME.card, THEME.border);
       doc.fillColor(THEME.text)
         .fontSize(16)
         .font('Helvetica-Bold')
