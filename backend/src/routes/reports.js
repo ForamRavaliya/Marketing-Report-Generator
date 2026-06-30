@@ -1370,10 +1370,29 @@ doc.fillColor(THEME.text)
     const drawAgencyFinalPage = () => {
       if (!isAgencyPlan) return;
 
-      doc.addPage();
-      drawPageHeader('Agency Action Plan', 'Prepared for client review');
+doc.addPage();
 
-      drawCard(35, 125, 525, 165, '#FFFFFF', '#BFDBFE');
+doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
+doc.rect(0, 0, pageW, 95).fill(THEME.navy);
+
+doc.fillColor('#FFFFFF')
+  .fontSize(22)
+  .font('Helvetica-Bold')
+  .text('Agency Action Plan', 50, 34, {
+    width: 485,
+    height: 26,
+    ellipsis: true,
+  });
+
+doc.fillColor('#CBD5E1')
+  .fontSize(9)
+  .font('Helvetica')
+  .text('Prepared for client review', 50, 62, {
+    width: 485,
+    height: 14,
+    ellipsis: true,
+  });
+      drawCard(35, 125, 525, 115, '#FFFFFF', '#BFDBFE');
 
       doc.fillColor(THEME.text)
         .fontSize(18)
@@ -1398,12 +1417,12 @@ doc.fillColor(THEME.text)
         doc.text(`Website : ${agency.website}`, 55, 224);
       }
 
-    drawCard(35, 325, 525, 180, THEME.softBlue, '#BFDBFE');
+    drawCard(35, 270, 525, 180, THEME.softBlue, '#BFDBFE');
 
     doc.fillColor(THEME.text)
       .fontSize(16)
       .font('Helvetica-Bold')
-      .text('Next Month Strategy', 55, 350);
+      .text('Next Month Strategy', 55, 295);
 
     const agencyActions = [
       safeSummary.hasRoas
@@ -1416,12 +1435,12 @@ doc.fillColor(THEME.text)
     ];
 
     agencyActions.forEach((item, i) => {
-      doc.circle(65, 395 + i * 35, 8).fill(THEME.royal);
+      doc.circle(65, 340 + i * 35, 8).fill(THEME.royal);
 
       doc.fillColor('#FFFFFF')
         .fontSize(7)
         .font('Helvetica-Bold')
-        .text(String(i + 1), 62, 391 + i * 35, {
+       .text(String(i + 1), 62, 336 + i * 35, {
           width: 6,
           align: 'center',
         });
@@ -1429,23 +1448,23 @@ doc.fillColor(THEME.text)
       doc.fillColor(THEME.text)
         .fontSize(9)
         .font('Helvetica')
-        .text(item, 85, 388 + i * 35, {
+       .text(item, 85, 333 + i * 35, {
           width: 430,
           height: 20,
           ellipsis: true,
         });
     });
 
-      drawCard(35, 585, 525, 95, '#F8FAFC', '#BFDBFE');
-      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Client-Friendly Summary', 55, 605);
+     drawCard(35, 485, 525, 95, '#F8FAFC', '#BFDBFE');
+      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Client-Friendly Summary', 55, 505);
       doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
         `${client.name} should continue improving ${metricLabels.conversion.toLowerCase()} quality while keeping ${metricLabels.cpa.toLowerCase()} under control.`,
         55,
-        632,
+        532,
         { width: 480, height: 28, lineGap: 4, ellipsis: true }
       );
 
-       doc.roundedRect(35,700,525,28,8).fill('#EEF2FF');
+      doc.roundedRect(35,620,525,28,8).fill('#EEF2FF');
 
        doc.fillColor(THEME.royal)
        .fontSize(8)
@@ -1453,7 +1472,7 @@ doc.fillColor(THEME.text)
        .text(
        'CONFIDENTIAL • Prepared exclusively for this client.',
        50,
-       710
+       630
        );
       drawFooter(pageNo++);
     };

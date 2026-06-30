@@ -242,8 +242,6 @@ const getPlanPrice = (planId) => {
                   Downgrade scheduled
                 </div>
 
-
-
                 <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text2)' }}>
                  Your plan will change to {subscription.next_plan_name?.toUpperCase()} on{' '}
                  {subscription.expires_at
