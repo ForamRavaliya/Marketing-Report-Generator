@@ -78,16 +78,20 @@ router.post('/test', async (req, res) => {
       });
     }
 
-    await sendReportEmail({
-      to: email,
-      subject: 'Augmetic Email Test',
-      html: `
-        <h2>Email Working ✅</h2>
-        <p>This email was sent successfully from Augmetic.</p>
-      `,
-    });
+const info = await sendReportEmail({
+  to: email,
+  subject: 'Augmetic Email Test',
+  html: `
+    <h2>Email Working ✅</h2>
+    <p>This email was sent successfully from Augmetic.</p>
+  `,
+});
 
-    console.log('✅ Test email sent successfully to:', email);
+console.log('✅ Test email send result');
+console.log('📧 Message ID:', info.messageId);
+console.log('📧 Accepted:', info.accepted);
+console.log('📧 Rejected:', info.rejected);
+console.log('📧 Response:', info.response);
 
     res.json({
       success: true,
