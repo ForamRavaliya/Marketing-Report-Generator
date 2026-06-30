@@ -898,11 +898,21 @@ async function processFileWithMapping(
       const n = normalizeHeader(name);
 
       return (
+        !n ||
         n === 'all' ||
         n === 'total' ||
+        n === 'totals' ||
+        n === 'result' ||
+        n === 'results' ||
         n === 'overall' ||
         n === 'aggregate' ||
+        n === 'grand total' ||
+        n === 'overall total' ||
+        n === 'account total' ||
+        n.includes('grand total') ||
+        n.includes('overall total') ||
         n.includes('total results') ||
+        n.includes('results from') ||
         n.includes('account total')
       );
     };
@@ -1020,11 +1030,67 @@ const normalizeSalesMetric = (record) => {
     };
     };
 
+    const emptyMonthlySummary = () => ({
+      spend: 0,
+      impressions: 0,
+      clicks: 0,
+      conversions: 0,
+      leads: 0,
+      purchases: 0,
+      revenue: 0,
+      reach: 0,
+      followers: 0,
+      orders: 0,
+      quantity: 0,
+      refunds: 0,
+      profit: 0,
+      ctr: 0,
+      cpc: 0,
+      cpl: 0,
+      cpa: 0,
+      roas: 0,
+    });
+
+    const buildMonthlySummary = (rows) => {
+      const summary = emptyMonthlySummary();
+
+      for (const row of rows) {
+        const metrics = row.metrics || {};
+        summary.spend += metrics.spend || 0;
+        summary.impressions += metrics.impressions || 0;
+        summary.clicks += metrics.clicks || 0;
+        summary.conversions += metrics.conversions || 0;
+        summary.revenue += metrics.revenue || 0;
+        summary.reach += metrics.reach || 0;
+        summary.followers += metrics.followers || 0;
+        summary.orders += metrics.orders || 0;
+        summary.quantity += metrics.quantity || 0;
+        summary.refunds += metrics.refunds || 0;
+        summary.profit += metrics.profit || 0;
+      }
+
+      summary.leads = summary.conversions;
+      summary.purchases = summary.conversions;
+      summary.ctr =
+        summary.impressions > 0 && summary.clicks > 0
+          ? (summary.clicks / summary.impressions) * 100
+          : 0;
+      summary.cpc = summary.clicks > 0 ? summary.spend / summary.clicks : 0;
+      summary.cpa = summary.conversions > 0 ? summary.spend / summary.conversions : 0;
+      summary.cpl = summary.cpa;
+      summary.roas =
+        summary.spend > 0 && summary.revenue > 0
+          ? summary.revenue / summary.spend
+          : 0;
+
+      return summary;
+    };
+
     const rawCampaignRows = [];
     const summaryRows = [];
     const detailRowsForAggregate = [];
 
-    for (const record of records) {
+    for (const [rowIndex, record] of records.entries()) {
     const campaignName =
       reportType === 'sales_data'
         ? getText(record, 'product') || 'Sales Item'
@@ -1055,20 +1121,23 @@ const normalizeSalesMetric = (record) => {
           name: 'aggregate',
           metrics,
           rawData: record,
+          rowIndex,
         });
       } else {
+        if (isInvalidCampaignName(campaignName)) continue;
+
         detailRowsForAggregate.push({
           name: campaignName,
           metrics,
           rawData: record,
+          rowIndex,
         });
-
-        if (isInvalidCampaignName(campaignName)) continue;
 
         rawCampaignRows.push({
           name: campaignName,
           metrics,
           rawData: record,
+          rowIndex,
         });
       }
     }
@@ -1121,7 +1190,38 @@ const normalizeSalesMetric = (record) => {
       return row;
     });
 
-const rowsForAggregate = summaryRows.length > 0 ? summaryRows : detailRowsForAggregate;
+const selectSummaryRowsByMonth = (rows) => {
+  const byMonth = new Map();
+
+  for (const row of rows) {
+    const rowMonth = getRowReportMonth(row.rawData || {});
+    const monthKey = rowMonth.toISOString().slice(0, 10);
+    const current = byMonth.get(monthKey);
+    const score =
+      Math.abs(row.metrics?.spend || 0) +
+      Math.abs(row.metrics?.revenue || 0) +
+      Math.abs(row.metrics?.conversions || 0) +
+      Math.abs(row.metrics?.clicks || 0) +
+      Math.abs(row.metrics?.impressions || 0);
+    const currentScore = current
+      ? Math.abs(current.metrics?.spend || 0) +
+        Math.abs(current.metrics?.revenue || 0) +
+        Math.abs(current.metrics?.conversions || 0) +
+        Math.abs(current.metrics?.clicks || 0) +
+        Math.abs(current.metrics?.impressions || 0)
+      : -1;
+
+    if (!current || score > currentScore) {
+      byMonth.set(monthKey, row);
+    }
+  }
+
+  return Array.from(byMonth.values());
+};
+
+const rowsForAggregate = summaryRows.length > 0
+  ? selectSummaryRowsByMonth(summaryRows)
+  : detailRowsForAggregate;
 
 const monthlyAggregates = new Map();
 
@@ -1131,32 +1231,10 @@ for (const row of rowsForAggregate) {
 
   const existing = monthlyAggregates.get(monthKey) || {
     reportMonth: rowMonth,
-    metrics: {
-      spend: 0,
-      impressions: 0,
-      clicks: 0,
-      conversions: 0,
-      revenue: 0,
-      reach: 0,
-      followers: 0,
-      orders: 0,
-      quantity: 0,
-      refunds: 0,
-      profit: 0,
-    },
+    rows: [],
   };
 
-  existing.metrics.spend += row.metrics.spend || 0;
-  existing.metrics.impressions += row.metrics.impressions || 0;
-  existing.metrics.clicks += row.metrics.clicks || 0;
-  existing.metrics.conversions += row.metrics.conversions || 0;
-  existing.metrics.revenue += row.metrics.revenue || 0;
-  existing.metrics.reach += row.metrics.reach || 0;
-  existing.metrics.followers += row.metrics.followers || 0;
-  existing.metrics.orders += row.metrics.orders || 0;
-  existing.metrics.quantity += row.metrics.quantity || 0;
-  existing.metrics.refunds += row.metrics.refunds || 0;
-  existing.metrics.profit += row.metrics.profit || 0;
+  existing.rows.push(row);
 
   monthlyAggregates.set(monthKey, existing);
 }
@@ -1182,7 +1260,10 @@ for (const row of rowsForAggregate) {
     );
 
    for (const monthlyAggregate of monthlyAggregates.values()) {
-     const aggregate = monthlyAggregate.metrics;
+     // Meta exports can contain one total row plus campaign rows. Counting both
+     // doubles summary KPIs, so aggregate rows are built from only the detected
+     // total row(s), falling back to campaign rows only when no total row exists.
+     const aggregate = buildMonthlySummary(monthlyAggregate.rows);
      const aggregateReportMonth = monthlyAggregate.reportMonth;
 
      const monthStart = new Date(aggregateReportMonth);
