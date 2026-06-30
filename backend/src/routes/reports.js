@@ -496,16 +496,15 @@ const reportType =
         return null;
       }
 
-      const direction = change >= 0 ? '▲' : '▼';
       const sign = change >= 0 ? '+' : '';
+      const isCostMetric = ['cpc', 'cpa', 'cpl', 'cpp'].includes(String(metricKey || '').toLowerCase());
 
       return {
         value: change,
         shortText: `${sign}${change.toFixed(1)}%`,
         text: `${sign}${change.toFixed(1)}%`,
         fullText: `${sign}${change.toFixed(1)}% vs previous month`,
-        direction,
-        isGood: change >= 0,
+        isGood: isCostMetric ? change <= 0 : change >= 0,
         positive: change >= 0,
       };
     };
@@ -1105,43 +1104,41 @@ const reportType =
       ];
 
       kpis.forEach((item, i) => {
-        const col = i % 4;
-        const row = Math.floor(i / 4);
-        const x = 35 + col * 132;
-       const y = 340 + row * 84;
+        const col = i % 3;
+        const row = Math.floor(i / 3);
+        const x = 35 + col * 175;
+        const y = 340 + row * 88;
 
-        drawCard(x, y, 120, 74, item.bg, THEME.border);
+        drawCard(x, y, 155, 74, item.bg, THEME.border);
         doc.circle(x + 22, y + 26, 7).fill(item.color);
         doc.fillColor(THEME.muted).fontSize(7.5).font('Helvetica-Bold').text(item.label.toUpperCase(), x + 38, y + 18, {
-          width: 74,
+          width: 105,
           ellipsis: true,
         });
-        doc.fillColor(THEME.text).fontSize(15).font('Helvetica-Bold').text(item.value, x + 18, y + 46, {
-          width: 94,
-          height: 15,
-          ellipsis: true,
-        });
+        const valueText = String(item.value || '');
+        const valueFont =
+          valueText.length > 15 ? 9 :
+          valueText.length > 12 ? 10 :
+          valueText.length > 9 ? 12 :
+          15;
+
+        doc.fillColor(THEME.text)
+          .fontSize(valueFont)
+          .font('Helvetica-Bold')
+          .text(valueText, x + 18, y + 44, {
+            width: 125,
+            height: 22,
+            ellipsis: false,
+          });
 
         if (item.growth) {
           doc
             .fillColor(item.growth.isGood ? THEME.emerald : THEME.rose)
-            .fontSize(6.3)
+            .fontSize(6.2)
             .font('Helvetica-Bold')
-            .text(
-              `${item.growth.positive ? '▲' : '▼'} ${item.growth.text}`,
-              x + 18,
-              y + 62
-            );
-        }
-        if (item.growth) {
-          doc.roundedRect(x + 15, y + 59, 100, 12, 3).fill(item.bg);
-          doc
-            .fillColor(item.growth.isGood ? THEME.emerald : THEME.rose)
-            .fontSize(4.8)
-            .font('Helvetica-Bold')
-            .text(`${item.growth.direction} ${item.growth.fullText}`, x + 18, y + 61, {
-              width: 94,
-              height: 8,
+            .text(item.growth.fullText, x + 18, y + 62, {
+              width: 125,
+              height: 9,
               ellipsis: true,
             });
         }
@@ -1155,18 +1152,18 @@ const reportType =
              x + 18,
              y + 60,
               {
-                width: 94,
+                width: 125,
                 ellipsis: true,
               }
             );
         }
       });
-     drawCard(35, 520, 525, 70, '#FFFFFF', '#BFDBFE');
+     drawCard(35, 606, 525, 52, '#FFFFFF', '#BFDBFE');
 
       doc.fillColor(THEME.text)
-        .fontSize(14)
+        .fontSize(12)
         .font('Helvetica-Bold')
-        .text('Overall Campaign Performance', 55, 540);
+        .text('Overall Campaign Performance', 55, 620);
 
       const healthColor =
         campaignHealth === 'Excellent'
@@ -1178,25 +1175,25 @@ const reportType =
           : THEME.muted;
 
       doc.fillColor(healthColor)
-        .fontSize(18)
+        .fontSize(14)
         .font('Helvetica-Bold')
-       .text(campaignHealth, 55, 562);
+       .text(campaignHealth, 55, 640);
 
       doc.fillColor(THEME.muted)
-        .fontSize(8.5)
+        .fontSize(8)
         .font('Helvetica')
         .text(
           campaignHealthNote,
          170,
-         564,
+         641,
           {
             width: 340,
             ellipsis: true,
           }
         );
 
-     drawCard(35, 610, 525, 80, '#F8FAFC', '#BFDBFE');
-      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Business Summary', 55, 630);
+     drawCard(35, 668, 525, 50, '#F8FAFC', '#BFDBFE');
+      doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text('Business Summary', 55, 680);
       let takeaway = '';
 
       if (safeSummary.hasRoas && safeSummary.roas >= 3) {
@@ -1218,11 +1215,11 @@ const reportType =
          .text(
             takeaway,
            55,
-           655,
+           698,
             {
                width: 480,
-               height: 32,
-               lineGap: 4,
+               height: 17,
+               lineGap: 2,
                ellipsis: true
             }
          );
@@ -1284,12 +1281,12 @@ const reportType =
         );
       }
 
-      drawCard(35, 345, 525, 160, '#F8FAFC', '#BFDBFE');
-      drawSectionTitle('Month-over-Month Comparison', 55, 365, THEME.emerald);
+      drawCard(35, 335, 525, 180, '#F8FAFC', '#BFDBFE');
+      drawSectionTitle('Month-over-Month Comparison', 55, 355, THEME.emerald);
 
       const momHeaders = ['Metric', 'Previous Month', 'Current Month', 'Change'];
       const momWidths = [145, 115, 115, 110];
-      let my = 405;
+      let my = 390;
       x = 55;
 
       doc.roundedRect(55, my, 485, 22, 7).fill(THEME.emerald);
@@ -1325,7 +1322,7 @@ const reportType =
         const badgeBg = row.change?.isGood ? THEME.softGreen : THEME.softRose;
         doc.roundedRect(x + 8, my + 2, 82, 10, 5).fill(badgeBg);
         doc.fillColor(badgeColor).fontSize(6.2).font('Helvetica-Bold').text(
-          row.change ? `${row.change.direction} ${row.change.shortText}` : 'N/A',
+          row.change ? row.change.shortText : 'N/A',
           x + 12,
           my + 4,
           { width: 74, height: 7, align: 'center', ellipsis: true }
@@ -1334,12 +1331,12 @@ const reportType =
         my += 15;
       });
 
-      drawCard(35, 525, 525, 180, THEME.card, THEME.border);
-      drawSectionTitle('Top Campaigns', 55, 545, THEME.violet);
+      drawCard(35, 535, 525, 190, THEME.card, THEME.border);
+      drawSectionTitle('Top Campaigns', 55, 555, THEME.violet);
 
       const cHeaders = ['Campaign', 'Spend', '% Spend', metricLabels.conversion, metricLabels.cpa];
       const cWidths = [205, 92, 65, 58, 65];
-      let cy = 585;
+      let cy = 590;
 
       doc.roundedRect(55, cy, 485, 24, 7).fill(THEME.violet);
       x = 55;
@@ -1471,29 +1468,6 @@ const reportType =
        isAgencyPlan ? 'AI Insights & Recommendations' : 'Recommendations',
        isAgencyPlan ? 'AI-powered client-ready insights' : 'Clear actions for next month'
      );
-
-    if (false) {
-    drawCard(35, 120, 525, 95, '#F8FAFC', '#BFDBFE');
-
-    doc
-      .fillColor(THEME.text)
-      .fontSize(14)
-      .font('Helvetica-Bold')
-      .text('Performance Comparison', 55, 140);
-
-    comparisonCards.forEach((item, index) => {
-      const x = 55 + index * 120;
-
-      doc.fillColor(THEME.muted).fontSize(8).text(item.label, x, 165);
-      doc.fillColor(THEME.text).fontSize(10).font('Helvetica-Bold').text(item.current, x, 182);
-
-      if (item.change) {
-        doc.fillColor(item.change.positive ? THEME.emerald : THEME.rose)
-          .fontSize(8)
-          .text(`${item.change.positive ? '▲' : '▼'} ${item.change.text}`, x, 198);
-      }
-    });
-    }
 
       doc.rect(30, 118, 535, 125).fill(THEME.bg);
       drawCard(35, 125, 525, 115, isAgencyPlan ? '#F5F3FF' : THEME.softBlue, isAgencyPlan ? '#C4B5FD' : '#BFDBFE');
