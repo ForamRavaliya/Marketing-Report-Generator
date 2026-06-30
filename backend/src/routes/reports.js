@@ -646,6 +646,29 @@ const reportType =
       doc.roundedRect(x + 2, y + 3, w, h, 12).fill('#CBD5E1');
       doc.roundedRect(x, y, w, h, 12).fillAndStroke(bg, border);
     };
+
+    const drawStarRating = (x, y, score) => {
+      const filledStars = score >= 90 ? 5 : score >= 75 ? 4 : score >= 60 ? 3 : score >= 40 ? 2 : 1;
+
+      for (let i = 0; i < 5; i += 1) {
+        const cx = x + i * 14;
+        const cy = y;
+        const outer = 5.4;
+        const inner = 2.4;
+
+        doc.save();
+        doc.moveTo(cx, cy - outer);
+        for (let p = 1; p < 10; p += 1) {
+          const radius = p % 2 === 0 ? outer : inner;
+          const angle = -Math.PI / 2 + (p * Math.PI) / 5;
+          doc.lineTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
+        }
+        doc.closePath();
+        doc.fillAndStroke(i < filledStars ? THEME.amber : '#E2E8F0', i < filledStars ? THEME.amber : '#CBD5E1');
+        doc.restore();
+      }
+    };
+
     const getGrowthColor = (metricKey, growth) => {
       if (!growth) return THEME.muted;
 
@@ -1078,20 +1101,27 @@ const reportType =
                 displayedTrends.reduce((sum, row) => sum + Number(row.conversions || 0), 0)
               : null;
 
-          const aiExecutiveBullets = [
-            growth.conversions
-              ? `${metricLabels.conversion} volume ${growth.conversions.value >= 0 ? 'increased' : 'decreased'} by ${Math.abs(growth.conversions.value).toFixed(1)}%.`
-              : `${metricLabels.conversion} volume is available for the current period.`,
-            growth.cpa
-              ? `${metricLabels.cpaFull} ${growth.cpa.value <= 0 ? 'decreased' : 'increased'} by ${Math.abs(growth.cpa.value).toFixed(1)}%.`
-              : `${metricLabels.cpaFull} comparison is not available.`,
-            growth.clicks
-              ? `Click volume ${growth.clicks.value >= 0 ? 'increased' : 'decreased'} by ${Math.abs(growth.clicks.value).toFixed(1)}%.`
-              : `Click volume is ${safeSummary.hasClicks ? 'available' : 'not available'} for this report.`,
-            safeSummary.hasRoas ? `ROAS is ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue tracking is missing.',
+          const volumeImproved = growth.conversions ? growth.conversions.value >= 0 : safeSummary.hasConversions;
+          const costImproved = growth.cpa ? growth.cpa.value <= 0 : campaignHealth !== 'Needs Improvement';
+          const engagementHealthy = safeSummary.hasCtr || (growth.clicks && growth.clicks.value >= 0);
+          const aiExecutiveSummaryText =
             safeSummary.hasRoas
-              ? `Campaign is ready for scaling while monitoring ${metricLabels.quality}.`
-              : 'Campaign can be scaled after revenue mapping is added.',
+              ? `Overall campaign performance ${volumeImproved ? 'improved' : 'remained mixed'} during this reporting period. ${metricLabels.conversion} performance and acquisition efficiency indicate ${costImproved ? 'healthier budget utilization' : 'an opportunity to improve cost control'}, while engagement ${engagementHealthy ? 'remained healthy across the funnel' : 'needs closer monitoring'}. With ROAS available at ${formatNum(safeSummary.roas, 2)}x, profitability can be reviewed alongside ${metricLabels.quality} before scaling further.`
+              : `Overall campaign performance ${volumeImproved ? 'improved' : 'remained mixed'} during this reporting period. ${metricLabels.conversion} generation and acquisition cost trends indicate ${costImproved ? 'better campaign efficiency' : 'room for efficiency improvement'}, while engagement ${engagementHealthy ? 'remained healthy' : 'should be monitored closely'}. Revenue tracking is currently unavailable, so profitability analysis will become more accurate after revenue mapping is enabled.`;
+
+          const prioritizedRecommendations = [
+            safeSummary.hasRoas
+              ? `Increase budget for ${bestCampaignByCost?.name || bestCampaign?.name || 'the best performing campaign'} while monitoring ${metricLabels.cpa.toLowerCase()} and ${metricLabels.quality}.`
+              : 'Enable revenue tracking so profitability and ROI recommendations are available.',
+            bestCampaignByCost
+              ? `Scale ${bestCampaignByCost.name || 'the most efficient campaign'} because it currently has stronger acquisition efficiency.`
+              : `Improve the highest-volume campaign before increasing spend.`,
+            needsImprovementCampaign
+              ? `Pause or optimize ${needsImprovementCampaign.name || 'the weakest campaign'} before allocating additional budget.`
+              : `Review campaigns with higher ${metricLabels.cpa.toLowerCase()} before adding more budget.`,
+            activePlatforms.length > 1
+              ? 'Compare budget allocation across platforms and shift spend toward the strongest performer.'
+              : 'Upload Google Ads or other platform data for stronger cross-platform comparison.',
           ];
 
     const drawSimpleCover = () => {
@@ -1141,14 +1171,19 @@ const reportType =
         .text('Executive Summary', 55, 238);
 
       const summaryItems = [
-        ['Total Spend', formatCurrency(safeSummary.spend, currency)],
-        [`Total ${metricLabels.conversion}`, safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'],
-        [metricLabels.cpaFull, safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'],
-       ['Return On Ad Spend', safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available'],
+        ['Marketing Investment', formatCurrency(safeSummary.spend, currency)],
+        ['Business Outcome', safeSummary.hasConversions ? `${formatNum(safeSummary.conversions)} ${metricLabels.conversion}` : 'N/A'],
+        ['Cost Efficiency', safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'],
+       ['Return on Investment', safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available'],
       ];
 
       summaryItems.forEach(([label, value], i) => {
         const x = 55 + i * 120;
+        const summaryValue = String(value || '');
+        const summaryValueFont =
+          summaryValue.length > 18 ? 8 :
+          summaryValue.length > 13 ? 9 :
+          11;
 
         doc.fillColor(THEME.muted)
           .fontSize(7.2)
@@ -1156,9 +1191,9 @@ const reportType =
           .text(label, x, 266, { width: 108, height: 18, ellipsis: false });
 
         doc.fillColor(THEME.text)
-          .fontSize(11)
+          .fontSize(summaryValueFont)
           .font('Helvetica-Bold')
-          .text(value, x, 284, { width: 105, ellipsis: true });
+          .text(summaryValue, x, 284, { width: 108, height: 16, ellipsis: false });
       });
       const kpis = [
         { key: 'spend',label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue,growth: growth.spend },
@@ -1240,9 +1275,9 @@ const reportType =
      drawCard(35, 604, 525, 60, '#FFFFFF', '#BFDBFE');
 
       doc.fillColor(THEME.text)
-        .fontSize(11)
+        .fontSize(10)
         .font('Helvetica-Bold')
-        .text('Campaign Health Score', 55, 616);
+        .text('Performance Score', 55, 616);
 
       const healthColor =
         campaignHealth === 'Excellent'
@@ -1256,15 +1291,17 @@ const reportType =
       doc.fillColor(healthColor)
         .fontSize(18)
         .font('Helvetica-Bold')
-       .text(`${campaignHealthScore || 'N/A'} / 100`, 55, 634, { width: 95, height: 22, ellipsis: false });
+       .text(`${campaignHealthScore || 'N/A'} /100`, 55, 632, { width: 95, height: 22, ellipsis: false });
+
+      drawStarRating(155, 635, campaignHealthScore || 0);
 
       doc.fillColor(healthColor)
         .fontSize(8)
         .font('Helvetica-Bold')
-       .text(campaignHealth, 155, 639, { width: 90, height: 12, ellipsis: true });
+       .text(campaignHealth, 155, 648, { width: 90, height: 10, ellipsis: true });
 
       campaignHealthChecks.forEach((check, i) => {
-        const checkX = 260 + (i % 2) * 145;
+        const checkX = 275 + (i % 2) * 132;
         const checkY = 617 + Math.floor(i / 2) * 20;
         doc.roundedRect(checkX, checkY, 22, 12, 6).fill(check.ok ? THEME.softGreen : THEME.softRose);
         doc.fillColor(check.ok ? THEME.emerald : THEME.rose)
@@ -1410,12 +1447,12 @@ const reportType =
        const badgeBg = row.change
          ? getGrowthBg(row.key, row.change)
          : '#F1F5F9';
-        doc.roundedRect(x + 8, my + 2, 82, 10, 5).fill(badgeBg);
-        doc.fillColor(badgeColor).fontSize(6.2).font('Helvetica-Bold').text(
+        doc.roundedRect(x + 8, my, 82, 14, 7).fill(badgeBg);
+        doc.fillColor(badgeColor).fontSize(6.6).font('Helvetica-Bold').text(
           row.change ? row.change.shortText : 'N/A',
           x + 12,
           my + 4,
-          { width: 74, height: 7, align: 'center', ellipsis: true }
+          { width: 74, height: 8, align: 'center', ellipsis: true }
         );
 
         my += 15;
@@ -1523,17 +1560,31 @@ const reportType =
         const platformCpa = Number(topPlatform.conversions || 0) > 0
           ? formatCurrency(Number(topPlatform.spend || 0) / Number(topPlatform.conversions || 0), currency)
           : 'N/A';
+        const platformContribution = safeSummary.conversions > 0
+          ? `${formatNum((Number(topPlatform.conversions || 0) / safeSummary.conversions) * 100, 1)}%`
+          : 'N/A';
+        const platformSpendShare = safeSummary.spend > 0
+          ? `${formatNum((Number(topPlatform.spend || 0) / safeSummary.spend) * 100, 1)}%`
+          : 'N/A';
+        const topPlatformCampaignCount = campaigns.filter(
+          (campaign) => String(campaign.platform || '').toLowerCase() === String(topPlatform.platform || '').toLowerCase()
+        ).length;
 
         const platformItems = [
           ['Top Platform', String(topPlatform.platform || 'N/A').toUpperCase()],
           ['Spend', formatCurrency(topPlatform.spend, currency)],
+          ['Share of Spend', platformSpendShare],
+          ['Platform Contribution', platformContribution],
+          ['Campaign Count', topPlatformCampaignCount ? formatNum(topPlatformCampaignCount) : 'N/A'],
           [metricLabels.conversion, formatNum(topPlatform.conversions)],
           [metricLabels.cpa, platformCpa],
         ];
 
         platformItems.forEach(([label, value], i) => {
-          doc.fillColor(THEME.muted).fontSize(8).font('Helvetica-Bold').text(label.toUpperCase(), 330, 425 + i * 38);
-          doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text(String(value), 330, 441 + i * 38, {
+          doc.fillColor(THEME.muted).fontSize(6.8).font('Helvetica-Bold').text(label.toUpperCase(), 330, 422 + i * 25);
+          const platformValue = String(value);
+          const platformValueFont = platformValue.length > 18 ? 8 : platformValue.length > 12 ? 9 : 10.5;
+          doc.fillColor(THEME.text).fontSize(platformValueFont).font('Helvetica-Bold').text(platformValue, 330, 434 + i * 25, {
             width: 200,
             ellipsis: true,
           });
@@ -1598,37 +1649,32 @@ const reportType =
         .font('Helvetica-Bold')
         .text(isAgencyPlan ? 'AI Executive Summary' : 'Executive Summary', 55, 145);
 
-      aiExecutiveBullets.slice(0, 5).forEach((item, i) => {
-        const y = 172 + i * 12;
-        doc.circle(62, y + 4, 2.2).fill(i === 3 && !safeSummary.hasRoas ? THEME.rose : THEME.royal);
-        doc.fillColor(THEME.text)
-          .fontSize(8)
-          .font('Helvetica')
-          .text(item, 72, y, {
-            width: 455,
-            height: 11,
-            ellipsis: false,
-          });
-      });
+      doc.fillColor(THEME.text)
+        .fontSize(9)
+        .font('Helvetica')
+        .text(aiExecutiveSummaryText, 55, 172, {
+          width: 480,
+          height: 54,
+          lineGap: 3,
+          ellipsis: false,
+        });
 
-     drawCard(35, 270, 525, 255, THEME.card, THEME.border);
+     drawCard(35, 270, 525, 235, THEME.card, THEME.border);
       doc.fillColor(THEME.text)
         .fontSize(16)
         .font('Helvetica-Bold')
         .text(isAgencyPlan ? 'AI Recommended Actions' : 'Next Month Actions', 55, 295);
 
-     const agencyAiRecommendations =
-       isAgencyPlan && Array.isArray(aiInsightResult?.rows?.[0]?.recommendations)
-         ? aiInsightResult.rows[0].recommendations
-         : simpleRecommendations;
-
-     agencyAiRecommendations.slice(0, 3).forEach((item, i) => {
-       const y = 325 + i * 58;
-        doc.circle(65, y + 10, 10).fill([THEME.royal, THEME.violet, THEME.emerald][i % 3]);
-        doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold').text(String(i + 1), 61, y + 5, { width: 8, align: 'center' });
-        doc.fillColor(THEME.text).fontSize(8.6).font('Helvetica').text(item, 88, y - 2, {
-          width: 430,
-          height: 50,
+     prioritizedRecommendations.slice(0, 4).forEach((item, i) => {
+       const y = 322 + i * 43;
+        doc.roundedRect(55, y - 2, 58, 18, 9).fill([THEME.softBlue, THEME.softGreen, THEME.softRose, THEME.softPurple][i % 4]);
+        doc.fillColor([THEME.royal, THEME.emerald, THEME.rose, THEME.violet][i % 4])
+          .fontSize(7)
+          .font('Helvetica-Bold')
+          .text(`Priority ${i + 1}`, 62, y + 4, { width: 44, align: 'center' });
+        doc.fillColor(THEME.text).fontSize(8.4).font('Helvetica').text(item, 128, y - 1, {
+          width: 390,
+          height: 32,
           lineGap: 2,
           ellipsis: false,
         });
@@ -1674,23 +1720,23 @@ doc.fillColor(THEME.text)
   .font('Helvetica-Bold')
   .text(weakName, 415, 568, { width: 108, height: 10, ellipsis: true });
 doc.fillColor(THEME.muted)
-  .fontSize(6.8)
+  .fontSize(6)
   .font('Helvetica')
-  .text(`Review targeting before increasing budget.`, 323, 581, {
+  .text('This campaign has the weakest efficiency during the selected period and should be reviewed before additional budget is allocated.', 323, 580, {
     width: 202,
-    height: 9,
-    ellipsis: true,
+    height: 14,
+    ellipsis: false,
   });
 
      drawCard(35, 620, 525, 70, THEME.softGreen, '#A7F3D0');
       doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 638);
       doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
         safeSummary.hasRoas
-          ? `Scale carefully while monitoring ${metricLabels.cpa.toLowerCase()}, ${metricLabels.conversion.toLowerCase()} quality and ROAS.`
-          : `Add revenue tracking so future reports can show profit and ROAS clearly.`,
+          ? `Continue scaling profitable campaigns while monitoring ${metricLabels.cpa.toLowerCase()} and ${metricLabels.quality}. Use ROAS to guide budget allocation across the strongest campaigns.`
+          : `Revenue tracking should be enabled to unlock profitability analysis and ROI recommendations. Once mapped, future reports can identify which campaigns deserve more budget.`,
        55,
        662,
-        { width: 480, height: 30, lineGap: 4, ellipsis: true }
+        { width: 480, height: 34, lineGap: 3, ellipsis: false }
       );
 
       drawFooter(pageNo++);
