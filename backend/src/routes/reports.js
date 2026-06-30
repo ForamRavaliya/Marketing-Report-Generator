@@ -646,28 +646,23 @@ const reportType =
       doc.roundedRect(x + 2, y + 3, w, h, 12).fill('#CBD5E1');
       doc.roundedRect(x, y, w, h, 12).fillAndStroke(bg, border);
     };
-    const getGrowthColor = (label, growth) => {
+    const getGrowthColor = (metricKey, growth) => {
       if (!growth) return THEME.muted;
 
-      const costMetrics = [
-        'CPC',
-        'CPL',
-        'CPA',
-        'CPP',
-        'CPO',
-        metricLabels.cpa,
-        metricLabels.cpaFull,
-        metricLabels.cpaShort,
-      ].map(x => String(x).toLowerCase());
-
-      const isCostMetric = costMetrics.includes(
-        String(label).toLowerCase()
-      );
+      const key = String(metricKey || '').toLowerCase();
+      const isCostMetric = ['cpc', 'cpa', 'cpl', 'cpp', 'cpo'].includes(key);
 
       return isCostMetric
-        ? (growth.positive ? THEME.rose : THEME.emerald)
-        : (growth.positive ? THEME.emerald : THEME.rose);
+        ? (growth.value <= 0 ? THEME.emerald : THEME.rose)
+        : (growth.value >= 0 ? THEME.emerald : THEME.rose);
     };
+
+    const getGrowthBg = (metricKey, growth) => {
+      return getGrowthColor(metricKey, growth) === THEME.emerald
+        ? THEME.softGreen
+        : THEME.softRose;
+    };
+
 
     const drawKpiCard = (x, y, w, h, item, color, bg) => {
       drawCard(x, y, w, h, bg, '#DDE6F3');
@@ -677,9 +672,11 @@ const reportType =
       doc.fillColor(THEME.text).fontSize(13).font('Helvetica-Bold').text(item.value, x + 34, y + 30, { width: w - 42, height: 18, ellipsis: true });
 
       const bottomText = item.growth ? `${item.growth}${item.growth.includes('%') ? '' : ' vs prev.'}` : item.subtitle || item.note || item.description || '';
-      const badIncreaseMetrics = [metricLabels.cpa, 'CPC'];
-      const isBadIncrease = badIncreaseMetrics.includes(item.label) && item.growth && item.growth.startsWith('+');
-      const growthColor = item.growth ? (isBadIncrease ? THEME.rose : THEME.emerald) : item.subtitle ? color : THEME.muted;
+      const growthColor =
+      item.growth
+      ? getGrowthColor(item.key, item.growth)
+      : THEME.muted;
+
 
       doc.fillColor(growthColor).fontSize(5.8).font('Helvetica-Bold').text(bottomText, x + 34, y + 47, { width: w - 42, height: 13, ellipsis: true });
     };
@@ -1164,14 +1161,14 @@ const reportType =
           .text(value, x, 284, { width: 105, ellipsis: true });
       });
       const kpis = [
-        { label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue,growth: growth.spend },
-        { label: `Total ${metricLabels.conversion}`, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen ,growth: growth.conversions},
-        { label: metricLabels.cpaFull, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber,growth: growth.cpa },
-        { label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A', color: THEME.violet, bg: THEME.softPurple,growth: growth.clicks },
-        { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.cyan, bg: '#ECFEFF' ,growth: growth.ctr},
-        { label: 'CPC', value: safeSummary.hasCpc ? formatCurrency(safeSummary.cpc, currency) : 'N/A', color: THEME.rose, bg: THEME.softRose, growth: growth.cpc },
-        { label: 'Impressions', value: safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'N/A', color: THEME.royal, bg: THEME.softBlue, growth: growth.impressions },
-        {
+        { key: 'spend',label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue,growth: growth.spend },
+        { key: 'conversions',label: `Total ${metricLabels.conversion}`, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen ,growth: growth.conversions},
+        {  key: 'cpa', label: metricLabels.cpaFull, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber,growth: growth.cpa },
+        { key: 'clicks', label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A', color: THEME.violet, bg: THEME.softPurple,growth: growth.clicks },
+        {  key: 'ctr', label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.cyan, bg: '#ECFEFF' ,growth: growth.ctr},
+        {  key: 'cpc', label: 'CPC', value: safeSummary.hasCpc ? formatCurrency(safeSummary.cpc, currency) : 'N/A', color: THEME.rose, bg: THEME.softRose, growth: growth.cpc },
+        {  key: 'impressions', label: 'Impressions', value: safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'N/A', color: THEME.royal, bg: THEME.softBlue, growth: growth.impressions },
+        { key: 'roas',
           label: 'ROAS',
           value: safeSummary.hasRoas
             ? `${formatNum(safeSummary.roas, 2)}x`
@@ -1215,10 +1212,10 @@ const reportType =
 
         if (item.growth) {
           doc
-            .fillColor(getGrowthColor(item.label, item.growth))
+           .fillColor(getGrowthColor(item.key, item.growth))
             .fontSize(6.2)
             .font('Helvetica-Bold')
-            .text(item.growth.fullText, x + 18, y + 62, {
+            .text(item.growth.shortText, x + 18, y + 62, {
               width: 125,
               height: 9,
               ellipsis: true,
@@ -1407,12 +1404,12 @@ const reportType =
         });
 
        const badgeColor = row.change
-           ? getGrowthColor(row.label, row.change)
-           : THEME.muted;
-      const badgeBg =
-        row.change && getGrowthColor(row.label, row.change) === THEME.emerald
-          ? THEME.softGreen
-          : THEME.softRose;
+         ? getGrowthColor(row.key, row.change)
+         : THEME.muted;
+
+       const badgeBg = row.change
+         ? getGrowthBg(row.key, row.change)
+         : '#F1F5F9';
         doc.roundedRect(x + 8, my + 2, 82, 10, 5).fill(badgeBg);
         doc.fillColor(badgeColor).fontSize(6.2).font('Helvetica-Bold').text(
           row.change ? row.change.shortText : 'N/A',
