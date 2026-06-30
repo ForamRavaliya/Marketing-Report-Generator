@@ -496,11 +496,14 @@ const reportType =
     };
 
     const formatGrowth = (change) => {
-      if (change === null || change === undefined || Number.isNaN(change)) return null;
-      if (change >= 300) return 'Significant increase';
-      if (change <= -300) return 'Significant decrease';
-      const sign = change > 0 ? '+' : '';
-      return `${sign}${formatNum(change, 1)}% vs prev.`;
+      if (change === null || change === undefined || Number.isNaN(change)) {
+        return null;
+      }
+
+      return {
+        text: `${Math.abs(change).toFixed(1)}%`,
+        positive: change >= 0,
+      };
     };
 
     const growth = {
@@ -1000,11 +1003,11 @@ const reportType =
           .text(value, x, 284, { width: 105, ellipsis: true });
       });
       const kpis = [
-        { label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue },
-        { label: `Total ${metricLabels.conversion}`, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen },
-        { label: metricLabels.cpaFull, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber },
-        { label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A', color: THEME.violet, bg: THEME.softPurple },
-        { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.cyan, bg: '#ECFEFF' },
+        { label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue,growth: growth.spend },
+        { label: `Total ${metricLabels.conversion}`, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen ,growth: growth.conversions},
+        { label: metricLabels.cpaFull, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber,growth: growth.cpa },
+        { label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A', color: THEME.violet, bg: THEME.softPurple,growth: growth.clicks },
+        { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.cyan, bg: '#ECFEFF' ,growth: growth.ctr},
         {
           label: 'ROAS',
           value: safeSummary.hasRoas
@@ -1015,6 +1018,7 @@ const reportType =
             : 'Revenue data not uploaded',
           color: THEME.rose,
           bg: THEME.softRose,
+          growth: growth.roas
         },
       ];
 
@@ -1035,6 +1039,30 @@ const reportType =
           height: 20,
           ellipsis: true,
         });
+        if (item.growth) {
+          const positive = item.growth.startsWith('+');
+
+          doc
+            .fillColor(positive ? '#16A34A' : '#DC2626')
+            .fontSize(7)
+            .font('Helvetica-Bold')
+            .text(
+              `${positive ? '▲' : '▼'} ${item.growth}`,
+              x + 18,
+              y + 64
+            );
+        }
+        if (item.growth) {
+          doc
+            .fillColor(item.growth.positive ? THEME.emerald : THEME.rose)
+            .fontSize(7)
+            .font('Helvetica-Bold')
+            .text(
+              `${item.growth.positive ? '▲' : '▼'} ${item.growth.text}`,
+              x + 18,
+              y + 62
+            );
+        }
         if (item.note) {
           doc
             .fillColor(THEME.muted)
