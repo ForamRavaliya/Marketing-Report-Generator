@@ -1458,7 +1458,7 @@ const reportType =
         my += 15;
       });
 
-      drawCard(35, 560, 525, 170, THEME.card, THEME.border);
+      drawCard(35, 560, 525, 190, THEME.card, THEME.border);
       drawSectionTitle('Top Campaigns', 55, 580, THEME.violet);
 
       const cHeaders = ['Campaign', 'Spend', '% Spend', metricLabels.conversion, metricLabels.cpa];
