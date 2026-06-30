@@ -551,11 +551,11 @@ const handleSendTestEmail = async () => {
 
   try {
     setSendingTestEmail(true);
-    const result = await sendTestEmail({
+    await sendTestEmail({
       recipient_email: emailSettings.recipient_email,
       cc_email: emailSettings.cc_email,
     });
-    toast.success(result?.sentFrom?.fromEmail ? `Test email sent from ${result.sentFrom.fromEmail}` : 'Test email sent');
+    toast.success('Test email sent');
   } catch {
     toast.error('Failed to send test email');
   } finally {
@@ -581,7 +581,7 @@ const handleSendMonthlyEmail = async () => {
         last_sent_month: result.report_month,
       }));
     }
-    toast.success(result?.sentFrom?.fromEmail ? `Previous month report sent from ${result.sentFrom.fromEmail}` : 'Previous month report email sent');
+    toast.success('Previous month report email sent');
   } catch (error) {
     toast.error(error.response?.data?.error || 'Failed to send monthly report email');
   } finally {

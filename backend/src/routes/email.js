@@ -143,19 +143,6 @@ router.get('/google/callback', async (req, res) => {
       throw new Error('Google did not return a Gmail refresh token. Please reconnect and approve access.');
     }
 
-    const userResult = await db.query(
-      `SELECT email
-       FROM users
-       WHERE id = $1 AND agency_id = $2
-       LIMIT 1`,
-      [payload.userId, payload.agencyId]
-    );
-    const loginEmail = String(userResult.rows[0]?.email || '').toLowerCase();
-
-    if (!loginEmail || email !== loginEmail) {
-      throw new Error('Connected Google account must match the logged-in manager email.');
-    }
-
     await db.query(
       `INSERT INTO user_email_connections
        (user_id, agency_id, provider, email, refresh_token, scope, connected_at, updated_at)

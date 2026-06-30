@@ -241,22 +241,15 @@ const getPlanPrice = (planId) => {
                 <div style={{ fontSize: 13, fontWeight: 800, color: '#C2410C' }}>
                   Downgrade scheduled
                 </div>
-                {downgradeToThisPlan && (
-                  <div
-                    style={{
-                      marginTop: 8,
-                      fontSize: 12,
-                      color: '#6B7280',
-                      textAlign: 'center',
-                    }}
-                  >
-                    Will switch to Free on{' '}
-                    {new Date(subscription.expires_at).toLocaleDateString()}
-                  </div>
-                )}
+
+
 
                 <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text2)' }}>
-                  Your plan will change to {subscription.next_plan_name?.toUpperCase()} after your current billing period ends.
+                 Your plan will change to {subscription.next_plan_name?.toUpperCase()} on{' '}
+                 {subscription.expires_at
+                   ? new Date(subscription.expires_at).toLocaleDateString()
+                   : 'billing end'}.
+                 Until then, your current plan remains active.
                 </div>
 
                 <button
