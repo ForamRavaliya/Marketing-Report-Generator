@@ -1379,52 +1379,43 @@ doc.fillColor(THEME.text)
         doc.text(`Website : ${agency.website}`, 110, 224);
       }
 
-      drawCard(35, 325, 525, 180, THEME.softBlue, '#BFDBFE');
-     doc.fillColor(THEME.text)
-       .fontSize(16)
-       .font('Helvetica-Bold')
-       .text('Next Month Strategy', 55, 350);
+    drawCard(35, 325, 525, 180, THEME.softBlue, '#BFDBFE');
 
-     agencyActions.forEach((item, i) => {
-       doc.circle(65, 395 + i * 35, 8).fill(THEME.royal);
+    doc.fillColor(THEME.text)
+      .fontSize(16)
+      .font('Helvetica-Bold')
+      .text('Next Month Strategy', 55, 350);
 
-       doc.fillColor('#FFFFFF')
-         .fontSize(7)
-         .font('Helvetica-Bold')
-         .text(String(i + 1), 62, 391 + i * 35, {
-           width: 6,
-           align: 'center',
-         });
+    const agencyActions = [
+      safeSummary.hasRoas
+        ? 'Review revenue quality before increasing campaign budget.'
+        : 'Add revenue tracking before scaling paid campaigns.',
+      `Focus budget on campaigns with stronger ${metricLabels.conversion.toLowerCase()} and lower ${metricLabels.cpa.toLowerCase()}.`,
+      reportType === 'lead_generation'
+        ? 'Improve landing page and form quality to improve lead quality.'
+        : 'Improve product page and checkout conversion to increase purchases.',
+    ];
 
-       doc.fillColor(THEME.text)
-         .fontSize(9)
-         .font('Helvetica')
-         .text(item, 85, 388 + i * 35, {
-           width: 430,
-           height: 20,
-           ellipsis: true,
-         });
-     });
+    agencyActions.forEach((item, i) => {
+      doc.circle(65, 395 + i * 35, 8).fill(THEME.royal);
 
-      const agencyActions = [
-        safeSummary.hasRoas
-          ? 'Review revenue quality before increasing campaign budget.'
-          : 'Add revenue tracking before scaling paid campaigns.',
-        `Focus budget on campaigns with stronger ${metricLabels.conversion.toLowerCase()} and lower ${metricLabels.cpa.toLowerCase()}.`,
-        reportType === 'lead_generation'
-          ? 'Improve landing page and form quality to improve lead quality.'
-          : 'Improve product page and checkout conversion to increase purchases.',
-      ];
+      doc.fillColor('#FFFFFF')
+        .fontSize(7)
+        .font('Helvetica-Bold')
+        .text(String(i + 1), 62, 391 + i * 35, {
+          width: 6,
+          align: 'center',
+        });
 
-      agencyActions.forEach((item, i) => {
-        doc.circle(65, 350 + i * 35, 8).fill(THEME.royal);
-        doc.fillColor('#FFFFFF').fontSize(7).font('Helvetica-Bold').text(String(i + 1), 62, 391 + i * 35, { width: 6, align: 'center' });
-        doc.fillColor(THEME.text).fontSize(9).font('Helvetica').text(item, 85, 388 + i * 35, {
+      doc.fillColor(THEME.text)
+        .fontSize(9)
+        .font('Helvetica')
+        .text(item, 85, 388 + i * 35, {
           width: 430,
           height: 20,
           ellipsis: true,
         });
-      });
+    });
 
       drawCard(35, 585, 525, 95, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Client-Friendly Summary', 55, 605);
