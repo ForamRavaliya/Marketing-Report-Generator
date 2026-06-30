@@ -7,7 +7,8 @@ const {
   findExistingReport,
   insertEmailLog,
 } = require('../routes/email');
-const { sendReportEmail } = require('../utils/emailService');
+const { sendReportEmail, sendGmailOAuthEmail } = require('../utils/emailService');
+const { refreshGoogleAccessToken } = require('../utils/googleOAuthService');
 
 const allowedPlans = new Set(['pro', 'agency']);
 
@@ -85,19 +86,45 @@ const sendOneMonthlyEmail = async (setting) => {
       throw new Error(`No generated PDF report found for ${monthRange.month}`);
     }
 
-    await sendReportEmail({
-      to: setting.recipient_email,
-      cc: setting.cc_email,
-      replyTo: manager.email,
-      subject,
-      html: `
-        <p>Hello,</p>
-        <p>Please find attached the monthly marketing report for ${client.name} covering ${monthRange.start} to ${monthRange.end}.</p>
-        <p>Regards,<br/>${manager.full_name || manager.email}</p>
-      `,
-      attachmentPath: monthlyReport.attachmentPath,
-      attachmentName: monthlyReport.attachmentName,
-    });
+    const html = `
+      <p>Hello,</p>
+      <p>Please find attached the monthly marketing report for ${client.name} covering ${monthRange.start} to ${monthRange.end}.</p>
+      <p>Regards,<br/>${manager.full_name || manager.email}</p>
+    `;
+
+    const gmailConnectionResult = await db.query(
+      `SELECT email, refresh_token
+       FROM user_email_connections
+       WHERE user_id = $1 AND agency_id = $2 AND provider = 'google'
+       LIMIT 1`,
+      [manager.id, setting.agency_id]
+    );
+    const gmailConnection = gmailConnectionResult.rows[0];
+
+    if (gmailConnection?.refresh_token) {
+      const accessToken = await refreshGoogleAccessToken(gmailConnection.refresh_token);
+
+      await sendGmailOAuthEmail({
+        fromEmail: gmailConnection.email,
+        accessToken,
+        to: setting.recipient_email,
+        cc: setting.cc_email,
+        subject,
+        html,
+        attachmentPath: monthlyReport.attachmentPath,
+        attachmentName: monthlyReport.attachmentName,
+      });
+    } else {
+      await sendReportEmail({
+        to: setting.recipient_email,
+        cc: setting.cc_email,
+        replyTo: manager.email,
+        subject,
+        html,
+        attachmentPath: monthlyReport.attachmentPath,
+        attachmentName: monthlyReport.attachmentName,
+      });
+    }
 
     await db.query(
       `UPDATE client_email_settings

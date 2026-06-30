@@ -14,6 +14,9 @@ import {
   saveEmailSettings,
   sendTestEmail,
   sendMonthlyReport,
+  getGmailConnectionStatus,
+  connectGmail,
+  disconnectGmail,
 } from '../utils/api';
 
 import { MetricCard } from '../components/MetricCard';
@@ -83,6 +86,8 @@ const [emailSettings, setEmailSettings] = useState({
 const [savingEmailSettings, setSavingEmailSettings] = useState(false);
 const [sendingTestEmail, setSendingTestEmail] = useState(false);
 const [sendingMonthlyEmail, setSendingMonthlyEmail] = useState(false);
+const [gmailConnection, setGmailConnection] = useState({ connected: false, email: null, provider: 'smtp' });
+const [gmailConnecting, setGmailConnecting] = useState(false);
   const [trends, setTrends] = useState([]);
   const [comparison, setComparison] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
@@ -205,6 +210,10 @@ const canUseEmailReports = ['pro', 'agency'].includes(planName);
     getEmailSettings(id)
       .then(setEmailSettings)
       .catch(() => {});
+
+    getGmailConnectionStatus()
+      .then(setGmailConnection)
+      .catch(() => setGmailConnection({ connected: false, email: null, provider: 'smtp' }));
   }, [id, canUseEmailReports]);
 
   useEffect(() => {
@@ -212,6 +221,28 @@ const canUseEmailReports = ['pro', 'agency'].includes(planName);
       setActiveTab('overview');
     }
   }, [activeTab, canUseEmailReports]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmailStatus = params.get('gmail');
+
+    if (!gmailStatus) return;
+
+    if (gmailStatus === 'connected') {
+      toast.success('Gmail connected successfully');
+      if (canUseEmailReports) {
+        getGmailConnectionStatus()
+          .then(setGmailConnection)
+          .catch(() => {});
+      }
+    } else if (gmailStatus === 'failed') {
+      toast.error('Failed to connect Gmail');
+    }
+
+    params.delete('gmail');
+    const query = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+  }, [canUseEmailReports]);
 
   const platformData = platforms.map(p => ({ name: p.platform, value: parseFloat(p.spend || 0) }));
 
@@ -520,11 +551,11 @@ const handleSendTestEmail = async () => {
 
   try {
     setSendingTestEmail(true);
-    await sendTestEmail({
+    const result = await sendTestEmail({
       recipient_email: emailSettings.recipient_email,
       cc_email: emailSettings.cc_email,
     });
-    toast.success('Test email sent');
+    toast.success(result?.sentFrom?.fromEmail ? `Test email sent from ${result.sentFrom.fromEmail}` : 'Test email sent');
   } catch {
     toast.error('Failed to send test email');
   } finally {
@@ -550,11 +581,47 @@ const handleSendMonthlyEmail = async () => {
         last_sent_month: result.report_month,
       }));
     }
-    toast.success('Previous month report email sent');
+    toast.success(result?.sentFrom?.fromEmail ? `Previous month report sent from ${result.sentFrom.fromEmail}` : 'Previous month report email sent');
   } catch (error) {
     toast.error(error.response?.data?.error || 'Failed to send monthly report email');
   } finally {
     setSendingMonthlyEmail(false);
+  }
+};
+
+const handleConnectGmail = async () => {
+  if (!canUseEmailReports) {
+    return toast.error('Email Reports are available on Pro and Agency plans');
+  }
+
+  try {
+    setGmailConnecting(true);
+    const result = await connectGmail({
+      clientId: id,
+      returnTo: `/clients/${id}`,
+    });
+
+    if (!result?.url) {
+      throw new Error('Missing Google OAuth URL');
+    }
+
+    window.location.href = result.url;
+  } catch {
+    toast.error('Failed to start Gmail connection');
+    setGmailConnecting(false);
+  }
+};
+
+const handleDisconnectGmail = async () => {
+  try {
+    setGmailConnecting(true);
+    await disconnectGmail();
+    setGmailConnection({ connected: false, email: null, provider: 'smtp' });
+    toast.success('Gmail disconnected');
+  } catch {
+    toast.error('Failed to disconnect Gmail');
+  } finally {
+    setGmailConnecting(false);
   }
 };
 
@@ -1194,6 +1261,49 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
 
     <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 22 }}>
       Automatically email this client's monthly PDF report after each month ends.
+    </div>
+
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 16,
+        padding: 14,
+        borderRadius: 12,
+        background: gmailConnection.connected ? '#ECFDF5' : '#FFF7ED',
+        border: `1px solid ${gmailConnection.connected ? '#A7F3D0' : '#FED7AA'}`,
+        marginBottom: 18,
+      }}
+    >
+      <div>
+        <div style={{ fontWeight: 800, fontSize: 13 }}>
+          Sender Email
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>
+          {gmailConnection.connected
+            ? `Emails will be sent from ${gmailConnection.email}.`
+            : 'Connect Gmail to send emails from your login/company Gmail address. Until then, emails use the central sender with replies going to your login email.'}
+        </div>
+      </div>
+
+      {gmailConnection.connected ? (
+        <button
+          className="btn btn-secondary"
+          disabled={gmailConnecting}
+          onClick={handleDisconnectGmail}
+        >
+          {gmailConnecting ? 'Disconnecting...' : 'Disconnect Gmail'}
+        </button>
+      ) : (
+        <button
+          className="btn btn-primary"
+          disabled={gmailConnecting}
+          onClick={handleConnectGmail}
+        >
+          {gmailConnecting ? 'Connecting...' : 'Connect Gmail'}
+        </button>
+      )}
     </div>
 
     <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>

@@ -47,6 +47,21 @@ export const sendMonthlyReport = async (clientId) => {
   return res.data;
 };
 
+export const getGmailConnectionStatus = async () => {
+  const res = await api.get('/email/google/status');
+  return res.data;
+};
+
+export const connectGmail = async (data) => {
+  const res = await api.post('/email/google/connect', data);
+  return res.data;
+};
+
+export const disconnectGmail = async () => {
+  const res = await api.delete('/email/google/connect');
+  return res.data;
+};
+
 // Clients
 export const getClients = () => api.get('/clients').then(r => r.data);
 export const getClient = (id) => api.get(`/clients/${id}`).then(r => r.data);
