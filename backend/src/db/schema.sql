@@ -130,6 +130,34 @@ CREATE TABLE IF NOT EXISTS generated_reports (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS client_email_settings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  agency_id UUID NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+  enabled BOOLEAN DEFAULT FALSE,
+  recipient_email VARCHAR(255),
+  cc_email VARCHAR(255),
+  send_day INTEGER DEFAULT 1 CHECK (send_day BETWEEN 1 AND 28),
+  last_sent_month VARCHAR(7),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(client_id, agency_id)
+);
+
+CREATE TABLE IF NOT EXISTS email_report_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  agency_id UUID NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+  sent_by UUID REFERENCES users(id),
+  recipient_email VARCHAR(255),
+  cc_email VARCHAR(255),
+  report_month VARCHAR(7),
+  subject TEXT,
+  status VARCHAR(50) DEFAULT 'sent',
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_performance_client_month ON performance_data(client_id, report_month);
 CREATE INDEX IF NOT EXISTS idx_performance_platform ON performance_data(platform);
@@ -137,6 +165,8 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_client ON campaigns(client_id);
 CREATE INDEX IF NOT EXISTS idx_uploads_client ON report_uploads(client_id);
 CREATE INDEX IF NOT EXISTS idx_users_agency ON users(agency_id);
 CREATE INDEX IF NOT EXISTS idx_clients_agency ON clients(agency_id);
+CREATE INDEX IF NOT EXISTS idx_email_settings_due ON client_email_settings(agency_id, enabled, send_day, last_sent_month);
+CREATE INDEX IF NOT EXISTS idx_email_logs_client_month ON email_report_logs(client_id, agency_id, report_month);
 
 -- Sample agency
 INSERT INTO agencies (id, name, primary_color, secondary_color) 

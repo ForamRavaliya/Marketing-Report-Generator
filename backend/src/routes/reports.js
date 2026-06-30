@@ -1355,18 +1355,32 @@ doc.fillColor(THEME.text)
       doc.addPage();
       drawPageHeader('Agency Action Plan', 'Prepared for client review');
 
-      drawCard(35, 125, 525, 120, '#FFFFFF', '#BFDBFE');
-      drawAgencyLogo();
-      doc.fillColor(THEME.text).fontSize(16).font('Helvetica-Bold').text(agency?.name || 'Agency Report', 55, 150);
-      doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
-        `Prepared for ${client.name}. This page summarizes the next month priority and planning direction.`,
-        55,
-        180,
-        { width: 480, height: 30, lineGap: 4 }
-      );
+      drawCard(35, 125, 525, 165, '#FFFFFF', '#BFDBFE');
 
-      drawCard(35, 280, 525, 180, THEME.softBlue, '#BFDBFE');
-      doc.fillColor(THEME.text).fontSize(16).font('Helvetica-Bold').text('Next Month Strategy', 55, 305);
+      drawAgencyLogo();
+
+      doc.fillColor(THEME.text)
+        .fontSize(18)
+        .font('Helvetica-Bold')
+        .text(agency?.name || 'Agency Report', 110, 145);
+
+      doc.fillColor(THEME.muted)
+        .fontSize(9)
+        .font('Helvetica')
+        .text(`Prepared For : ${client.name}`, 110, 170);
+
+      doc.text(`Report Period : ${dateLabel}`, 110, 188);
+
+      if (agency?.email) {
+        doc.text(`Email : ${agency.email}`, 110, 206);
+      }
+
+      if (agency?.website) {
+        doc.text(`Website : ${agency.website}`, 110, 224);
+      }
+
+      drawCard(35, 325, 525, 180, THEME.softBlue, '#BFDBFE');
+      doc.fillColor(THEME.text).fontSize(16).font('Helvetica-Bold')doc.circle(65, 395 + i * 35, 8);
 
       const agencyActions = [
         safeSummary.hasRoas
@@ -1380,23 +1394,33 @@ doc.fillColor(THEME.text)
 
       agencyActions.forEach((item, i) => {
         doc.circle(65, 350 + i * 35, 8).fill(THEME.royal);
-        doc.fillColor('#FFFFFF').fontSize(7).font('Helvetica-Bold').text(String(i + 1), 62, 346 + i * 35, { width: 6, align: 'center' });
-        doc.fillColor(THEME.text).fontSize(9).font('Helvetica').text(item, 85, 343 + i * 35, {
+        doc.fillColor('#FFFFFF').fontSize(7).font('Helvetica-Bold').text(String(i + 1), 62, 391 + i * 35, { width: 6, align: 'center' });
+        doc.fillColor(THEME.text).fontSize(9).font('Helvetica').text(item, 85, 388 + i * 35, {
           width: 430,
           height: 20,
           ellipsis: true,
         });
       });
 
-      drawCard(35, 505, 525, 95, '#F8FAFC', '#BFDBFE');
-      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Client-Friendly Summary', 55, 525);
+      drawCard(35, 585, 525, 95, '#F8FAFC', '#BFDBFE');
+      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Client-Friendly Summary', 55, 605);
       doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
         `${client.name} should continue improving ${metricLabels.conversion.toLowerCase()} quality while keeping ${metricLabels.cpa.toLowerCase()} under control.`,
         55,
-        552,
+        632,
         { width: 480, height: 28, lineGap: 4, ellipsis: true }
       );
 
+       doc.roundedRect(35,700,525,28,8).fill('#EEF2FF');
+
+       doc.fillColor(THEME.royal)
+       .fontSize(8)
+       .font('Helvetica-Bold')
+       .text(
+       'CONFIDENTIAL • Prepared exclusively for this client.',
+       50,
+       710
+       );
       drawFooter(pageNo++);
     };
 

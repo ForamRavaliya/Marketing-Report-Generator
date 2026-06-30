@@ -27,12 +27,17 @@ export const getEmailSettings = async (clientId) => {
 };
 
 export const saveEmailSettings = async (clientId, data) => {
-  const res = await api.put(`/email/settings/${clientId}`, data);
+  const res = await api.post(`/email/settings/${clientId}`, data);
   return res.data;
 };
 
-export const sendTestEmail = async (email) => {
-  const res = await api.post('/email/test', { email });
+export const sendTestEmail = async (data) => {
+  const res = await api.post('/email/test', data);
+  return res.data;
+};
+
+export const sendMonthlyReport = async (clientId) => {
+  const res = await api.post(`/email/send-monthly/${clientId}`);
   return res.data;
 };
 

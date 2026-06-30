@@ -11,8 +11,9 @@ import {
   getAIInsights,
   getReportHistory,
   getEmailSettings,
-    saveEmailSettings,
-    sendTestEmail,
+  saveEmailSettings,
+  sendTestEmail,
+  sendMonthlyReport,
 } from '../utils/api';
 
 import { MetricCard } from '../components/MetricCard';
@@ -80,6 +81,8 @@ const [emailSettings, setEmailSettings] = useState({
   send_day: 1,
 });
 const [savingEmailSettings, setSavingEmailSettings] = useState(false);
+const [sendingTestEmail, setSendingTestEmail] = useState(false);
+const [sendingMonthlyEmail, setSendingMonthlyEmail] = useState(false);
   const [trends, setTrends] = useState([]);
   const [comparison, setComparison] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
@@ -93,6 +96,13 @@ const [savingEmailSettings, setSavingEmailSettings] = useState(false);
 const [subscription, setSubscription] = useState(null);
 const [aiInsight, setAiInsight] = useState(null);
 const [aiLoading, setAiLoading] = useState(false);
+const planName = String(
+  subscription?.plan_name ||
+  subscription?.planName ||
+  subscription?.plan ||
+  'free'
+).toLowerCase();
+const canUseEmailReports = ['pro', 'agency'].includes(planName);
 
 /* const [adForm, setAdForm] = useState({
   platform: 'meta',
@@ -190,12 +200,18 @@ const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (!id) return;
+    if (!id || !canUseEmailReports) return;
 
     getEmailSettings(id)
       .then(setEmailSettings)
       .catch(() => {});
-  }, [id]);
+  }, [id, canUseEmailReports]);
+
+  useEffect(() => {
+    if (activeTab === 'email reports' && !canUseEmailReports) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, canUseEmailReports]);
 
   const platformData = platforms.map(p => ({ name: p.platform, value: parseFloat(p.spend || 0) }));
 
@@ -474,6 +490,10 @@ const lowCampaign = campaigns.length
   const aiConfig = getAiConfig();
 
 const handleSaveEmailSettings = async () => {
+  if (!canUseEmailReports) {
+    return toast.error('Email Reports are available on Pro and Agency plans');
+  }
+
   try {
     setSavingEmailSettings(true);
 
@@ -490,15 +510,51 @@ const handleSaveEmailSettings = async () => {
 };
 
 const handleSendTestEmail = async () => {
+  if (!canUseEmailReports) {
+    return toast.error('Email Reports are available on Pro and Agency plans');
+  }
+
   if (!emailSettings.recipient_email) {
     return toast.error('Recipient email required');
   }
 
   try {
-    await sendTestEmail(emailSettings.recipient_email);
+    setSendingTestEmail(true);
+    await sendTestEmail({
+      recipient_email: emailSettings.recipient_email,
+      cc_email: emailSettings.cc_email,
+    });
     toast.success('Test email sent');
   } catch {
     toast.error('Failed to send test email');
+  } finally {
+    setSendingTestEmail(false);
+  }
+};
+
+const handleSendMonthlyEmail = async () => {
+  if (!canUseEmailReports) {
+    return toast.error('Email Reports are available on Pro and Agency plans');
+  }
+
+  if (!emailSettings.recipient_email) {
+    return toast.error('Recipient email required');
+  }
+
+  try {
+    setSendingMonthlyEmail(true);
+    const result = await sendMonthlyReport(id);
+    if (result?.report_month) {
+      setEmailSettings((prev) => ({
+        ...prev,
+        last_sent_month: result.report_month,
+      }));
+    }
+    toast.success('Previous month report email sent');
+  } catch (error) {
+    toast.error(error.response?.data?.error || 'Failed to send monthly report email');
+  } finally {
+    setSendingMonthlyEmail(false);
   }
 };
 
@@ -515,7 +571,7 @@ const handleSendTestEmail = async () => {
     'trends',
     'campaigns',
     'platforms',
-    'email reports',
+    ...(canUseEmailReports ? ['email reports'] : []),
     //'integrations',
     'ai insights',
 
@@ -1121,7 +1177,16 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
             )}
 
 {/* Email Reports Tab */}
-{activeTab === 'email reports' && (
+{activeTab === 'email reports' && (!canUseEmailReports ? (
+  <div className="card card-pad">
+    <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 6 }}>
+      Email Reports
+    </div>
+    <div style={{ color: 'var(--text3)' }}>
+      Email Reports are available on Pro and Agency plans.
+    </div>
+  </div>
+) : (
   <div className="card card-pad">
     <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 6 }}>
       Monthly Email Reports
@@ -1212,27 +1277,36 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
       }}
     >
       Example: if send day is 1 and today is July 1, the system will email the June report.
-      Current month incomplete reports will not be sent automatically.
+      Current incomplete month is never sent automatically.
     </div>
 
     <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
       <button
         className="btn btn-secondary"
+        disabled={sendingTestEmail || savingEmailSettings || sendingMonthlyEmail}
         onClick={handleSendTestEmail}
       >
-        Send Test Email
+        {sendingTestEmail ? 'Sending...' : 'Send Test Email'}
       </button>
 
       <button
         className="btn btn-primary"
-        disabled={savingEmailSettings}
+        disabled={savingEmailSettings || sendingTestEmail || sendingMonthlyEmail}
         onClick={handleSaveEmailSettings}
       >
         {savingEmailSettings ? 'Saving...' : 'Save Settings'}
       </button>
+
+      <button
+        className="btn btn-secondary"
+        disabled={sendingMonthlyEmail || savingEmailSettings || sendingTestEmail}
+        onClick={handleSendMonthlyEmail}
+      >
+        {sendingMonthlyEmail ? 'Sending...' : 'Send Previous Month Now'}
+      </button>
     </div>
   </div>
-)}
+))}
 
              {/* AI Insights Tab */}
 {activeTab === 'ai insights' && (

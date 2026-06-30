@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const emailRoutes = require('./routes/email');
+const { router: emailRoutes } = require('./routes/email');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -48,6 +48,7 @@ app.use('/api/super-admin', require('./routes/superAdmin'));
 
 const { startAutoSyncJob } = require('./jobs/autoSyncJob');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiryJob');
+const { startMonthlyEmailReportJob } = require('./jobs/monthlyEmailReportJob');
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -73,6 +74,7 @@ app.listen(PORT, async () => {
     console.log('⏱ Auto sync job started');
 
     startSubscriptionExpiryJob();
+    startMonthlyEmailReportJob();
     console.log('⏱ Subscription expiry job started');
   } catch (err) {
     console.error(`\n❌ PostgreSQL connection FAILED: ${err.message}`);
