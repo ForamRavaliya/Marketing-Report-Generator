@@ -158,6 +158,19 @@ CREATE TABLE IF NOT EXISTS email_report_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS user_email_connections (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  agency_id UUID NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+  provider VARCHAR(50) NOT NULL DEFAULT 'google',
+  email VARCHAR(255) NOT NULL,
+  refresh_token TEXT NOT NULL,
+  scope TEXT,
+  connected_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, provider)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_performance_client_month ON performance_data(client_id, report_month);
 CREATE INDEX IF NOT EXISTS idx_performance_platform ON performance_data(platform);
@@ -167,6 +180,7 @@ CREATE INDEX IF NOT EXISTS idx_users_agency ON users(agency_id);
 CREATE INDEX IF NOT EXISTS idx_clients_agency ON clients(agency_id);
 CREATE INDEX IF NOT EXISTS idx_email_settings_due ON client_email_settings(agency_id, enabled, send_day, last_sent_month);
 CREATE INDEX IF NOT EXISTS idx_email_logs_client_month ON email_report_logs(client_id, agency_id, report_month);
+CREATE INDEX IF NOT EXISTS idx_user_email_connections_user ON user_email_connections(user_id, provider);
 
 -- Sample agency
 INSERT INTO agencies (id, name, primary_color, secondary_color) 

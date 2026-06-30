@@ -115,11 +115,58 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
 
 const db = require('../db');
-const { authenticate } = require('../middleware/auth');
-const { sendReportEmail } = require('../utils/emailService');
+const { authenticate, JWT_SECRET } = require('../middleware/auth');
+const { sendReportEmail, sendGmailOAuthEmail } = require('../utils/emailService');
+const {
+  getGoogleAuthUrl,
+  exchangeCodeForTokens,
+  refreshGoogleAccessToken,
+  getGoogleUserInfo,
+} = require('../utils/googleOAuthService');
+
+router.get('/google/callback', async (req, res) => {
+  try {
+    const { code, state, error } = req.query;
+    if (error) throw new Error(String(error));
+    if (!code || !state) throw new Error('Google OAuth callback is missing code or state');
+
+    const payload = jwt.verify(String(state), JWT_SECRET);
+    const tokenData = await exchangeCodeForTokens(String(code));
+    const userInfo = await getGoogleUserInfo(tokenData.access_token);
+    const email = String(userInfo.email || '').toLowerCase();
+
+    if (!email || !tokenData.refresh_token) {
+      throw new Error('Google did not return a Gmail refresh token. Please reconnect and approve access.');
+    }
+
+    await db.query(
+      `INSERT INTO user_email_connections
+       (user_id, agency_id, provider, email, refresh_token, scope, connected_at, updated_at)
+       VALUES ($1,$2,'google',$3,$4,$5,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id, provider)
+       DO UPDATE SET
+         agency_id = EXCLUDED.agency_id,
+         email = EXCLUDED.email,
+         refresh_token = EXCLUDED.refresh_token,
+         scope = EXCLUDED.scope,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [payload.userId, payload.agencyId, email, tokenData.refresh_token, tokenData.scope || null]
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectPath = payload.returnTo || '/dashboard';
+    res.redirect(`${frontendUrl.replace(/\/$/, '')}${redirectPath}?gmail=connected`);
+  } catch (err) {
+    console.error('Google OAuth callback error:', err);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl.replace(/\/$/, '')}/dashboard?gmail=failed`);
+  }
+});
 
 router.use(authenticate);
 
@@ -307,6 +354,123 @@ const insertEmailLog = async ({
   );
 };
 
+const getUserGmailConnection = async (userId, agencyId) => {
+  const result = await db.query(
+    `SELECT *
+     FROM user_email_connections
+     WHERE user_id = $1
+       AND agency_id = $2
+       AND provider = 'google'
+     LIMIT 1`,
+    [userId, agencyId]
+  );
+
+  return result.rows[0] || null;
+};
+
+const sendEmailFromPreferredSender = async ({
+  user,
+  to,
+  cc,
+  subject,
+  html,
+  attachmentPath,
+  attachmentName,
+}) => {
+  const gmailConnection = await getUserGmailConnection(user.id, user.agency_id);
+
+  if (gmailConnection?.refresh_token) {
+    const accessToken = await refreshGoogleAccessToken(gmailConnection.refresh_token);
+
+    await sendGmailOAuthEmail({
+      fromEmail: gmailConnection.email,
+      accessToken,
+      to,
+      cc,
+      subject,
+      html,
+      attachmentPath,
+      attachmentName,
+    });
+
+    return {
+      provider: 'google',
+      fromEmail: gmailConnection.email,
+    };
+  }
+
+  await sendReportEmail({
+    to,
+    cc,
+    replyTo: user.email,
+    subject,
+    html,
+    attachmentPath,
+    attachmentName,
+  });
+
+  return {
+    provider: 'smtp',
+    fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || null,
+  };
+};
+
+router.get('/google/status', async (req, res) => {
+  try {
+    if (!(await requireEmailPlan(req, res))) return;
+
+    const connection = await getUserGmailConnection(req.user.id, req.user.agency_id);
+
+    res.json({
+      connected: Boolean(connection),
+      email: connection?.email || null,
+      provider: connection ? 'google' : 'smtp',
+    });
+  } catch (err) {
+    console.error('Google email status error:', err);
+    res.status(500).json({ error: 'Failed to fetch Gmail connection status' });
+  }
+});
+
+router.post('/google/connect', async (req, res) => {
+  try {
+    if (!(await requireEmailPlan(req, res))) return;
+
+    const returnTo = String(req.body.returnTo || `/clients/${req.body.clientId || ''}`).replace(/\/+$/, '');
+    const state = jwt.sign(
+      {
+        userId: req.user.id,
+        agencyId: req.user.agency_id,
+        returnTo: returnTo || '/dashboard',
+      },
+      JWT_SECRET,
+      { expiresIn: '10m' }
+    );
+
+    res.json({ url: getGoogleAuthUrl({ state }) });
+  } catch (err) {
+    console.error('Google connect URL error:', err);
+    res.status(500).json({ error: 'Failed to start Google connection' });
+  }
+});
+
+router.delete('/google/connect', async (req, res) => {
+  try {
+    if (!(await requireEmailPlan(req, res))) return;
+
+    await db.query(
+      `DELETE FROM user_email_connections
+       WHERE user_id = $1 AND agency_id = $2 AND provider = 'google'`,
+      [req.user.id, req.user.agency_id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Google disconnect error:', err);
+    res.status(500).json({ error: 'Failed to disconnect Gmail' });
+  }
+});
+
 router.get('/settings/:clientId', async (req, res) => {
   try {
     if (!(await requireEmailPlan(req, res))) return;
@@ -383,10 +547,10 @@ router.post('/test', async (req, res) => {
     const validationError = validateSettings({ recipient_email: to, cc_email: cc, send_day: 1 });
     if (validationError) return res.status(400).json({ error: validationError });
 
-    await sendReportEmail({
+    const sentFrom = await sendEmailFromPreferredSender({
+      user: req.user,
       to,
       cc,
-      replyTo: req.user.email,
       subject: 'Monthly Report Email Test',
       html: `
         <p>This is a test email from Performance Marketing Report Generator.</p>
@@ -394,7 +558,7 @@ router.post('/test', async (req, res) => {
       `,
     });
 
-    res.json({ success: true, message: 'Test email sent successfully' });
+    res.json({ success: true, message: 'Test email sent successfully', sentFrom });
   } catch (err) {
     console.error('Email send error:', err);
     res.status(500).json({ error: 'Failed to send test email' });
@@ -439,10 +603,10 @@ router.post('/send-monthly/:clientId', async (req, res) => {
 
     subject = `${client.name} Monthly Marketing Report - ${monthRange.month}`;
 
-    await sendReportEmail({
+    const sentFrom = await sendEmailFromPreferredSender({
+      user: req.user,
       to: settings.recipient_email,
       cc: settings.cc_email,
-      replyTo: req.user.email,
       subject,
       html: `
         <p>Hello,</p>
@@ -471,7 +635,7 @@ router.post('/send-monthly/:clientId', async (req, res) => {
       status: 'sent',
     });
 
-    res.json({ success: true, message: 'Monthly report email sent', report_month: monthRange.month });
+    res.json({ success: true, message: 'Monthly report email sent', report_month: monthRange.month, sentFrom });
   } catch (err) {
     console.error('Email send error:', err);
 

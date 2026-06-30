@@ -241,6 +241,19 @@ const getPlanPrice = (planId) => {
                 <div style={{ fontSize: 13, fontWeight: 800, color: '#C2410C' }}>
                   Downgrade scheduled
                 </div>
+                {downgradeToThisPlan && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: 12,
+                      color: '#6B7280',
+                      textAlign: 'center',
+                    }}
+                  >
+                    Will switch to Free on{' '}
+                    {new Date(subscription.expires_at).toLocaleDateString()}
+                  </div>
+                )}
 
                 <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text2)' }}>
                   Your plan will change to {subscription.next_plan_name?.toUpperCase()} after your current billing period ends.
@@ -252,9 +265,9 @@ const getPlanPrice = (planId) => {
                   onClick={handleCancelDowngrade}
                  disabled={processingPlan !== null}
                 >
-                 {processingPlan === 'cancel-downgrade'
-                   ? 'Processing...'
-                   : `Keep ${subscription.plan_name?.toUpperCase()} Active`}
+                {processingPlan === 'cancel-downgrade'
+                  ? 'Processing...'
+                  : `Keep ${subscription.plan_name?.toUpperCase()} Active`}
                 </button>
               </div>
             )}
@@ -417,18 +430,20 @@ const getPlanPrice = (planId) => {
                 <button
                   className={active ? 'btn btn-secondary' : 'btn btn-primary'}
                   style={{ width: '100%' }}
-                 disabled={active || processingPlan !== null || downgradeToThisPlan}
+                disabled={active || processingPlan !== null || downgradeToThisPlan}
                   onClick={() => handleUpgrade(plan.id)}
                 >
-                {active
-                  ? 'Current Plan'
-                  : downgradeToThisPlan
-                  ? 'Downgrade Scheduled'
-                  : processing
-                  ? 'Processing...'
-                  : plan.id === 'free'
-                  ? 'Switch to Free'
-                  : `Pay & Choose ${plan.name}`}
+               {downgradeToThisPlan
+                 ? `Will switch on ${
+                     subscription?.expires_at
+                       ? new Date(subscription.expires_at).toLocaleDateString()
+                       : 'billing end'
+                   }`
+                 : processing
+                 ? 'Processing...'
+                 : plan.id === 'free'
+                 ? 'Switch to Free'
+                 : `Pay & Choose ${plan.name}`}
                 </button>
               </div>
             );
