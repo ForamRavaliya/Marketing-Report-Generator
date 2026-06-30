@@ -898,23 +898,29 @@ const reportType =
         : [
             'Improve landing pages and forms to increase lead quality.',
             'Scale campaigns with lower cost per lead and higher lead volume.',
-            'Pause or reduce budget for campaigns with weak lead performance.',
+           'Review and optimize campaigns with higher cost per lead before increasing budget.',
             'Track lead source quality before increasing spend.',
           ];
 
-          let campaignHealth = 'Needs Review';
-          let campaignHealthNote = 'Improve tracking and campaign quality before scaling.';
+         let campaignHealth = 'Not Enough Data';
+         let campaignHealthNote =
+           'More conversion and cost data is required to evaluate campaign performance.';
 
-          if (safeSummary.hasRoas && safeSummary.roas >= 3 && safeSummary.hasCpa) {
-            campaignHealth = 'Strong';
-            campaignHealthNote = 'ROAS and cost performance look healthy.';
-          } else if (safeSummary.hasConversions && safeSummary.hasCpa) {
-            campaignHealth = 'Good';
-            campaignHealthNote = `${metricLabels.conversion} are being generated at a measurable ${metricLabels.cpa.toLowerCase()}.`;
-          } else if (safeSummary.hasConversions) {
-            campaignHealth = 'Average';
-            campaignHealthNote = `${metricLabels.conversion} are available, but cost efficiency needs more tracking.`;
-          }
+         if (safeSummary.hasCpa) {
+           if (safeSummary.cpa <= 100) {
+             campaignHealth = 'Excellent';
+             campaignHealthNote =
+               'Campaign is performing efficiently with a low cost per result.';
+           } else if (safeSummary.cpa <= 300) {
+             campaignHealth = 'Good';
+             campaignHealthNote =
+               'Campaign performance is stable with acceptable acquisition cost.';
+           } else {
+             campaignHealth = 'Needs Improvement';
+             campaignHealthNote =
+               'Campaign cost is high. Review targeting, creatives and budget allocation.';
+           }
+         }
           const bestCampaignByCost = campaigns.length
             ? [...campaigns]
                 .filter((c) => Number(c.conversions || 0) > 0)
@@ -1016,9 +1022,9 @@ const reportType =
         const col = i % 3;
         const row = Math.floor(i / 3);
         const x = 35 + col * 175;
-       const y = 340 + row * 105;
+       const y = 340 + row * 88;
 
-        drawCard(x, y, 155, 82, item.bg, THEME.border);
+        drawCard(x, y, 155, 74, item.bg, THEME.border);
         doc.circle(x + 22, y + 26, 7).fill(item.color);
         doc.fillColor(THEME.muted).fontSize(7.5).font('Helvetica-Bold').text(item.label.toUpperCase(), x + 38, y + 18, {
           width: 100,
@@ -1036,8 +1042,8 @@ const reportType =
             .font("Helvetica")
             .text(
               item.note,
-              x + 18,
-              y + 64,
+             x + 18,
+             y + 60,
               {
                 width: 120,
                 ellipsis: true,
@@ -1045,40 +1051,42 @@ const reportType =
             );
         }
       });
-      drawCard(35, 470, 525, 70, '#FFFFFF', '#BFDBFE');
+     drawCard(35, 520, 525, 70, '#FFFFFF', '#BFDBFE');
 
       doc.fillColor(THEME.text)
         .fontSize(14)
         .font('Helvetica-Bold')
-        .text('Campaign Health', 55, 490);
+        .text('Overall Campaign Performance', 55, 540);
 
       const healthColor =
-        campaignHealth === 'Strong'
+        campaignHealth === 'Excellent'
           ? THEME.emerald
           : campaignHealth === 'Good'
           ? THEME.royal
-          : THEME.amber;
+          : campaignHealth === 'Needs Improvement'
+          ? THEME.amber
+          : THEME.muted;
 
       doc.fillColor(healthColor)
         .fontSize(18)
         .font('Helvetica-Bold')
-        .text(campaignHealth, 55, 512);
+       .text(campaignHealth, 55, 562);
 
       doc.fillColor(THEME.muted)
         .fontSize(8.5)
         .font('Helvetica')
         .text(
           campaignHealthNote,
-          170,
-          514,
+         170,
+         564,
           {
             width: 340,
             ellipsis: true,
           }
         );
 
-      drawCard(35, 555, 525, 80, '#F8FAFC', '#BFDBFE');
-      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Simple Business Takeaway', 55, 575);
+     drawCard(35, 610, 525, 80, '#F8FAFC', '#BFDBFE');
+      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Business Summary', 55, 630);
       let takeaway = '';
 
       if (safeSummary.hasRoas && safeSummary.roas >= 3) {
@@ -1089,16 +1097,18 @@ const reportType =
           'Campaign is generating results but needs optimisation before increasing budget.';
       } else {
         takeaway =
-          'Revenue tracking is unavailable. Add revenue data to measure profitability.';
+          'The campaign generated measurable results. Revenue tracking should be added to understand real business profitability.';
       }
+
+
 
       doc.fillColor(THEME.muted)
          .fontSize(9)
          .font('Helvetica')
          .text(
             takeaway,
-            55,
-            600,
+           55,
+           655,
             {
                width: 480,
                height: 32,
@@ -1300,7 +1310,7 @@ const reportType =
       drawPageHeader('Recommendations', 'Clear actions for next month');
 
       drawCard(35, 125, 525, 100, THEME.softBlue, '#BFDBFE');
-      doc.fillColor(THEME.text).fontSize(15).font('Helvetica-Bold').text('What This Report Says', 55, 145);
+      doc.fillColor(THEME.text).fontSize(15).font('Helvetica-Bold').text('Executive Insights', 55, 145);
       doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(simpleTakeaway, 55, 173, {
         width: 480,
         height: 36,
@@ -1328,25 +1338,59 @@ drawCard(35, 515, 525, 70, '#FFFFFF', '#BFDBFE');
 doc.fillColor(THEME.text)
   .fontSize(14)
   .font('Helvetica-Bold')
-  .text('Campaign Focus', 55, 532);
+  .text('Campaign Highlights', 55, 532);
 
 const bestName = bestCampaignByCost?.name || bestCampaign?.name || 'Not Available';
+doc.fillColor(THEME.muted)
+  .fontSize(8)
+  .font('Helvetica')
+  .text(
+    `Generated the highest ${metricLabels.conversion.toLowerCase()} with better overall efficiency.`,
+    55,
+    590,
+    { width: 180, height: 20, ellipsis: true }
+  );
 const weakName = needsImprovementCampaign?.name || 'Not Available';
 
 doc.fillColor(THEME.emerald)
-  .fontSize(8)
-  .font('Helvetica-Bold')
-  .text('BEST', 55, 558);
+.fontSize(8)
+.font('Helvetica-Bold')
+.text('BEST PERFORMING',55,558);
 
 doc.fillColor(THEME.text)
-  .fontSize(8)
-  .font('Helvetica')
-  .text(bestName, 90, 558, { width: 190, ellipsis: true });
+.fontSize(8)
+.font('Helvetica')
+.text(bestName,90,558,{width:190,ellipsis:true});
+
+doc.fillColor(THEME.muted)
+.fontSize(8)
+.font('Helvetica')
+.text(
+`Generated the highest ${metricLabels.conversion.toLowerCase()} with better overall efficiency.`,
+55,
+575,
+{width:200,height:20,ellipsis:true}
+);
 
 doc.fillColor(THEME.rose)
-  .fontSize(8)
-  .font('Helvetica-Bold')
-  .text('REVIEW', 300, 558);
+.fontSize(8)
+.font('Helvetica-Bold')
+.text('NEEDS REVIEW',300,558);
+
+doc.fillColor(THEME.text)
+.fontSize(8)
+.font('Helvetica')
+.text(weakName,355,558,{width:165,ellipsis:true});
+
+doc.fillColor(THEME.muted)
+.fontSize(8)
+.font('Helvetica')
+.text(
+'Monitor performance and improve targeting before increasing budget.',
+300,
+575,
+{width:190,height:20,ellipsis:true}
+);
 
 doc.fillColor(THEME.text)
   .fontSize(8)
@@ -1477,13 +1521,13 @@ doc.fillColor('#CBD5E1')
       drawFooter(pageNo++);
     };
 
-    drawSimpleCover();
-    drawSimpleTablesPage();
-    drawSimpleChartsPage();
-    drawRecommendationsPage();
-    drawAgencyFinalPage();
+  drawSimpleCover();
+  drawSimpleTablesPage();
+  drawSimpleChartsPage();
+  drawRecommendationsPage();
+  drawAgencyFinalPage();
 
-    doc.end();
+  doc.end();
 
     writeStream.on('finish', async () => {
       const BASE_URL = "https://marketing-report-generator-p9wj.onrender.com";
