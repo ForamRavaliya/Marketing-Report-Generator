@@ -1403,7 +1403,7 @@ const reportType =
         );
       }
 
-      drawCard(35, 335, 525, 180, '#F8FAFC', '#BFDBFE');
+      drawCard(35, 335, 525, 205, '#F8FAFC', '#BFDBFE');
       drawSectionTitle('Month-over-Month Comparison', 55, 355, THEME.emerald);
 
       const momHeaders = ['Metric', 'Previous Month', 'Current Month', 'Change'];
@@ -1458,12 +1458,12 @@ const reportType =
         my += 15;
       });
 
-      drawCard(35, 535, 525, 190, THEME.card, THEME.border);
-      drawSectionTitle('Top Campaigns', 55, 555, THEME.violet);
+      drawCard(35, 560, 525, 170, THEME.card, THEME.border);
+      drawSectionTitle('Top Campaigns', 55, 580, THEME.violet);
 
       const cHeaders = ['Campaign', 'Spend', '% Spend', metricLabels.conversion, metricLabels.cpa];
       const cWidths = [205, 92, 65, 58, 65];
-      let cy = 590;
+      let cy = 615;
 
       doc.roundedRect(55, cy, 485, 24, 7).fill(THEME.violet);
       x = 55;
