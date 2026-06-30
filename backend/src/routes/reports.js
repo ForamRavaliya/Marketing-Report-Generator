@@ -670,23 +670,11 @@ const reportType =
     };
 
     const getGrowthColor = (metricKey, growth) => {
-      if (!growth || typeof growth.value !== 'number') return THEME.muted;
-
-      const key = String(metricKey || '').toLowerCase();
-      const isCostMetric = ['cpc', 'cpa', 'cpl', 'cpp', 'cpo'].includes(key);
-
-      if (isCostMetric) {
-        return growth.value <= 0 ? THEME.emerald : THEME.rose;
-      }
-
-      return growth.value >= 0 ? THEME.emerald : THEME.rose;
+      return THEME.royal;
     };
 
     const getGrowthBg = (metricKey, growth) => {
-      const color = getGrowthColor(metricKey, growth);
-      if (color === THEME.emerald) return THEME.softGreen;
-      if (color === THEME.rose) return THEME.softRose;
-      return '#F1F5F9';
+      return THEME.softBlue;
     };
 
 
@@ -1692,12 +1680,15 @@ const reportType =
         });
       });
 
-drawCard(35, 525, 525, 98, '#FFFFFF', '#BFDBFE');
+const campaignHighlightsY = 520;
+const campaignHighlightsBoxY = campaignHighlightsY + 42;
+
+drawCard(35, campaignHighlightsY, 525, 100, '#FFFFFF', '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(14)
   .font('Helvetica-Bold')
-  .text('Campaign Highlights', 55, 540);
+  .text('Campaign Highlights', 55, campaignHighlightsY + 15);
 
 const truncateCampaignName = (name) => {
   const value = String(name || 'Not Available');
@@ -1706,54 +1697,54 @@ const truncateCampaignName = (name) => {
 const bestName = truncateCampaignName(bestCampaignByCost?.name || bestCampaign?.name);
 const weakName = truncateCampaignName(needsImprovementCampaign?.name);
 
-doc.roundedRect(55, 562, 230, 42, 8).fill(THEME.softGreen);
-doc.rect(55, 562, 4, 42).fill(THEME.emerald);
+doc.roundedRect(55, campaignHighlightsBoxY, 230, 48, 8).fill(THEME.softGreen);
+doc.rect(55, campaignHighlightsBoxY, 4, 48).fill(THEME.emerald);
 doc.fillColor(THEME.emerald)
   .fontSize(7)
   .font('Helvetica-Bold')
-  .text('BEST PERFORMING', 68, 568, { width: 100 });
+  .text('BEST PERFORMING', 68, campaignHighlightsBoxY + 6, { width: 100 });
 doc.fillColor(THEME.text)
-  .fontSize(8)
+  .fontSize(7.8)
   .font('Helvetica-Bold')
-  .text(bestName, 165, 568, { width: 105, height: 10, ellipsis: true });
+  .text(bestName, 150, campaignHighlightsBoxY + 6, { width: 125, height: 10, ellipsis: true });
 doc.fillColor(THEME.muted)
   .fontSize(6.5)
   .font('Helvetica')
-  .text(`Best ${metricLabels.quality} and acquisition efficiency.`, 68, 581, {
-    width: 202,
-    height: 20,
+  .text(`Best ${metricLabels.quality} and acquisition efficiency.`, 68, campaignHighlightsBoxY + 22, {
+    width: 175,
+    height: 22,
     lineGap: 1,
     ellipsis: false,
   });
 
-doc.roundedRect(310, 562, 230, 42, 8).fill(THEME.softRose);
-doc.rect(310, 562, 4, 42).fill(THEME.rose);
+doc.roundedRect(310, campaignHighlightsBoxY, 230, 48, 8).fill(THEME.softRose);
+doc.rect(310, campaignHighlightsBoxY, 4, 48).fill(THEME.rose);
 doc.fillColor(THEME.rose)
   .fontSize(7)
   .font('Helvetica-Bold')
-  .text('NEEDS REVIEW', 323, 568, { width: 88 });
+  .text('NEEDS REVIEW', 323, campaignHighlightsBoxY + 6, { width: 88 });
 doc.fillColor(THEME.text)
-  .fontSize(8)
+  .fontSize(7.8)
   .font('Helvetica-Bold')
-  .text(weakName, 415, 568, { width: 108, height: 10, ellipsis: true });
+  .text(weakName, 405, campaignHighlightsBoxY + 6, { width: 125, height: 10, ellipsis: true });
 doc.fillColor(THEME.muted)
-  .fontSize(6.2)
+  .fontSize(6.5)
   .font('Helvetica')
-  .text('This campaign has the weakest efficiency during the selected period and should be reviewed before additional budget is allocated.', 323, 580, {
-    width: 202,
-    height: 20,
+  .text('This campaign has the weakest efficiency during the selected period and should be reviewed before additional budget is allocated.', 323, campaignHighlightsBoxY + 22, {
+    width: 175,
+    height: 22,
     lineGap: 1,
     ellipsis: false,
   });
 
-     drawCard(35, 638, 525, 70, THEME.softGreen, '#A7F3D0');
-      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 656);
+     drawCard(35, 645, 525, 70, THEME.softGreen, '#A7F3D0');
+      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 663);
       doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
         safeSummary.hasRoas
           ? `Continue scaling profitable campaigns while monitoring ${metricLabels.cpa.toLowerCase()} and ${metricLabels.quality}. Use ROAS to guide budget allocation across the strongest campaigns.`
           : `Revenue tracking should be enabled to unlock profitability analysis and ROI recommendations. Once mapped, future reports can identify which campaigns deserve more budget.`,
        55,
-       680,
+       687,
         { width: 480, height: 34, lineGap: 3, ellipsis: false }
       );
 
