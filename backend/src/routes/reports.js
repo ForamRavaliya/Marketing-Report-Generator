@@ -923,15 +923,33 @@ const reportType =
         .font('Helvetica-Bold')
         .text(planLabel.toUpperCase(), 420, 162, { width: 95, align: 'center' });
 
-      drawCard(35, 220, 525, 78, '#FFFFFF', '#BFDBFE');
-      doc.fillColor(THEME.text).fontSize(15).font('Helvetica-Bold').text('Executive Summary', 55, 240);
-      doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(simpleTakeaway, 55, 266, {
-        width: 480,
-        height: 28,
-        lineGap: 3,
-        ellipsis: true,
-      });
+      drawCard(35, 220, 525, 88, '#FFFFFF', '#BFDBFE');
 
+      doc.fillColor(THEME.text)
+        .fontSize(15)
+        .font('Helvetica-Bold')
+        .text('Executive Summary', 55, 238);
+
+      const summaryItems = [
+        ['Spend', formatCurrency(safeSummary.spend, currency)],
+        [metricLabels.conversion, safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'],
+        [metricLabels.cpaShort, safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'],
+        ['ROAS', safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'N/A'],
+      ];
+
+      summaryItems.forEach(([label, value], i) => {
+        const x = 55 + i * 120;
+
+        doc.fillColor(THEME.muted)
+          .fontSize(7)
+          .font('Helvetica-Bold')
+          .text(label.toUpperCase(), x, 266, { width: 105, ellipsis: true });
+
+        doc.fillColor(THEME.text)
+          .fontSize(11)
+          .font('Helvetica-Bold')
+          .text(value, x, 284, { width: 105, ellipsis: true });
+      });
       const kpis = [
         { label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue },
         { label: `Total ${metricLabels.conversion}`, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen },
@@ -945,7 +963,7 @@ const reportType =
         const col = i % 3;
         const row = Math.floor(i / 3);
         const x = 35 + col * 175;
-        const y = 330 + row * 105;
+       const y = 340 + row * 105;
 
         drawCard(x, y, 155, 82, item.bg, THEME.border);
         doc.circle(x + 22, y + 26, 7).fill(item.color);
@@ -962,14 +980,33 @@ const reportType =
 
       drawCard(35, 555, 525, 95, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Simple Business Takeaway', 55, 575);
-      doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
-        safeSummary.hasRoas
-          ? `Revenue tracking is available. Continue monitoring ROAS and ${metricLabels.cpa.toLowerCase()} before scaling budgets.`
-          : `Revenue tracking is missing. Add sales value tracking before making major budget increases.`,
-        55,
-        600,
-        { width: 480, height: 32, lineGap: 4, ellipsis: true }
-      );
+      let takeaway = '';
+
+      if (safeSummary.hasRoas && safeSummary.roas >= 3) {
+        takeaway =
+          'Campaign performance is strong. Continue scaling the best performing campaigns while maintaining ROAS.';
+      } else if (safeSummary.hasRoas) {
+        takeaway =
+          'Campaign is generating results but needs optimisation before increasing budget.';
+      } else {
+        takeaway =
+          'Revenue tracking is unavailable. Add revenue data to measure profitability.';
+      }
+
+      doc.fillColor(THEME.muted)
+         .fontSize(9)
+         .font('Helvetica')
+         .text(
+            takeaway,
+            55,
+            600,
+            {
+               width: 480,
+               height: 32,
+               lineGap: 4,
+               ellipsis: true
+            }
+         );
 
       drawFooter(pageNo++);
     };
