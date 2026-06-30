@@ -1307,22 +1307,46 @@ const reportType =
       if (isFreePlan) return;
 
       doc.addPage();
-      drawPageHeader('Recommendations', 'Clear actions for next month');
+     drawPageHeader(
+       isAgencyPlan ? 'AI Insights & Recommendations' : 'Recommendations',
+       isAgencyPlan ? 'AI-powered client-ready insights' : 'Clear actions for next month'
+     );
 
-      drawCard(35, 125, 525, 100, THEME.softBlue, '#BFDBFE');
-      doc.fillColor(THEME.text).fontSize(15).font('Helvetica-Bold').text('Executive Insights', 55, 145);
-      doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(simpleTakeaway, 55, 173, {
-        width: 480,
-        height: 36,
-        lineGap: 4,
-        ellipsis: true,
-      });
+      drawCard(35, 125, 525, 115, isAgencyPlan ? '#F5F3FF' : THEME.softBlue, isAgencyPlan ? '#C4B5FD' : '#BFDBFE');
 
-      drawCard(35, 255, 525, 250, THEME.card, THEME.border);
-      doc.fillColor(THEME.text).fontSize(16).font('Helvetica-Bold').text('Next Month Actions', 55, 280);
+      doc.fillColor(THEME.text)
+        .fontSize(15)
+        .font('Helvetica-Bold')
+        .text(isAgencyPlan ? 'AI Executive Insights' : 'Executive Insights', 55, 145);
 
-      simpleRecommendations.forEach((item, i) => {
-        const y = 325 + i * 42;
+      const aiSummary =
+        isAgencyPlan && aiInsightResult?.rows?.[0]?.summary
+          ? String(aiInsightResult.rows[0].summary)
+          : simpleTakeaway;
+
+      doc.fillColor(THEME.muted)
+        .fontSize(9)
+        .font('Helvetica')
+        .text(aiSummary, 55, 173, {
+          width: 480,
+          height: 48,
+          lineGap: 4,
+          ellipsis: true,
+        });
+
+      drawCard(35, 270, 525, 240, THEME.card, THEME.border);
+      doc.fillColor(THEME.text)
+        .fontSize(16)
+        .font('Helvetica-Bold')
+        .text(isAgencyPlan ? 'AI Recommended Actions' : 'Next Month Actions', 55, 295);
+
+     const agencyAiRecommendations =
+       isAgencyPlan && Array.isArray(aiInsightResult?.rows?.[0]?.recommendations)
+         ? aiInsightResult.rows[0].recommendations
+         : simpleRecommendations;
+
+     agencyAiRecommendations.slice(0, 4).forEach((item, i) => {
+       const y = 340 + i * 40;
         doc.circle(65, y + 5, 10).fill([THEME.royal, THEME.violet, THEME.emerald, THEME.amber][i % 4]);
         doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold').text(String(i + 1), 61, y, { width: 8, align: 'center' });
         doc.fillColor(THEME.text).fontSize(10).font('Helvetica').text(item, 88, y - 2, {
@@ -1333,78 +1357,62 @@ const reportType =
         });
       });
 
-drawCard(35, 515, 525, 70, '#FFFFFF', '#BFDBFE');
+drawCard(35, 525, 525, 75, '#FFFFFF', '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(14)
   .font('Helvetica-Bold')
-  .text('Campaign Highlights', 55, 532);
+  .text('Campaign Highlights', 55, 542);
 
 const bestName = bestCampaignByCost?.name || bestCampaign?.name || 'Not Available';
-doc.fillColor(THEME.muted)
-  .fontSize(8)
-  .font('Helvetica')
-  .text(
-    `Generated the highest ${metricLabels.conversion.toLowerCase()} with better overall efficiency.`,
-    55,
-    590,
-    { width: 180, height: 20, ellipsis: true }
-  );
 const weakName = needsImprovementCampaign?.name || 'Not Available';
 
 doc.fillColor(THEME.emerald)
-.fontSize(8)
-.font('Helvetica-Bold')
-.text('BEST PERFORMING',55,558);
-
-doc.fillColor(THEME.text)
-.fontSize(8)
-.font('Helvetica')
-.text(bestName,90,558,{width:190,ellipsis:true});
-
-doc.fillColor(THEME.muted)
-.fontSize(8)
-.font('Helvetica')
-.text(
-`Generated the highest ${metricLabels.conversion.toLowerCase()} with better overall efficiency.`,
-55,
-575,
-{width:200,height:20,ellipsis:true}
-);
-
-doc.fillColor(THEME.rose)
-.fontSize(8)
-.font('Helvetica-Bold')
-.text('NEEDS REVIEW',300,558);
-
-doc.fillColor(THEME.text)
-.fontSize(8)
-.font('Helvetica')
-.text(weakName,355,558,{width:165,ellipsis:true});
-
-doc.fillColor(THEME.muted)
-.fontSize(8)
-.font('Helvetica')
-.text(
-'Monitor performance and improve targeting before increasing budget.',
-300,
-575,
-{width:190,height:20,ellipsis:true}
-);
+  .fontSize(7.5)
+  .font('Helvetica-Bold')
+  .text('BEST PERFORMING', 55, 568, { width: 95 });
 
 doc.fillColor(THEME.text)
   .fontSize(8)
   .font('Helvetica')
-  .text(weakName, 355, 558, { width: 165, ellipsis: true });
+  .text(bestName, 150, 568, { width: 130, ellipsis: true });
 
-     drawCard(35, 610, 525, 75, THEME.softGreen, '#A7F3D0');
-      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 628);
+doc.fillColor(THEME.muted)
+  .fontSize(7.2)
+  .font('Helvetica')
+  .text(`Highest ${metricLabels.conversion.toLowerCase()} with better efficiency.`, 55, 584, {
+    width: 215,
+    height: 14,
+    ellipsis: true,
+  });
+
+doc.fillColor(THEME.rose)
+  .fontSize(7.5)
+  .font('Helvetica-Bold')
+  .text('NEEDS REVIEW', 300, 568, { width: 85 });
+
+doc.fillColor(THEME.text)
+  .fontSize(8)
+  .font('Helvetica')
+  .text(weakName, 390, 568, { width: 130, ellipsis: true });
+
+doc.fillColor(THEME.muted)
+  .fontSize(7.2)
+  .font('Helvetica')
+  .text('Improve targeting before increasing budget.', 300, 584, {
+    width: 220,
+    height: 14,
+    ellipsis: true,
+  });
+
+     drawCard(35, 620, 525, 70, THEME.softGreen, '#A7F3D0');
+      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 638);
       doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
         safeSummary.hasRoas
           ? `Scale carefully while monitoring ${metricLabels.cpa.toLowerCase()}, ${metricLabels.conversion.toLowerCase()} quality and ROAS.`
           : `Add revenue tracking so future reports can show profit and ROAS clearly.`,
-        55,
-        652,
+       55,
+       662,
         { width: 480, height: 30, lineGap: 4, ellipsis: true }
       );
 
