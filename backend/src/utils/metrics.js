@@ -54,73 +54,114 @@ const buildBaseFilters = ({ clientId, dateStart, dateEnd, platform, reportType }
   };
 };
 
+const monthlyDedupedMetricsCte = (whereSql) => `
+  WITH base_rows AS (
+    SELECT pd.*
+    FROM performance_data pd
+    WHERE ${whereSql}
+  ),
+  monthly_rollup AS (
+    SELECT
+      report_month,
+      BOOL_OR(${isAggregateExpr}) AS has_aggregate,
+      BOOL_OR(${isNotAggregateExpr}) AS has_campaign,
+      SUM(COALESCE(spend, 0)) FILTER (WHERE ${isAggregateExpr}) AS aggregate_spend,
+      SUM(COALESCE(reach, 0)) FILTER (WHERE ${isAggregateExpr}) AS aggregate_reach,
+      SUM(COALESCE(impressions, 0)) FILTER (WHERE ${isAggregateExpr}) AS aggregate_impressions,
+      SUM(COALESCE(clicks, 0)) FILTER (WHERE ${isAggregateExpr}) AS aggregate_clicks,
+      SUM(COALESCE(conversions, 0)) FILTER (WHERE ${isAggregateExpr}) AS aggregate_conversions,
+      SUM(COALESCE(revenue, 0)) FILTER (WHERE ${isAggregateExpr}) AS aggregate_revenue,
+      SUM(COALESCE(spend, 0)) FILTER (WHERE ${isNotAggregateExpr}) AS campaign_spend,
+      SUM(COALESCE(reach, 0)) FILTER (WHERE ${isNotAggregateExpr}) AS campaign_reach,
+      SUM(COALESCE(impressions, 0)) FILTER (WHERE ${isNotAggregateExpr}) AS campaign_impressions,
+      SUM(COALESCE(clicks, 0)) FILTER (WHERE ${isNotAggregateExpr}) AS campaign_clicks,
+      SUM(COALESCE(conversions, 0)) FILTER (WHERE ${isNotAggregateExpr}) AS campaign_conversions,
+      SUM(COALESCE(revenue, 0)) FILTER (WHERE ${isNotAggregateExpr}) AS campaign_revenue,
+      MAX(report_type) AS report_type,
+      BOOL_OR(COALESCE((raw_data->'mapping') ? 'spend', false) OR COALESCE(spend, 0) > 0) AS has_spend_field,
+      BOOL_OR(COALESCE((raw_data->'mapping') ? 'reach', false) OR COALESCE(reach, 0) > 0) AS has_reach_field,
+      BOOL_OR(COALESCE((raw_data->'mapping') ? 'impressions', false) OR COALESCE(impressions, 0) > 0) AS has_impressions_field,
+      BOOL_OR(COALESCE((raw_data->'mapping') ? 'clicks', false) OR COALESCE(clicks, 0) > 0) AS has_clicks_field,
+      BOOL_OR(COALESCE((raw_data->'mapping') ? 'conversions', false) OR COALESCE(conversions, 0) > 0) AS has_conversions_field,
+      BOOL_OR(COALESCE((raw_data->'mapping') ? 'revenue', false) OR COALESCE(revenue, 0) > 0) AS has_revenue_field
+    FROM base_rows pd
+    GROUP BY report_month
+  ),
+  monthly_choice AS (
+    SELECT
+      *,
+      has_aggregate
+      AND has_campaign
+      AND (
+        (COALESCE(campaign_spend, 0) > 0 AND COALESCE(aggregate_spend, 0) BETWEEN campaign_spend * 1.8 AND campaign_spend * 2.2)
+        OR (COALESCE(campaign_conversions, 0) > 0 AND COALESCE(aggregate_conversions, 0) BETWEEN campaign_conversions * 1.8 AND campaign_conversions * 2.2)
+        OR (COALESCE(campaign_revenue, 0) > 0 AND COALESCE(aggregate_revenue, 0) BETWEEN campaign_revenue * 1.8 AND campaign_revenue * 2.2)
+      ) AS aggregate_is_duplicate
+    FROM monthly_rollup
+  ),
+  chosen_months AS (
+    SELECT
+      report_month,
+      CASE WHEN aggregate_is_duplicate OR NOT has_aggregate THEN COALESCE(campaign_spend, 0) ELSE COALESCE(aggregate_spend, 0) END AS spend,
+      CASE WHEN aggregate_is_duplicate OR NOT has_aggregate THEN COALESCE(campaign_reach, 0) ELSE COALESCE(aggregate_reach, 0) END AS reach,
+      CASE WHEN aggregate_is_duplicate OR NOT has_aggregate THEN COALESCE(campaign_impressions, 0) ELSE COALESCE(aggregate_impressions, 0) END AS impressions,
+      CASE WHEN aggregate_is_duplicate OR NOT has_aggregate THEN COALESCE(campaign_clicks, 0) ELSE COALESCE(aggregate_clicks, 0) END AS clicks,
+      CASE WHEN aggregate_is_duplicate OR NOT has_aggregate THEN COALESCE(campaign_conversions, 0) ELSE COALESCE(aggregate_conversions, 0) END AS conversions,
+      CASE WHEN aggregate_is_duplicate OR NOT has_aggregate THEN COALESCE(campaign_revenue, 0) ELSE COALESCE(aggregate_revenue, 0) END AS revenue,
+      report_type,
+      has_spend_field,
+      has_reach_field,
+      has_impressions_field,
+      has_clicks_field,
+      has_conversions_field,
+      has_revenue_field
+    FROM monthly_choice
+  )
+`;
+
 const getSummaryMetrics = async (db, options) => {
   const { whereSql, params } = buildBaseFilters(options);
 
   const result = await db.query(
     `
-    WITH has_aggregate AS (
-      SELECT EXISTS (
-        SELECT 1
-        FROM performance_data pd
-        WHERE ${whereSql}
-          AND ${isAggregateExpr}
-      ) AS exists
-    )
+    ${monthlyDedupedMetricsCte(whereSql)}
     SELECT
-      SUM(COALESCE(pd.spend, 0)) AS spend,
-      SUM(COALESCE(pd.reach, 0)) AS reach,
-      SUM(COALESCE(pd.impressions, 0)) AS impressions,
-      SUM(COALESCE(pd.clicks, 0)) AS clicks,
-      SUM(COALESCE(pd.conversions, 0)) AS conversions,
-      SUM(COALESCE(pd.revenue, 0)) AS revenue,
-     ${normalizeReportTypeSql} AS report_type,
-      SUM(COALESCE((pd.raw_data->'salesMetrics'->>'orders')::numeric, 0)) AS orders,
-      SUM(COALESCE((pd.raw_data->'salesMetrics'->>'quantity')::numeric, 0)) AS quantity,
-      SUM(COALESCE((pd.raw_data->'salesMetrics'->>'refunds')::numeric, 0)) AS refunds,
-      SUM(COALESCE((pd.raw_data->'salesMetrics'->>'profit')::numeric, 0)) AS profit,
-      CASE WHEN SUM(COALESCE((pd.raw_data->'salesMetrics'->>'orders')::numeric, 0)) > 0
-        THEN SUM(COALESCE(pd.revenue, 0)) / SUM(COALESCE((pd.raw_data->'salesMetrics'->>'orders')::numeric, 0))
-        ELSE 0
-      END AS aov,
-      CASE WHEN SUM(COALESCE(pd.revenue, 0)) > 0
-        THEN SUM(COALESCE((pd.raw_data->'salesMetrics'->>'profit')::numeric, 0)) / SUM(COALESCE(pd.revenue, 0)) * 100
-        ELSE 0
-      END AS margin,
-      BOOL_OR(COALESCE((pd.raw_data->'mapping') ? 'spend', false) OR COALESCE(pd.spend, 0) > 0) AS has_spend_field,
-      BOOL_OR(COALESCE((pd.raw_data->'mapping') ? 'reach', false) OR COALESCE(pd.reach, 0) > 0) AS has_reach_field,
-      BOOL_OR(COALESCE((pd.raw_data->'mapping') ? 'impressions', false) OR COALESCE(pd.impressions, 0) > 0) AS has_impressions_field,
-      BOOL_OR(COALESCE((pd.raw_data->'mapping') ? 'clicks', false) OR COALESCE(pd.clicks, 0) > 0) AS has_clicks_field,
-      BOOL_OR(COALESCE((pd.raw_data->'mapping') ? 'conversions', false) OR COALESCE(pd.conversions, 0) > 0) AS has_conversions_field,
-      BOOL_OR(COALESCE((pd.raw_data->'mapping') ? 'revenue', false) OR COALESCE(pd.revenue, 0) > 0) AS has_revenue_field,
-      CASE WHEN SUM(COALESCE(pd.impressions, 0)) > 0
-        THEN SUM(COALESCE(pd.clicks, 0))::float / SUM(COALESCE(pd.impressions, 0)) * 100
+      SUM(COALESCE(spend, 0)) AS spend,
+      SUM(COALESCE(reach, 0)) AS reach,
+      SUM(COALESCE(impressions, 0)) AS impressions,
+      SUM(COALESCE(clicks, 0)) AS clicks,
+      SUM(COALESCE(conversions, 0)) AS conversions,
+      SUM(COALESCE(revenue, 0)) AS revenue,
+      MAX(report_type) AS report_type,
+      0 AS orders,
+      0 AS quantity,
+      0 AS refunds,
+      0 AS profit,
+      0 AS aov,
+      0 AS margin,
+      BOOL_OR(has_spend_field) AS has_spend_field,
+      BOOL_OR(has_reach_field) AS has_reach_field,
+      BOOL_OR(has_impressions_field) AS has_impressions_field,
+      BOOL_OR(has_clicks_field) AS has_clicks_field,
+      BOOL_OR(has_conversions_field) AS has_conversions_field,
+      BOOL_OR(has_revenue_field) AS has_revenue_field,
+      CASE WHEN SUM(COALESCE(impressions, 0)) > 0
+        THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100
         ELSE 0
       END AS ctr,
-      CASE WHEN SUM(COALESCE(pd.clicks, 0)) > 0
-        THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.clicks, 0))
+      CASE WHEN SUM(COALESCE(clicks, 0)) > 0
+        THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(clicks, 0))
         ELSE 0
       END AS cpc,
-      CASE WHEN SUM(COALESCE(pd.conversions, 0)) > 0
-        THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.conversions, 0))
+      CASE WHEN SUM(COALESCE(conversions, 0)) > 0
+        THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0))
         ELSE 0
       END AS cpa,
-      CASE WHEN SUM(COALESCE(pd.spend, 0)) > 0
-        THEN SUM(COALESCE(pd.revenue, 0)) / SUM(COALESCE(pd.spend, 0))
-        ELSE 0
-      END AS roas,
-      CASE WHEN SUM(COALESCE(pd.spend, 0)) > 0
-        THEN SUM(COALESCE(pd.revenue, 0)) / SUM(COALESCE(pd.spend, 0))
+      CASE WHEN SUM(COALESCE(spend, 0)) > 0
+        THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
         ELSE 0
       END AS roas
-    FROM performance_data pd
-    CROSS JOIN has_aggregate
-    WHERE ${whereSql}
-      AND (
-        (has_aggregate.exists = true AND ${isAggregateExpr})
-        OR
-        (has_aggregate.exists = false AND ${isNotAggregateExpr})
-      )
+    FROM chosen_months
     `,
     params
   );
@@ -133,40 +174,25 @@ const getMonthlyTrends = async (db, options) => {
 
   const result = await db.query(
     `
-    WITH month_flags AS (
-      SELECT
-        pd.report_month,
-        BOOL_OR(${isAggregateExpr}) AS has_aggregate
-      FROM performance_data pd
-      WHERE ${whereSql}
-      GROUP BY pd.report_month
-    )
+    ${monthlyDedupedMetricsCte(whereSql)}
     SELECT
-      pd.report_month,
-      TO_CHAR(pd.report_month, 'Mon YYYY') AS month,
-      SUM(COALESCE(pd.spend, 0)) AS spend,
-      SUM(COALESCE(pd.impressions, 0)) AS impressions,
-      SUM(COALESCE(pd.clicks, 0)) AS clicks,
-      SUM(COALESCE(pd.conversions, 0)) AS conversions,
-      SUM(COALESCE(pd.revenue, 0)) AS revenue,
-     ${normalizeReportTypeSql} AS report_type,
-      SUM(COALESCE((pd.raw_data->'salesMetrics'->>'orders')::numeric, 0)) AS orders,
-      SUM(COALESCE((pd.raw_data->'salesMetrics'->>'quantity')::numeric, 0)) AS quantity,
-      SUM(COALESCE((pd.raw_data->'salesMetrics'->>'profit')::numeric, 0)) AS profit,
-      CASE WHEN SUM(COALESCE(pd.spend, 0)) > 0
-        THEN SUM(COALESCE(pd.revenue, 0)) / SUM(COALESCE(pd.spend, 0))
+      report_month,
+      TO_CHAR(report_month, 'Mon YYYY') AS month,
+      spend,
+      impressions,
+      clicks,
+      conversions,
+      revenue,
+      report_type,
+      0 AS orders,
+      0 AS quantity,
+      0 AS profit,
+      CASE WHEN spend > 0
+        THEN revenue / spend
         ELSE 0
       END AS roas
-    FROM performance_data pd
-    JOIN month_flags mf ON mf.report_month = pd.report_month
-    WHERE ${whereSql}
-      AND (
-        (mf.has_aggregate = true AND ${isAggregateExpr})
-        OR
-        (mf.has_aggregate = false AND ${isNotAggregateExpr})
-      )
-    GROUP BY pd.report_month
-    ORDER BY pd.report_month
+    FROM chosen_months
+    ORDER BY report_month
     `,
     params
   );
