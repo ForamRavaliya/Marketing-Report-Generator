@@ -683,7 +683,7 @@ const reportType =
 
     const drawFooter = (pageNo) => {
       doc.save();
-      let footerBrand = isAgencyPlan ? `${agency?.name || 'Agency Report'} • ${client.name}` : isProPlan ? `Prepared for ${client.name} • ${agency?.name || 'Agency Report'}` : `Prepared for ${client.name} • Generated with Marketing Report Generator`;
+      let footerBrand = isAgencyPlan ? `${agency?.name || 'Agency Report'} - ${client.name}` : isProPlan ? `Prepared for ${client.name} - ${agency?.name || 'Agency Report'}` : `Prepared for ${client.name} - Generated with Marketing Report Generator`;
 
       doc.moveTo(50, FOOTER_TOP).lineTo(545, FOOTER_TOP).strokeColor('#E2E8F0').lineWidth(1).stroke();
       doc.fillColor('#94A3B8').fontSize(8).font('Helvetica').text(footerBrand, 50, FOOTER_TOP + 10, { width: 430, height: 10, align: 'left', lineBreak: false, ellipsis: true });
@@ -1015,6 +1015,62 @@ const reportType =
                 .sort((a, b) => Number(b.cpa || 0) - Number(a.cpa || 0))[0]
             : null;
 
+          const campaignHealthScore =
+            campaignHealth === 'Excellent'
+              ? 91
+              : campaignHealth === 'Good'
+              ? 78
+              : campaignHealth === 'Needs Improvement'
+              ? 62
+              : 0;
+
+          const campaignHealthChecks = [
+            {
+              ok: safeSummary.hasConversions && safeSummary.conversions > 0,
+              label: `Strong ${metricLabels.conversion} Volume`,
+            },
+            {
+              ok: safeSummary.hasCpa && campaignHealth !== 'Needs Improvement',
+              label: `Low ${metricLabels.cpaFull}`,
+            },
+            {
+              ok: safeSummary.hasCtr,
+              label: 'Healthy Engagement',
+            },
+            {
+              ok: safeSummary.hasRoas,
+              label: safeSummary.hasRoas ? 'Revenue Tracking Active' : 'Revenue Tracking Missing',
+            },
+          ];
+
+          const bestTrendMonth = displayedTrends.length
+            ? [...displayedTrends].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
+            : null;
+          const worstTrendMonth = displayedTrends.length
+            ? [...displayedTrends].sort((a, b) => Number(a.conversions || 0) - Number(b.conversions || 0))[0]
+            : null;
+          const avgCpaFromTrends =
+            displayedTrends.length && displayedTrends.reduce((sum, row) => sum + Number(row.conversions || 0), 0) > 0
+              ? displayedTrends.reduce((sum, row) => sum + Number(row.spend || 0), 0) /
+                displayedTrends.reduce((sum, row) => sum + Number(row.conversions || 0), 0)
+              : null;
+
+          const aiExecutiveBullets = [
+            growth.conversions
+              ? `${metricLabels.conversion} volume ${growth.conversions.value >= 0 ? 'increased' : 'decreased'} by ${Math.abs(growth.conversions.value).toFixed(1)}%.`
+              : `${metricLabels.conversion} volume is available for the current period.`,
+            growth.cpa
+              ? `${metricLabels.cpaFull} ${growth.cpa.value <= 0 ? 'decreased' : 'increased'} by ${Math.abs(growth.cpa.value).toFixed(1)}%.`
+              : `${metricLabels.cpaFull} comparison is not available.`,
+            growth.clicks
+              ? `Click volume ${growth.clicks.value >= 0 ? 'increased' : 'decreased'} by ${Math.abs(growth.clicks.value).toFixed(1)}%.`
+              : `Click volume is ${safeSummary.hasClicks ? 'available' : 'not available'} for this report.`,
+            safeSummary.hasRoas ? `ROAS is ${formatNum(safeSummary.roas, 2)}x.` : 'Revenue tracking is missing.',
+            safeSummary.hasRoas
+              ? `Campaign is ready for scaling while monitoring ${metricLabels.quality}.`
+              : 'Campaign can be scaled after revenue mapping is added.',
+          ];
+
     const drawSimpleCover = () => {
       doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
       doc.rect(0, 0, pageW, 190).fill(THEME.navy);
@@ -1062,19 +1118,19 @@ const reportType =
         .text('Executive Summary', 55, 238);
 
       const summaryItems = [
-        ['Spend', formatCurrency(safeSummary.spend, currency)],
-        [metricLabels.conversion, safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'],
-        [metricLabels.cpaShort, safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'],
-       ['ROAS', safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available'],
+        ['Total Spend', formatCurrency(safeSummary.spend, currency)],
+        [`Total ${metricLabels.conversion}`, safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'],
+        [metricLabels.cpaFull, safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'],
+       ['Return On Ad Spend', safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available'],
       ];
 
       summaryItems.forEach(([label, value], i) => {
         const x = 55 + i * 120;
 
         doc.fillColor(THEME.muted)
-          .fontSize(7)
+          .fontSize(6.4)
           .font('Helvetica-Bold')
-          .text(label.toUpperCase(), x, 266, { width: 105, ellipsis: true });
+          .text(label, x, 266, { width: 108, height: 18, ellipsis: false });
 
         doc.fillColor(THEME.text)
           .fontSize(11)
@@ -1158,12 +1214,12 @@ const reportType =
             );
         }
       });
-     drawCard(35, 606, 525, 52, '#FFFFFF', '#BFDBFE');
+     drawCard(35, 604, 525, 60, '#FFFFFF', '#BFDBFE');
 
       doc.fillColor(THEME.text)
-        .fontSize(12)
+        .fontSize(11)
         .font('Helvetica-Bold')
-        .text('Overall Campaign Performance', 55, 620);
+        .text('Campaign Health Score', 55, 616);
 
       const healthColor =
         campaignHealth === 'Excellent'
@@ -1175,24 +1231,30 @@ const reportType =
           : THEME.muted;
 
       doc.fillColor(healthColor)
-        .fontSize(14)
+        .fontSize(18)
         .font('Helvetica-Bold')
-       .text(campaignHealth, 55, 640);
+       .text(`${campaignHealthScore || 'N/A'} / 100`, 55, 634, { width: 95, height: 22, ellipsis: false });
 
-      doc.fillColor(THEME.muted)
+      doc.fillColor(healthColor)
         .fontSize(8)
-        .font('Helvetica')
-        .text(
-          campaignHealthNote,
-         170,
-         641,
-          {
-            width: 340,
-            ellipsis: true,
-          }
-        );
+        .font('Helvetica-Bold')
+       .text(campaignHealth, 155, 639, { width: 90, height: 12, ellipsis: true });
 
-     drawCard(35, 668, 525, 50, '#F8FAFC', '#BFDBFE');
+      campaignHealthChecks.forEach((check, i) => {
+        const checkX = 260 + (i % 2) * 145;
+        const checkY = 617 + Math.floor(i / 2) * 20;
+        doc.roundedRect(checkX, checkY, 22, 12, 6).fill(check.ok ? THEME.softGreen : THEME.softRose);
+        doc.fillColor(check.ok ? THEME.emerald : THEME.rose)
+          .fontSize(6.2)
+          .font('Helvetica-Bold')
+          .text(check.ok ? 'OK' : 'X', checkX + 4, checkY + 3, { width: 14, align: 'center' });
+        doc.fillColor(THEME.text)
+          .fontSize(6.6)
+          .font('Helvetica')
+          .text(check.label, checkX + 28, checkY + 2, { width: 108, height: 12, ellipsis: true });
+      });
+
+     drawCard(35, 668, 525, 76, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(12).font('Helvetica-Bold').text('Business Summary', 55, 680);
       let takeaway = '';
 
@@ -1210,17 +1272,17 @@ const reportType =
 
 
       doc.fillColor(THEME.muted)
-         .fontSize(9)
+         .fontSize(6)
          .font('Helvetica')
          .text(
-            takeaway,
+            reportSummaryText,
            55,
-           698,
+           700,
             {
                width: 480,
-               height: 17,
-               lineGap: 2,
-               ellipsis: true
+               height: 40,
+               lineGap: 1,
+               ellipsis: false
             }
          );
 
@@ -1457,6 +1519,37 @@ const reportType =
         );
       }
 
+      drawMiniMetricCards(
+        [
+          {
+            label: 'Best Month',
+            value: bestTrendMonth ? bestTrendMonth.month : 'N/A',
+            color: THEME.emerald,
+            bg: THEME.softGreen,
+          },
+          {
+            label: 'Worst Month',
+            value: worstTrendMonth ? worstTrendMonth.month : 'N/A',
+            color: THEME.rose,
+            bg: THEME.softRose,
+          },
+          {
+            label: `Average ${metricLabels.cpaShort}`,
+            value: avgCpaFromTrends !== null ? formatCurrency(avgCpaFromTrends, currency) : 'N/A',
+            color: THEME.amber,
+            bg: THEME.softAmber,
+          },
+          {
+            label: 'Total Campaigns',
+            value: formatNum(campaigns.length),
+            color: THEME.violet,
+            bg: THEME.softPurple,
+          },
+        ],
+        35,
+        635
+      );
+
       drawFooter(pageNo++);
     };
 
@@ -1475,22 +1568,20 @@ const reportType =
       doc.fillColor(THEME.text)
         .fontSize(15)
         .font('Helvetica-Bold')
-        .text(isAgencyPlan ? 'AI Executive Insights' : 'Executive Insights', 55, 145);
+        .text(isAgencyPlan ? 'AI Executive Summary' : 'Executive Summary', 55, 145);
 
-      const aiSummary =
-        isAgencyPlan && aiInsightResult?.rows?.[0]?.summary
-          ? String(aiInsightResult.rows[0].summary)
-          : simpleTakeaway;
-
-      doc.fillColor(THEME.muted)
-        .fontSize(9)
-        .font('Helvetica')
-        .text(aiSummary, 55, 173, {
-          width: 480,
-          height: 48,
-          lineGap: 4,
-          ellipsis: true,
-        });
+      aiExecutiveBullets.slice(0, 5).forEach((item, i) => {
+        const y = 172 + i * 12;
+        doc.circle(62, y + 4, 2.2).fill(i === 3 && !safeSummary.hasRoas ? THEME.rose : THEME.royal);
+        doc.fillColor(THEME.text)
+          .fontSize(8)
+          .font('Helvetica')
+          .text(item, 72, y, {
+            width: 455,
+            height: 11,
+            ellipsis: false,
+          });
+      });
 
      drawCard(35, 270, 525, 235, THEME.card, THEME.border);
       doc.fillColor(THEME.text)
@@ -1507,10 +1598,11 @@ const reportType =
        const y = 325 + i * 58;
         doc.circle(65, y + 10, 10).fill([THEME.royal, THEME.violet, THEME.emerald][i % 3]);
         doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold').text(String(i + 1), 61, y + 5, { width: 8, align: 'center' });
-        doc.fillColor(THEME.text).fontSize(9).font('Helvetica').text(item, 88, y - 2, {
+        doc.fillColor(THEME.text).fontSize(8.6).font('Helvetica').text(item, 88, y - 2, {
           width: 430,
-          height: 46,
+          height: 50,
           lineGap: 2,
+          ellipsis: false,
         });
       });
 
@@ -1519,46 +1611,46 @@ drawCard(35, 525, 525, 80, '#FFFFFF', '#BFDBFE');
 doc.fillColor(THEME.text)
   .fontSize(14)
   .font('Helvetica-Bold')
-  .text('Campaign Highlights', 55, 542);
+  .text('Campaign Highlights', 55, 540);
 
 const bestName = bestCampaignByCost?.name || bestCampaign?.name || 'Not Available';
 const weakName = needsImprovementCampaign?.name || 'Not Available';
 
+doc.roundedRect(55, 562, 230, 30, 8).fill(THEME.softGreen);
+doc.rect(55, 562, 4, 30).fill(THEME.emerald);
 doc.fillColor(THEME.emerald)
-  .fontSize(7.5)
+  .fontSize(7)
   .font('Helvetica-Bold')
-  .text('BEST PERFORMING', 55, 568, { width: 95 });
-
+  .text('BEST PERFORMING', 68, 568, { width: 100 });
 doc.fillColor(THEME.text)
-  .fontSize(8)
-  .font('Helvetica')
-  .text(bestName, 150, 568, { width: 130, ellipsis: true });
-
+  .fontSize(8.2)
+  .font('Helvetica-Bold')
+  .text(bestName, 165, 568, { width: 105, height: 10, ellipsis: true });
 doc.fillColor(THEME.muted)
-  .fontSize(7.2)
+  .fontSize(6.8)
   .font('Helvetica')
-  .text(`Highest ${metricLabels.conversion.toLowerCase()} with better efficiency.`, 55, 584, {
-    width: 215,
-    height: 14,
+  .text(`Best ${metricLabels.quality} and acquisition efficiency.`, 68, 581, {
+    width: 202,
+    height: 9,
     ellipsis: true,
   });
 
+doc.roundedRect(310, 562, 230, 30, 8).fill(THEME.softRose);
+doc.rect(310, 562, 4, 30).fill(THEME.rose);
 doc.fillColor(THEME.rose)
-  .fontSize(7.5)
+  .fontSize(7)
   .font('Helvetica-Bold')
-  .text('NEEDS REVIEW', 300, 568, { width: 85 });
-
+  .text('NEEDS REVIEW', 323, 568, { width: 88 });
 doc.fillColor(THEME.text)
-  .fontSize(8)
-  .font('Helvetica')
-  .text(weakName, 390, 568, { width: 130, ellipsis: true });
-
+  .fontSize(8.2)
+  .font('Helvetica-Bold')
+  .text(weakName, 415, 568, { width: 108, height: 10, ellipsis: true });
 doc.fillColor(THEME.muted)
-  .fontSize(7.2)
+  .fontSize(6.8)
   .font('Helvetica')
-  .text('Improve targeting before increasing budget.', 300, 584, {
-    width: 220,
-    height: 14,
+  .text(`Review targeting before increasing budget.`, 323, 581, {
+    width: 202,
+    height: 9,
     ellipsis: true,
   });
 
