@@ -1525,7 +1525,7 @@ doc.fillColor('#CBD5E1')
   drawSimpleTablesPage();
   drawSimpleChartsPage();
   drawRecommendationsPage();
-  drawAgencyFinalPage();
+  //drawAgencyFinalPage();
 
   doc.end();
 
