@@ -229,6 +229,24 @@ router.post('/generate', async (req, res) => {
     );
 
     const currentPlan = subscriptionResult.rows[0]?.plan_name || 'free';
+    if (currentPlan === 'free') {
+      const usageResult = await db.query(
+        `SELECT COUNT(*)::int AS count
+         FROM report_usage_logs
+         WHERE agency_id = $1
+         AND created_at >= date_trunc('month', CURRENT_DATE)
+         AND created_at < date_trunc('month', CURRENT_DATE) + interval '1 month'`,
+        [req.user.agency_id]
+      );
+
+      const monthlyCount = Number(usageResult.rows[0]?.count || 0);
+
+      if (monthlyCount >= 5) {
+        return res.status(403).json({
+          error: 'Free plan limit reached. You can generate 5 reports per month. Upgrade to Pro for unlimited reports.',
+        });
+      }
+    }
     const isFreePlan = currentPlan === 'free';
     const isProPlan = currentPlan === 'pro';
     const isAgencyPlan = currentPlan === 'agency';
@@ -1357,26 +1375,27 @@ doc.fillColor(THEME.text)
 
       drawCard(35, 125, 525, 165, '#FFFFFF', '#BFDBFE');
 
-      drawAgencyLogo();
-
       doc.fillColor(THEME.text)
         .fontSize(18)
         .font('Helvetica-Bold')
-        .text(agency?.name || 'Agency Report', 110, 145);
+        .text(agency?.name || 'Agency Report', 55, 145);
+
+      drawAgencyLogo();
+
 
       doc.fillColor(THEME.muted)
         .fontSize(9)
         .font('Helvetica')
-        .text(`Prepared For : ${client.name}`, 110, 170);
+        .text(`Prepared For : ${client.name}`, 55, 170);
 
-      doc.text(`Report Period : ${dateLabel}`, 110, 188);
+      doc.text(`Report Period : ${dateLabel}`, 55, 188);
 
       if (agency?.email) {
-        doc.text(`Email : ${agency.email}`, 110, 206);
+        doc.text(`Email : ${agency.email}`, 55, 206);
       }
 
       if (agency?.website) {
-        doc.text(`Website : ${agency.website}`, 110, 224);
+        doc.text(`Website : ${agency.website}`, 55, 224);
       }
 
     drawCard(35, 325, 525, 180, THEME.softBlue, '#BFDBFE');
@@ -1472,6 +1491,23 @@ doc.fillColor(THEME.text)
         dateEnd,
         fileUrl,
         currency || 'INR',
+      ]
+    );
+
+    await db.query(
+      `INSERT INTO report_usage_logs (
+         agency_id,
+         client_id,
+         user_id,
+         plan_name,
+         action
+       )
+       VALUES ($1,$2,$3,$4,'generate')`,
+      [
+        req.user.agency_id,
+        clientId,
+        req.user.id,
+        currentPlan,
       ]
     );
 

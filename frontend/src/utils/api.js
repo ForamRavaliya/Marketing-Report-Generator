@@ -1,7 +1,13 @@
 import axios from 'axios';
 
+const API_BASE_URL =
+  process.env.REACT_APP_API_BASE_URL ||
+  (['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? 'http://localhost:5000/api'
+    : 'https://marketing-report-generator-p9wj.onrender.com/api');
+
 const api = axios.create({
-  baseURL: "https://marketing-report-generator-p9wj.onrender.com/api"
+  baseURL: API_BASE_URL,
 });
 api.interceptors.request.use(cfg => {
   const token = localStorage.getItem('token');

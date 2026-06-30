@@ -51,9 +51,10 @@ router.put('/plan', async (req, res) => {
 
     const currentResult = await db.query(
       `SELECT *
-       FROM subscriptions
-       WHERE agency_id = $1
-       LIMIT 1`,
+      FROM subscriptions
+      WHERE agency_id = $1
+      ORDER BY created_at DESC
+      LIMIT 1`,
       [req.user.agency_id]
     );
 

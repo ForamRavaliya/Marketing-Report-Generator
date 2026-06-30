@@ -163,14 +163,16 @@ export default function Subscription() {
 
 const handleCancelDowngrade = async () => {
   try {
-    setProcessingPlan(subscription.plan_name);
+    setProcessingPlan('cancel-downgrade');
 
     const updated = await cancelDowngrade();
-    setSubscription(updated);
 
-    toast.success(`${updated.plan_name.toUpperCase()} plan will remain active`);
+    setSubscription(updated);
+    await loadSubscription();
+
+    toast.success('Downgrade cancelled.');
   } catch (error) {
-    toast.error(error.response?.data?.error || 'Failed to keep current plan');
+    toast.error(error.response?.data?.error || 'Failed to cancel downgrade');
   } finally {
     setProcessingPlan(null);
   }
@@ -248,9 +250,11 @@ const getPlanPrice = (planId) => {
                   className="btn btn-primary"
                   style={{ marginTop: 10 }}
                   onClick={handleCancelDowngrade}
-                  disabled={processingPlan === subscription.plan_name}
+                 disabled={processingPlan !== null}
                 >
-                  Keep {subscription.plan_name?.toUpperCase()} Active
+                 {processingPlan === 'cancel-downgrade'
+                   ? 'Processing...'
+                   : `Keep ${subscription.plan_name?.toUpperCase()} Active`}
                 </button>
               </div>
             )}
@@ -413,7 +417,7 @@ const getPlanPrice = (planId) => {
                 <button
                   className={active ? 'btn btn-secondary' : 'btn btn-primary'}
                   style={{ width: '100%' }}
-                  disabled={active || processing || downgradeToThisPlan}
+                 disabled={active || processingPlan !== null || downgradeToThisPlan}
                   onClick={() => handleUpgrade(plan.id)}
                 >
                 {active
