@@ -884,6 +884,31 @@ const reportType =
             'Track lead source quality before increasing spend.',
           ];
 
+          let campaignHealth = 'Needs Review';
+          let campaignHealthNote = 'Improve tracking and campaign quality before scaling.';
+
+          if (safeSummary.hasRoas && safeSummary.roas >= 3 && safeSummary.hasCpa) {
+            campaignHealth = 'Strong';
+            campaignHealthNote = 'ROAS and cost performance look healthy.';
+          } else if (safeSummary.hasConversions && safeSummary.hasCpa) {
+            campaignHealth = 'Good';
+            campaignHealthNote = `${metricLabels.conversion} are being generated at a measurable ${metricLabels.cpa.toLowerCase()}.`;
+          } else if (safeSummary.hasConversions) {
+            campaignHealth = 'Average';
+            campaignHealthNote = `${metricLabels.conversion} are available, but cost efficiency needs more tracking.`;
+          }
+          const bestCampaignByCost = campaigns.length
+            ? [...campaigns]
+                .filter((c) => Number(c.conversions || 0) > 0)
+                .sort((a, b) => Number(a.cpa || 999999999) - Number(b.cpa || 999999999))[0]
+            : null;
+
+          const needsImprovementCampaign = campaigns.length
+            ? [...campaigns]
+                .filter((c) => Number(c.spend || 0) > 0)
+                .sort((a, b) => Number(b.cpa || 0) - Number(a.cpa || 0))[0]
+            : null;
+
     const drawSimpleCover = () => {
       doc.rect(0, 0, pageW, pageH).fill(THEME.bg);
       doc.rect(0, 0, pageW, 190).fill(THEME.navy);
@@ -934,7 +959,7 @@ const reportType =
         ['Spend', formatCurrency(safeSummary.spend, currency)],
         [metricLabels.conversion, safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A'],
         [metricLabels.cpaShort, safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'],
-        ['ROAS', safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'N/A'],
+       ['ROAS', safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available'],
       ];
 
       summaryItems.forEach(([label, value], i) => {
@@ -956,7 +981,17 @@ const reportType =
         { label: metricLabels.cpaFull, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber },
         { label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A', color: THEME.violet, bg: THEME.softPurple },
         { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.cyan, bg: '#ECFEFF' },
-        { label: 'ROAS', value: safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'N/A', color: THEME.rose, bg: THEME.softRose },
+        {
+          label: 'ROAS',
+          value: safeSummary.hasRoas
+            ? `${formatNum(safeSummary.roas, 2)}x`
+            : 'Not Available',
+          note: safeSummary.hasRoas
+            ? 'Return on Ad Spend'
+            : 'Revenue data not uploaded',
+          color: THEME.rose,
+          bg: THEME.softRose,
+        },
       ];
 
       kpis.forEach((item, i) => {
@@ -976,9 +1011,55 @@ const reportType =
           height: 20,
           ellipsis: true,
         });
+        if (item.note) {
+          doc
+            .fillColor(THEME.muted)
+            .fontSize(7)
+            .font("Helvetica")
+            .text(
+              item.note,
+              x + 18,
+              y + 64,
+              {
+                width: 120,
+                ellipsis: true,
+              }
+            );
+        }
       });
+      drawCard(35, 470, 525, 70, '#FFFFFF', '#BFDBFE');
 
-      drawCard(35, 555, 525, 95, '#F8FAFC', '#BFDBFE');
+      doc.fillColor(THEME.text)
+        .fontSize(14)
+        .font('Helvetica-Bold')
+        .text('Campaign Health', 55, 490);
+
+      const healthColor =
+        campaignHealth === 'Strong'
+          ? THEME.emerald
+          : campaignHealth === 'Good'
+          ? THEME.royal
+          : THEME.amber;
+
+      doc.fillColor(healthColor)
+        .fontSize(18)
+        .font('Helvetica-Bold')
+        .text(campaignHealth, 55, 512);
+
+      doc.fillColor(THEME.muted)
+        .fontSize(8.5)
+        .font('Helvetica')
+        .text(
+          campaignHealthNote,
+          170,
+          514,
+          {
+            width: 340,
+            ellipsis: true,
+          }
+        );
+
+      drawCard(35, 555, 525, 80, '#F8FAFC', '#BFDBFE');
       doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Simple Business Takeaway', 55, 575);
       let takeaway = '';
 
@@ -1224,14 +1305,44 @@ const reportType =
         });
       });
 
-      drawCard(35, 545, 525, 95, THEME.softGreen, '#A7F3D0');
-      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 565);
+drawCard(35, 515, 525, 70, '#FFFFFF', '#BFDBFE');
+
+doc.fillColor(THEME.text)
+  .fontSize(14)
+  .font('Helvetica-Bold')
+  .text('Campaign Focus', 55, 532);
+
+const bestName = bestCampaignByCost?.name || bestCampaign?.name || 'Not Available';
+const weakName = needsImprovementCampaign?.name || 'Not Available';
+
+doc.fillColor(THEME.emerald)
+  .fontSize(8)
+  .font('Helvetica-Bold')
+  .text('BEST', 55, 558);
+
+doc.fillColor(THEME.text)
+  .fontSize(8)
+  .font('Helvetica')
+  .text(bestName, 90, 558, { width: 190, ellipsis: true });
+
+doc.fillColor(THEME.rose)
+  .fontSize(8)
+  .font('Helvetica-Bold')
+  .text('REVIEW', 300, 558);
+
+doc.fillColor(THEME.text)
+  .fontSize(8)
+  .font('Helvetica')
+  .text(weakName, 355, 558, { width: 165, ellipsis: true });
+
+     drawCard(35, 610, 525, 75, THEME.softGreen, '#A7F3D0');
+      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 628);
       doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
         safeSummary.hasRoas
           ? `Scale carefully while monitoring ${metricLabels.cpa.toLowerCase()}, ${metricLabels.conversion.toLowerCase()} quality and ROAS.`
           : `Add revenue tracking so future reports can show profit and ROAS clearly.`,
         55,
-        592,
+        652,
         { width: 480, height: 30, lineGap: 4, ellipsis: true }
       );
 
