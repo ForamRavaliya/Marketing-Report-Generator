@@ -313,36 +313,33 @@ router.post('/generate', async (req, res) => {
       ? [...trends].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
       : null;
 
-   let previousSummary = null;
-
-   if (includeComparison && trends.length >= 2) {
-     const currentMonth = trends[trends.length - 1];
-     const previousMonth = trends[trends.length - 2];
-
-     previousSummary = {
-       spend: previousMonth.spend,
-       impressions: previousMonth.impressions,
-       clicks: previousMonth.clicks,
-       conversions: previousMonth.conversions,
-       revenue: previousMonth.revenue,
-       ctr:
-         Number(previousMonth.impressions || 0) > 0
-           ? (Number(previousMonth.clicks || 0) / Number(previousMonth.impressions || 0)) * 100
-           : 0,
-       cpc:
-         Number(previousMonth.clicks || 0) > 0
-           ? Number(previousMonth.spend || 0) / Number(previousMonth.clicks || 0)
-           : 0,
-       cpa:
-         Number(previousMonth.conversions || 0) > 0
-           ? Number(previousMonth.spend || 0) / Number(previousMonth.conversions || 0)
-           : 0,
-       roas:
-         Number(previousMonth.spend || 0) > 0
-           ? Number(previousMonth.revenue || 0) / Number(previousMonth.spend || 0)
-           : 0,
-     };
-   }
+   const latestMonth = trends.length >= 1 ? trends[trends.length - 1] : null;
+   const previousMonth = trends.length >= 2 ? trends[trends.length - 2] : null;
+   const previousSummary = previousMonth
+     ? {
+         spend: Number(previousMonth.spend || 0),
+         impressions: Number(previousMonth.impressions || 0),
+         clicks: Number(previousMonth.clicks || 0),
+         conversions: Number(previousMonth.conversions || 0),
+         revenue: Number(previousMonth.revenue || 0),
+         ctr:
+           Number(previousMonth.impressions || 0) > 0
+             ? (Number(previousMonth.clicks || 0) / Number(previousMonth.impressions || 0)) * 100
+             : 0,
+         cpc:
+           Number(previousMonth.clicks || 0) > 0
+             ? Number(previousMonth.spend || 0) / Number(previousMonth.clicks || 0)
+             : 0,
+         cpa:
+           Number(previousMonth.conversions || 0) > 0
+             ? Number(previousMonth.spend || 0) / Number(previousMonth.conversions || 0)
+             : 0,
+         roas:
+           Number(previousMonth.spend || 0) > 0
+             ? Number(previousMonth.revenue || 0) / Number(previousMonth.spend || 0)
+             : 0,
+       }
+     : null;
 
     // Create PDF
     const outputDir = path.join(__dirname, '../../data/reports');
@@ -494,18 +491,24 @@ const reportType =
       return ((curr - prev) / Math.abs(prev)) * 100;
     };
 
-    const formatGrowth = (change) => {
+    const formatGrowth = (change, metricKey) => {
       if (change === null || change === undefined || Number.isNaN(change)) {
         return null;
       }
 
+      const direction = change >= 0 ? '▲' : '▼';
+      const sign = change >= 0 ? '+' : '';
+
       return {
-        text: `${Math.abs(change).toFixed(1)}%`,
+        value: change,
+        shortText: `${sign}${change.toFixed(1)}%`,
+        text: `${sign}${change.toFixed(1)}%`,
+        fullText: `${sign}${change.toFixed(1)}% vs previous month`,
+        direction,
+        isGood: change >= 0,
         positive: change >= 0,
       };
     };
-
-    const latestMonth = trends.length ? trends[trends.length - 1] : null;
 
     const latestMetrics = latestMonth
       ? {
@@ -533,15 +536,38 @@ const reportType =
       : safeSummary;
 
     const growth = {
-      spend: formatGrowth(calcChange(latestMetrics.spend, previousSummary?.spend)),
-      impressions: formatGrowth(calcChange(latestMetrics.impressions, previousSummary?.impressions)),
-      clicks: formatGrowth(calcChange(latestMetrics.clicks, previousSummary?.clicks)),
-      conversions: formatGrowth(calcChange(latestMetrics.conversions, previousSummary?.conversions)),
-      ctr: formatGrowth(calcChange(latestMetrics.ctr, previousSummary?.ctr)),
-      cpc: formatGrowth(calcChange(latestMetrics.cpc, previousSummary?.cpc)),
-      cpa: formatGrowth(calcChange(latestMetrics.cpa, previousSummary?.cpa)),
-      roas: formatGrowth(calcChange(latestMetrics.roas, previousSummary?.roas)),
+      spend: formatGrowth(calcChange(latestMetrics.spend, previousSummary?.spend), 'spend'),
+      impressions: formatGrowth(calcChange(latestMetrics.impressions, previousSummary?.impressions), 'impressions'),
+      clicks: formatGrowth(calcChange(latestMetrics.clicks, previousSummary?.clicks), 'clicks'),
+      conversions: formatGrowth(calcChange(latestMetrics.conversions, previousSummary?.conversions), 'conversions'),
+      ctr: formatGrowth(calcChange(latestMetrics.ctr, previousSummary?.ctr), 'ctr'),
+      cpc: formatGrowth(calcChange(latestMetrics.cpc, previousSummary?.cpc), 'cpc'),
+      cpa: formatGrowth(calcChange(latestMetrics.cpa, previousSummary?.cpa), 'cpa'),
+      roas: formatGrowth(calcChange(latestMetrics.roas, previousSummary?.roas), 'roas'),
     };
+
+    const formatComparisonValue = (metricKey, value) => {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return 'N/A';
+
+      if (['spend', 'cpc', 'cpa'].includes(metricKey)) {
+        return formatCurrency(value, currency);
+      }
+
+      if (metricKey === 'ctr') return formatPct(value);
+      if (metricKey === 'roas') return Number(value || 0) > 0 ? `${formatNum(value, 2)}x` : 'N/A';
+
+      return formatNum(value);
+    };
+
+    const momComparisonRows = [
+      { key: 'spend', label: 'Total Spend', previous: previousSummary?.spend, current: latestMetrics.spend, change: growth.spend },
+      { key: 'conversions', label: metricLabels.conversion, previous: previousSummary?.conversions, current: latestMetrics.conversions, change: growth.conversions },
+      { key: 'cpa', label: metricLabels.cpaFull, previous: previousSummary?.cpa, current: latestMetrics.cpa, change: growth.cpa },
+      { key: 'ctr', label: 'CTR', previous: previousSummary?.ctr, current: latestMetrics.ctr, change: growth.ctr },
+      { key: 'cpc', label: 'CPC', previous: previousSummary?.cpc, current: latestMetrics.cpc, change: growth.cpc },
+      { key: 'clicks', label: 'Clicks', previous: previousSummary?.clicks, current: latestMetrics.clicks, change: growth.clicks },
+      { key: 'impressions', label: 'Impressions', previous: previousSummary?.impressions, current: latestMetrics.impressions, change: growth.impressions },
+    ];
 
     const comparisonCards = [
       {
@@ -1062,6 +1088,8 @@ const reportType =
         { label: metricLabels.cpaFull, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber,growth: growth.cpa },
         { label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A', color: THEME.violet, bg: THEME.softPurple,growth: growth.clicks },
         { label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.cyan, bg: '#ECFEFF' ,growth: growth.ctr},
+        { label: 'CPC', value: safeSummary.hasCpc ? formatCurrency(safeSummary.cpc, currency) : 'N/A', color: THEME.rose, bg: THEME.softRose, growth: growth.cpc },
+        { label: 'Impressions', value: safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'N/A', color: THEME.royal, bg: THEME.softBlue, growth: growth.impressions },
         {
           label: 'ROAS',
           value: safeSummary.hasRoas
@@ -1077,33 +1105,45 @@ const reportType =
       ];
 
       kpis.forEach((item, i) => {
-        const col = i % 3;
-        const row = Math.floor(i / 3);
-        const x = 35 + col * 175;
-       const y = 340 + row * 88;
+        const col = i % 4;
+        const row = Math.floor(i / 4);
+        const x = 35 + col * 132;
+       const y = 340 + row * 84;
 
-        drawCard(x, y, 155, 74, item.bg, THEME.border);
+        drawCard(x, y, 120, 74, item.bg, THEME.border);
         doc.circle(x + 22, y + 26, 7).fill(item.color);
         doc.fillColor(THEME.muted).fontSize(7.5).font('Helvetica-Bold').text(item.label.toUpperCase(), x + 38, y + 18, {
-          width: 100,
+          width: 74,
           ellipsis: true,
         });
         doc.fillColor(THEME.text).fontSize(15).font('Helvetica-Bold').text(item.value, x + 18, y + 46, {
-          width: 120,
-          height: 20,
+          width: 94,
+          height: 15,
           ellipsis: true,
         });
 
         if (item.growth) {
           doc
-            .fillColor(item.growth.positive ? THEME.emerald : THEME.rose)
-            .fontSize(7)
+            .fillColor(item.growth.isGood ? THEME.emerald : THEME.rose)
+            .fontSize(6.3)
             .font('Helvetica-Bold')
             .text(
               `${item.growth.positive ? '▲' : '▼'} ${item.growth.text}`,
               x + 18,
               y + 62
             );
+        }
+        if (item.growth) {
+          doc.roundedRect(x + 15, y + 59, 100, 12, 3).fill(item.bg);
+          doc
+            .fillColor(item.growth.isGood ? THEME.emerald : THEME.rose)
+            .fontSize(4.8)
+            .font('Helvetica-Bold')
+            .text(`${item.growth.direction} ${item.growth.fullText}`, x + 18, y + 61, {
+              width: 94,
+              height: 8,
+              ellipsis: true,
+            });
         }
         if (!item.growth && item.note) {
           doc
@@ -1115,7 +1155,7 @@ const reportType =
              x + 18,
              y + 60,
               {
-                width: 120,
+                width: 94,
                 ellipsis: true,
               }
             );
@@ -1244,12 +1284,62 @@ const reportType =
         );
       }
 
-      drawCard(35, 365, 525, 300, THEME.card, THEME.border);
-      drawSectionTitle('Top Campaigns', 55, 385, THEME.violet);
+      drawCard(35, 345, 525, 160, '#F8FAFC', '#BFDBFE');
+      drawSectionTitle('Month-over-Month Comparison', 55, 365, THEME.emerald);
+
+      const momHeaders = ['Metric', 'Previous Month', 'Current Month', 'Change'];
+      const momWidths = [145, 115, 115, 110];
+      let my = 405;
+      x = 55;
+
+      doc.roundedRect(55, my, 485, 22, 7).fill(THEME.emerald);
+      momHeaders.forEach((h, i) => {
+        doc.fillColor('#FFFFFF').fontSize(7.3).font('Helvetica-Bold').text(h, x + 8, my + 7, {
+          width: momWidths[i] - 10,
+          ellipsis: true,
+        });
+        x += momWidths[i];
+      });
+
+      my += 25;
+      momComparisonRows.forEach((row, idx) => {
+        doc.roundedRect(55, my, 485, 14, 4).fill(idx % 2 === 0 ? '#FFFFFF' : '#ECFDF5');
+
+        const vals = [
+          row.label,
+          previousSummary ? formatComparisonValue(row.key, row.previous) : 'N/A',
+          formatComparisonValue(row.key, row.current),
+        ];
+
+        x = 55;
+        vals.forEach((v, i) => {
+          doc.fillColor(THEME.text).fontSize(6.6).font(i === 0 ? 'Helvetica-Bold' : 'Helvetica').text(v, x + 8, my + 4, {
+            width: momWidths[i] - 10,
+            height: 8,
+            ellipsis: true,
+          });
+          x += momWidths[i];
+        });
+
+        const badgeColor = row.change?.isGood ? THEME.emerald : THEME.rose;
+        const badgeBg = row.change?.isGood ? THEME.softGreen : THEME.softRose;
+        doc.roundedRect(x + 8, my + 2, 82, 10, 5).fill(badgeBg);
+        doc.fillColor(badgeColor).fontSize(6.2).font('Helvetica-Bold').text(
+          row.change ? `${row.change.direction} ${row.change.shortText}` : 'N/A',
+          x + 12,
+          my + 4,
+          { width: 74, height: 7, align: 'center', ellipsis: true }
+        );
+
+        my += 15;
+      });
+
+      drawCard(35, 525, 525, 180, THEME.card, THEME.border);
+      drawSectionTitle('Top Campaigns', 55, 545, THEME.violet);
 
       const cHeaders = ['Campaign', 'Spend', '% Spend', metricLabels.conversion, metricLabels.cpa];
       const cWidths = [205, 92, 65, 58, 65];
-      let cy = 425;
+      let cy = 585;
 
       doc.roundedRect(55, cy, 485, 24, 7).fill(THEME.violet);
       x = 55;
@@ -1262,7 +1352,7 @@ const reportType =
       });
 
       cy += 28;
-      campaignDisplayRows.slice(0, 7).forEach((row, idx) => {
+      campaignDisplayRows.slice(0, 4).forEach((row, idx) => {
         doc.roundedRect(55, cy, 485, 23, 5).fill(idx % 2 === 0 ? '#F8FAFC' : '#F5F3FF');
 
         const spendShare = safeSummary.spend > 0 ? `${formatNum((Number(row.spend || 0) / safeSummary.spend) * 100, 1)}%` : 'N/A';
@@ -1295,7 +1385,7 @@ const reportType =
         doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
           'No campaign-level rows were available.',
           55,
-          500,
+          640,
           { width: 480, align: 'center' }
         );
       }
@@ -1382,6 +1472,7 @@ const reportType =
        isAgencyPlan ? 'AI-powered client-ready insights' : 'Clear actions for next month'
      );
 
+    if (false) {
     drawCard(35, 120, 525, 95, '#F8FAFC', '#BFDBFE');
 
     doc
@@ -1402,8 +1493,10 @@ const reportType =
           .text(`${item.change.positive ? '▲' : '▼'} ${item.change.text}`, x, 198);
       }
     });
+    }
 
-      drawCard(35, 270, 525, 115, isAgencyPlan ? '#F5F3FF' : THEME.softBlue, isAgencyPlan ? '#C4B5FD' : '#BFDBFE');
+      doc.rect(30, 118, 535, 125).fill(THEME.bg);
+      drawCard(35, 125, 525, 115, isAgencyPlan ? '#F5F3FF' : THEME.softBlue, isAgencyPlan ? '#C4B5FD' : '#BFDBFE');
 
       doc.fillColor(THEME.text)
         .fontSize(15)
@@ -1425,7 +1518,7 @@ const reportType =
           ellipsis: true,
         });
 
-     drawCard(35, 270, 525, 210, THEME.card, THEME.border);
+     drawCard(35, 270, 525, 235, THEME.card, THEME.border);
       doc.fillColor(THEME.text)
         .fontSize(16)
         .font('Helvetica-Bold')
@@ -1436,15 +1529,14 @@ const reportType =
          ? aiInsightResult.rows[0].recommendations
          : simpleRecommendations;
 
-     agencyAiRecommendations.slice(0, 4).forEach((item, i) => {
-       const y = 340 + i * 35;
-        doc.circle(65, y + 5, 10).fill([THEME.royal, THEME.violet, THEME.emerald, THEME.amber][i % 4]);
-        doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold').text(String(i + 1), 61, y, { width: 8, align: 'center' });
-        doc.fillColor(THEME.text).fontSize(10).font('Helvetica').text(item, 88, y - 2, {
+     agencyAiRecommendations.slice(0, 3).forEach((item, i) => {
+       const y = 325 + i * 58;
+        doc.circle(65, y + 10, 10).fill([THEME.royal, THEME.violet, THEME.emerald][i % 3]);
+        doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold').text(String(i + 1), 61, y + 5, { width: 8, align: 'center' });
+        doc.fillColor(THEME.text).fontSize(9).font('Helvetica').text(item, 88, y - 2, {
           width: 430,
-          height: 24,
+          height: 46,
           lineGap: 2,
-          ellipsis: true,
         });
       });
 
