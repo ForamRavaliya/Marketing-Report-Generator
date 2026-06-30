@@ -92,15 +92,19 @@ const getPreviousDateRange = (dateStart, dateEnd) => {
     return null;
   }
 
-  const previousStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 1, 1));
-  const previousEnd = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 0));
+  const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+  const previousEnd = new Date(start);
+  previousEnd.setUTCDate(previousEnd.getUTCDate() - 1);
+
+  const previousStart = new Date(previousEnd);
+  previousStart.setUTCDate(previousStart.getUTCDate() - days + 1);
 
   return {
     start: previousStart.toISOString().slice(0, 10),
     end: previousEnd.toISOString().slice(0, 10),
   };
 };
-
 
 
 // Generate PDF report
@@ -309,41 +313,36 @@ router.post('/generate', async (req, res) => {
       ? [...trends].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
       : null;
 
-    let previousSummary = null;
-    const previousRange = getPreviousDateRange(dateStart, dateEnd);
+   let previousSummary = null;
 
-    if (includeComparison && previousRange) {
-      let previousWhereClause = `
-        WHERE client_id = $1
-        AND external_campaign_name = 'aggregate'
-        AND COALESCE(date_range_start, report_month) >= $2::date
-        AND COALESCE(date_range_end, report_month) <= $3::date
-      `;
-      const previousParams = [clientId, previousRange.start, previousRange.end];
+   if (includeComparison && trends.length >= 2) {
+     const currentMonth = trends[trends.length - 1];
+     const previousMonth = trends[trends.length - 2];
 
-      if (platform && platform !== 'all') {
-        previousWhereClause += ` AND platform = $4`;
-        previousParams.push(platform);
-      }
-
-      const previousResult = await db.query(
-        `SELECT
-           SUM(COALESCE(spend, 0)) as spend,
-           CASE WHEN COUNT(*) = 1 THEN MAX(COALESCE(reach, 0)) ELSE NULL END as reach,
-           SUM(COALESCE(impressions, 0)) as impressions,
-           SUM(COALESCE(clicks, 0)) as clicks,
-           SUM(COALESCE(conversions, 0)) as conversions,
-           SUM(COALESCE(revenue, 0)) as revenue,
-           CASE WHEN SUM(COALESCE(impressions, 0)) > 0 THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100 ELSE 0 END as ctr,
-           CASE WHEN SUM(COALESCE(clicks, 0)) > 0 THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(clicks, 0)) ELSE 0 END as cpc,
-           CASE WHEN SUM(COALESCE(conversions, 0)) > 0 THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0)) ELSE 0 END as cpa,
-           CASE WHEN SUM(COALESCE(spend, 0)) > 0 THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0)) ELSE 0 END as roas
-         FROM performance_data
-         ${previousWhereClause}`,
-        previousParams
-      );
-      previousSummary = previousResult.rows[0];
-    }
+     previousSummary = {
+       spend: previousMonth.spend,
+       impressions: previousMonth.impressions,
+       clicks: previousMonth.clicks,
+       conversions: previousMonth.conversions,
+       revenue: previousMonth.revenue,
+       ctr:
+         Number(previousMonth.impressions || 0) > 0
+           ? (Number(previousMonth.clicks || 0) / Number(previousMonth.impressions || 0)) * 100
+           : 0,
+       cpc:
+         Number(previousMonth.clicks || 0) > 0
+           ? Number(previousMonth.spend || 0) / Number(previousMonth.clicks || 0)
+           : 0,
+       cpa:
+         Number(previousMonth.conversions || 0) > 0
+           ? Number(previousMonth.spend || 0) / Number(previousMonth.conversions || 0)
+           : 0,
+       roas:
+         Number(previousMonth.spend || 0) > 0
+           ? Number(previousMonth.revenue || 0) / Number(previousMonth.spend || 0)
+           : 0,
+     };
+   }
 
     // Create PDF
     const outputDir = path.join(__dirname, '../../data/reports');
@@ -506,16 +505,42 @@ const reportType =
       };
     };
 
+    const latestMonth = trends.length ? trends[trends.length - 1] : null;
+
+    const latestMetrics = latestMonth
+      ? {
+          spend: Number(latestMonth.spend || 0),
+          impressions: Number(latestMonth.impressions || 0),
+          clicks: Number(latestMonth.clicks || 0),
+          conversions: Number(latestMonth.conversions || 0),
+          ctr:
+            Number(latestMonth.impressions || 0) > 0
+              ? (Number(latestMonth.clicks || 0) / Number(latestMonth.impressions || 0)) * 100
+              : 0,
+          cpc:
+            Number(latestMonth.clicks || 0) > 0
+              ? Number(latestMonth.spend || 0) / Number(latestMonth.clicks || 0)
+              : 0,
+          cpa:
+            Number(latestMonth.conversions || 0) > 0
+              ? Number(latestMonth.spend || 0) / Number(latestMonth.conversions || 0)
+              : 0,
+          roas:
+            Number(latestMonth.spend || 0) > 0
+              ? Number(latestMonth.revenue || 0) / Number(latestMonth.spend || 0)
+              : 0,
+        }
+      : safeSummary;
+
     const growth = {
-      spend: formatGrowth(calcChange(safeSummary.spend, previousSummary?.spend)),
-      reach: formatGrowth(calcChange(safeSummary.reach, previousSummary?.reach)),
-      impressions: formatGrowth(calcChange(safeSummary.impressions, previousSummary?.impressions)),
-      clicks: formatGrowth(calcChange(safeSummary.clicks, previousSummary?.clicks)),
-      conversions: formatGrowth(calcChange(safeSummary.conversions, previousSummary?.conversions)),
-      ctr: formatGrowth(calcChange(safeSummary.ctr, previousSummary?.ctr)),
-      cpc: formatGrowth(calcChange(safeSummary.cpc, previousSummary?.cpc)),
-      cpa: formatGrowth(calcChange(safeSummary.cpa, previousSummary?.cpa)),
-      roas: formatGrowth(calcChange(safeSummary.roas, previousSummary?.roas)),
+      spend: formatGrowth(calcChange(latestMetrics.spend, previousSummary?.spend)),
+      impressions: formatGrowth(calcChange(latestMetrics.impressions, previousSummary?.impressions)),
+      clicks: formatGrowth(calcChange(latestMetrics.clicks, previousSummary?.clicks)),
+      conversions: formatGrowth(calcChange(latestMetrics.conversions, previousSummary?.conversions)),
+      ctr: formatGrowth(calcChange(latestMetrics.ctr, previousSummary?.ctr)),
+      cpc: formatGrowth(calcChange(latestMetrics.cpc, previousSummary?.cpc)),
+      cpa: formatGrowth(calcChange(latestMetrics.cpa, previousSummary?.cpa)),
+      roas: formatGrowth(calcChange(latestMetrics.roas, previousSummary?.roas)),
     };
 
     const comparisonCards = [
@@ -1080,7 +1105,7 @@ const reportType =
               y + 62
             );
         }
-        if (item.note) {
+        if (!item.growth && item.note) {
           doc
             .fillColor(THEME.muted)
             .fontSize(7)
@@ -1357,46 +1382,33 @@ const reportType =
        isAgencyPlan ? 'AI-powered client-ready insights' : 'Clear actions for next month'
      );
 
-     drawCard(35, 120, 525, 95, '#F8FAFC', '#BFDBFE');
+    drawCard(35, 120, 525, 95, '#F8FAFC', '#BFDBFE');
 
-     doc
-       .fillColor(THEME.text)
-       .fontSize(14)
-       .font('Helvetica-Bold')
-       .text('Performance Comparison', 55, 140);
+    doc
+      .fillColor(THEME.text)
+      .fontSize(14)
+      .font('Helvetica-Bold')
+      .text('Performance Comparison', 55, 140);
 
-     comparisonCards.forEach((item, index) => {
-       const x = 55 + index * 120;
+    comparisonCards.forEach((item, index) => {
+      const x = 55 + index * 120;
 
-       doc
-         .fillColor(THEME.muted)
-         .fontSize(8)
-         .text(item.label, x, 165);
+      doc.fillColor(THEME.muted).fontSize(8).text(item.label, x, 165);
+      doc.fillColor(THEME.text).fontSize(10).font('Helvetica-Bold').text(item.current, x, 182);
 
-       doc
-         .fillColor(THEME.text)
-         .fontSize(10)
-         .font('Helvetica-Bold')
-         .text(item.current, x, 182);
-
-       if (item.change) {
-         doc
-           .fillColor(item.change.positive ? THEME.emerald : THEME.rose)
-           .fontSize(8)
-           .text(
-             `${item.change.positive ? '▲' : '▼'} ${item.change.text}`,
-             x,
-             198
-           );
-       }
-     });
+      if (item.change) {
+        doc.fillColor(item.change.positive ? THEME.emerald : THEME.rose)
+          .fontSize(8)
+          .text(`${item.change.positive ? '▲' : '▼'} ${item.change.text}`, x, 198);
+      }
+    });
 
       drawCard(35, 270, 525, 115, isAgencyPlan ? '#F5F3FF' : THEME.softBlue, isAgencyPlan ? '#C4B5FD' : '#BFDBFE');
 
       doc.fillColor(THEME.text)
         .fontSize(15)
         .font('Helvetica-Bold')
-        .text(isAgencyPlan ? 'AI Executive Insights' : 'Executive Insights', 55, 295);
+        .text(isAgencyPlan ? 'AI Executive Insights' : 'Executive Insights', 55, 145);
 
       const aiSummary =
         isAgencyPlan && aiInsightResult?.rows?.[0]?.summary
@@ -1406,18 +1418,18 @@ const reportType =
       doc.fillColor(THEME.muted)
         .fontSize(9)
         .font('Helvetica')
-        .text(aiSummary, 55, 323, {
+        .text(aiSummary, 55, 173, {
           width: 480,
           height: 48,
           lineGap: 4,
           ellipsis: true,
         });
 
-     drawCard(35, 400, 525, 210, THEME.card, THEME.border);
+     drawCard(35, 270, 525, 210, THEME.card, THEME.border);
       doc.fillColor(THEME.text)
         .fontSize(16)
         .font('Helvetica-Bold')
-        .text(isAgencyPlan ? 'AI Recommended Actions' : 'Next Month Actions', 55, 425);
+        .text(isAgencyPlan ? 'AI Recommended Actions' : 'Next Month Actions', 55, 295);
 
      const agencyAiRecommendations =
        isAgencyPlan && Array.isArray(aiInsightResult?.rows?.[0]?.recommendations)
@@ -1425,7 +1437,7 @@ const reportType =
          : simpleRecommendations;
 
      agencyAiRecommendations.slice(0, 4).forEach((item, i) => {
-       const y = 470 + i * 35;
+       const y = 340 + i * 35;
         doc.circle(65, y + 5, 10).fill([THEME.royal, THEME.violet, THEME.emerald, THEME.amber][i % 4]);
         doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold').text(String(i + 1), 61, y, { width: 8, align: 'center' });
         doc.fillColor(THEME.text).fontSize(10).font('Helvetica').text(item, 88, y - 2, {
@@ -1436,12 +1448,12 @@ const reportType =
         });
       });
 
-drawCard(35, 620, 525, 80, '#FFFFFF', '#BFDBFE');
+drawCard(35, 525, 525, 80, '#FFFFFF', '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(14)
   .font('Helvetica-Bold')
-  .text('Campaign Highlights', 55, 640);
+  .text('Campaign Highlights', 55, 542);
 
 const bestName = bestCampaignByCost?.name || bestCampaign?.name || 'Not Available';
 const weakName = needsImprovementCampaign?.name || 'Not Available';
@@ -1454,12 +1466,12 @@ doc.fillColor(THEME.emerald)
 doc.fillColor(THEME.text)
   .fontSize(8)
   .font('Helvetica')
-  .text(bestName, 150, 665, { width: 130, ellipsis: true });
+  .text(bestName, 150, 568, { width: 130, ellipsis: true });
 
 doc.fillColor(THEME.muted)
   .fontSize(7.2)
   .font('Helvetica')
-  .text(`Highest ${metricLabels.conversion.toLowerCase()} with better efficiency.`, 55, 681, {
+  .text(`Highest ${metricLabels.conversion.toLowerCase()} with better efficiency.`, 55, 584, {
     width: 215,
     height: 14,
     ellipsis: true,
@@ -1484,14 +1496,14 @@ doc.fillColor(THEME.muted)
     ellipsis: true,
   });
 
-     drawCard(35, 710, 525, 70, THEME.softGreen, '#A7F3D0');
-      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 728);
+     drawCard(35, 620, 525, 70, THEME.softGreen, '#A7F3D0');
+      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 638);
       doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
         safeSummary.hasRoas
           ? `Scale carefully while monitoring ${metricLabels.cpa.toLowerCase()}, ${metricLabels.conversion.toLowerCase()} quality and ROAS.`
           : `Add revenue tracking so future reports can show profit and ROAS clearly.`,
        55,
-       752,
+       662,
         { width: 480, height: 30, lineGap: 4, ellipsis: true }
       );
 
@@ -1523,7 +1535,7 @@ doc.fillColor('#CBD5E1')
     height: 14,
     ellipsis: true,
   });
-      drawCard(35, 270, 525, 115, '#FFFFFF', '#BFDBFE');
+      drawCard(35, 125, 525, 115, '#FFFFFF', '#BFDBFE');
 
       doc.fillColor(THEME.text)
         .fontSize(18)
@@ -1548,12 +1560,12 @@ doc.fillColor('#CBD5E1')
         doc.text(`Website : ${agency.website}`, 55, 224);
       }
 
-    drawCard(35, 270, 525, 180, THEME.softBlue, '#BFDBFE');
+    drawCard(35, 125, 525, 180, THEME.softBlue, '#BFDBFE');
 
     doc.fillColor(THEME.text)
       .fontSize(16)
       .font('Helvetica-Bold')
-      .text('Next Month Strategy', 55, 295);
+      .text('Next Month Strategy', 55, 145);
 
     const agencyActions = [
       safeSummary.hasRoas
