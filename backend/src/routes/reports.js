@@ -518,6 +518,35 @@ const reportType =
       roas: formatGrowth(calcChange(safeSummary.roas, previousSummary?.roas)),
     };
 
+    const comparisonCards = [
+      {
+        label: 'Spend',
+        current: formatCurrency(safeSummary.spend, currency),
+        change: growth.spend,
+      },
+      {
+        label: metricLabels.conversion,
+        current: safeSummary.hasConversions
+          ? formatNum(safeSummary.conversions)
+          : 'N/A',
+        change: growth.conversions,
+      },
+      {
+        label: metricLabels.cpaShort,
+        current: safeSummary.hasCpa
+          ? formatCurrency(safeSummary.cpa, currency)
+          : 'N/A',
+        change: growth.cpa,
+      },
+      {
+        label: 'ROAS',
+        current: safeSummary.hasRoas
+          ? `${formatNum(safeSummary.roas, 2)}x`
+          : 'N/A',
+        change: growth.roas,
+      },
+    ];
+
     const drawEmptyState = (x, y, w, h, title, message) => {
       drawCard(x, y, w, h, THEME.card, THEME.border);
       doc.fillColor(THEME.text).fontSize(13).font('Helvetica-Bold').text(title, x + 25, y + 35, { width: w - 50, height: 18, align: 'center', ellipsis: true });
@@ -1039,19 +1068,7 @@ const reportType =
           height: 20,
           ellipsis: true,
         });
-        if (item.growth) {
-          const positive = item.growth.startsWith('+');
 
-          doc
-            .fillColor(positive ? '#16A34A' : '#DC2626')
-            .fontSize(7)
-            .font('Helvetica-Bold')
-            .text(
-              `${positive ? '▲' : '▼'} ${item.growth}`,
-              x + 18,
-              y + 64
-            );
-        }
         if (item.growth) {
           doc
             .fillColor(item.growth.positive ? THEME.emerald : THEME.rose)
@@ -1340,12 +1357,46 @@ const reportType =
        isAgencyPlan ? 'AI-powered client-ready insights' : 'Clear actions for next month'
      );
 
-      drawCard(35, 125, 525, 115, isAgencyPlan ? '#F5F3FF' : THEME.softBlue, isAgencyPlan ? '#C4B5FD' : '#BFDBFE');
+     drawCard(35, 120, 525, 95, '#F8FAFC', '#BFDBFE');
+
+     doc
+       .fillColor(THEME.text)
+       .fontSize(14)
+       .font('Helvetica-Bold')
+       .text('Performance Comparison', 55, 140);
+
+     comparisonCards.forEach((item, index) => {
+       const x = 55 + index * 120;
+
+       doc
+         .fillColor(THEME.muted)
+         .fontSize(8)
+         .text(item.label, x, 165);
+
+       doc
+         .fillColor(THEME.text)
+         .fontSize(10)
+         .font('Helvetica-Bold')
+         .text(item.current, x, 182);
+
+       if (item.change) {
+         doc
+           .fillColor(item.change.positive ? THEME.emerald : THEME.rose)
+           .fontSize(8)
+           .text(
+             `${item.change.positive ? '▲' : '▼'} ${item.change.text}`,
+             x,
+             198
+           );
+       }
+     });
+
+      drawCard(35, 270, 525, 115, isAgencyPlan ? '#F5F3FF' : THEME.softBlue, isAgencyPlan ? '#C4B5FD' : '#BFDBFE');
 
       doc.fillColor(THEME.text)
         .fontSize(15)
         .font('Helvetica-Bold')
-        .text(isAgencyPlan ? 'AI Executive Insights' : 'Executive Insights', 55, 145);
+        .text(isAgencyPlan ? 'AI Executive Insights' : 'Executive Insights', 55, 295);
 
       const aiSummary =
         isAgencyPlan && aiInsightResult?.rows?.[0]?.summary
@@ -1355,18 +1406,18 @@ const reportType =
       doc.fillColor(THEME.muted)
         .fontSize(9)
         .font('Helvetica')
-        .text(aiSummary, 55, 173, {
+        .text(aiSummary, 55, 323, {
           width: 480,
           height: 48,
           lineGap: 4,
           ellipsis: true,
         });
 
-      drawCard(35, 270, 525, 240, THEME.card, THEME.border);
+     drawCard(35, 400, 525, 210, THEME.card, THEME.border);
       doc.fillColor(THEME.text)
         .fontSize(16)
         .font('Helvetica-Bold')
-        .text(isAgencyPlan ? 'AI Recommended Actions' : 'Next Month Actions', 55, 295);
+        .text(isAgencyPlan ? 'AI Recommended Actions' : 'Next Month Actions', 55, 425);
 
      const agencyAiRecommendations =
        isAgencyPlan && Array.isArray(aiInsightResult?.rows?.[0]?.recommendations)
@@ -1374,7 +1425,7 @@ const reportType =
          : simpleRecommendations;
 
      agencyAiRecommendations.slice(0, 4).forEach((item, i) => {
-       const y = 340 + i * 40;
+       const y = 470 + i * 35;
         doc.circle(65, y + 5, 10).fill([THEME.royal, THEME.violet, THEME.emerald, THEME.amber][i % 4]);
         doc.fillColor('#FFFFFF').fontSize(8).font('Helvetica-Bold').text(String(i + 1), 61, y, { width: 8, align: 'center' });
         doc.fillColor(THEME.text).fontSize(10).font('Helvetica').text(item, 88, y - 2, {
@@ -1385,12 +1436,12 @@ const reportType =
         });
       });
 
-drawCard(35, 525, 525, 75, '#FFFFFF', '#BFDBFE');
+drawCard(35, 620, 525, 80, '#FFFFFF', '#BFDBFE');
 
 doc.fillColor(THEME.text)
   .fontSize(14)
   .font('Helvetica-Bold')
-  .text('Campaign Highlights', 55, 542);
+  .text('Campaign Highlights', 55, 640);
 
 const bestName = bestCampaignByCost?.name || bestCampaign?.name || 'Not Available';
 const weakName = needsImprovementCampaign?.name || 'Not Available';
@@ -1403,12 +1454,12 @@ doc.fillColor(THEME.emerald)
 doc.fillColor(THEME.text)
   .fontSize(8)
   .font('Helvetica')
-  .text(bestName, 150, 568, { width: 130, ellipsis: true });
+  .text(bestName, 150, 665, { width: 130, ellipsis: true });
 
 doc.fillColor(THEME.muted)
   .fontSize(7.2)
   .font('Helvetica')
-  .text(`Highest ${metricLabels.conversion.toLowerCase()} with better efficiency.`, 55, 584, {
+  .text(`Highest ${metricLabels.conversion.toLowerCase()} with better efficiency.`, 55, 681, {
     width: 215,
     height: 14,
     ellipsis: true,
@@ -1433,14 +1484,14 @@ doc.fillColor(THEME.muted)
     ellipsis: true,
   });
 
-     drawCard(35, 620, 525, 70, THEME.softGreen, '#A7F3D0');
-      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 638);
+     drawCard(35, 710, 525, 70, THEME.softGreen, '#A7F3D0');
+      doc.fillColor(THEME.text).fontSize(14).font('Helvetica-Bold').text('Priority Focus', 55, 728);
       doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
         safeSummary.hasRoas
           ? `Scale carefully while monitoring ${metricLabels.cpa.toLowerCase()}, ${metricLabels.conversion.toLowerCase()} quality and ROAS.`
           : `Add revenue tracking so future reports can show profit and ROAS clearly.`,
        55,
-       662,
+       752,
         { width: 480, height: 30, lineGap: 4, ellipsis: true }
       );
 
@@ -1472,7 +1523,7 @@ doc.fillColor('#CBD5E1')
     height: 14,
     ellipsis: true,
   });
-      drawCard(35, 125, 525, 115, '#FFFFFF', '#BFDBFE');
+      drawCard(35, 270, 525, 115, '#FFFFFF', '#BFDBFE');
 
       doc.fillColor(THEME.text)
         .fontSize(18)

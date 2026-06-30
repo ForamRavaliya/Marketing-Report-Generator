@@ -43,6 +43,9 @@ import {
 
 const COLORS = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626', '#0891B2'];
 const PLATFORMS = ['all', 'meta', 'google', 'linkedin', 'twitter', 'tiktok', 'other'];
+// Email Reports is temporarily hidden from users.
+// Set this to true after Google OAuth verification/setup is ready for production.
+const EMAIL_REPORTS_ENABLED = false;
 
 const fmt = (n, d = 0) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const CURRENCY_SYMBOLS = {
@@ -107,7 +110,7 @@ const planName = String(
   subscription?.plan ||
   'free'
 ).toLowerCase();
-const canUseEmailReports = ['pro', 'agency'].includes(planName);
+const canUseEmailReports = EMAIL_REPORTS_ENABLED && ['pro', 'agency'].includes(planName);
 
 /* const [adForm, setAdForm] = useState({
   platform: 'meta',
