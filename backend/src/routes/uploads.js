@@ -435,6 +435,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
       campaignRowsTotals: importValidationPreview.campaignRowsTotals,
       differencePercent: importValidationPreview.differencePercent,
       warningMessage: importValidationPreview.warningMessage,
+      validation: importValidationPreview.validation,
       importValidationPreview,
     });
   } catch (error) {
@@ -701,6 +702,53 @@ function buildImportValidationPreview({
     Math.abs((campaignRowsTotals.conversions || 0) - (summaryTotals.conversions || 0))
   );
   const differencePercent = (differenceAmount / base) * 100;
+  const warnings = [];
+  const errors = [];
+  const usableMetricColumns = mappedFields.filter(
+    (field) => field !== 'campaignName' && field !== 'product' && Boolean(resolvedColumns[field])
+  );
+
+  if (usableMetricColumns.length === 0) {
+    errors.push('No usable metric columns found');
+  }
+
+  if (
+    !summaryTotals.spend &&
+    !summaryTotals.clicks &&
+    !summaryTotals.impressions &&
+    !summaryTotals.conversions &&
+    !summaryTotals.revenue &&
+    !summaryTotals.reach
+  ) {
+    errors.push('All metric values are zero');
+  }
+
+  if (!summaryTotals.revenue) {
+    warnings.push('Revenue missing, ROAS unavailable');
+  }
+
+  if ((detectedPlatform || 'other') === 'other') {
+    warnings.push('Unknown platform detected');
+  }
+
+  if (!selectedSummaryRow) {
+    warnings.push('No aggregate summary row detected. Totals will be calculated from campaign rows.');
+  }
+
+  if (selectedSummaryRow && differencePercent > 5) {
+    warnings.push('Campaign rows total differs from aggregate row by more than 5%');
+  }
+
+  const validation = {
+    isValid: errors.length === 0,
+    warnings,
+    errors,
+    detectedPlatform,
+    detectedMonths: [],
+    aggregateRowsFound: summaryRows.length,
+    campaignRowsFound: campaignRows.length,
+    importedTotals: finalizeTotals(summaryTotals),
+  };
 
   return {
     detectedPlatform,
@@ -713,6 +761,7 @@ function buildImportValidationPreview({
       selectedSummaryRow && differencePercent > 5
         ? 'This file contains summary and breakdown rows. We will use the detected summary row for dashboard totals and campaign rows only for campaign tables.'
         : '',
+    validation,
   };
 }
 
@@ -822,7 +871,7 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
       );
     }
 
- await processFileWithMapping(
+ const importValidation = await processFileWithMapping(
    uploadRow.id,
    uploadRow.file_type,
    uploadRow.file_path,
@@ -840,11 +889,16 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
     res.json({
       success: true,
       message: 'Mapping confirmed and data imported successfully',
+      warnings: importValidation?.warnings || [],
+      validation: importValidation || null,
       importValidationPreview,
     });
   } catch (error) {
     console.error('Confirm mapping error:', error);
-    res.status(500).json({ error: 'Failed to confirm mapping' });
+    res.status(error.statusCode || 500).json({
+      error: error.statusCode === 400 ? error.message : 'Failed to confirm mapping',
+      validation: error.validation,
+    });
   }
 });
 
@@ -928,6 +982,7 @@ if (['csv', 'excel'].includes(fileType)) {
     campaignRowsTotals: importValidationPreview.campaignRowsTotals,
     differencePercent: importValidationPreview.differencePercent,
     warningMessage: importValidationPreview.warningMessage,
+    validation: importValidationPreview.validation,
     importValidationPreview,
   });
 }
@@ -1147,6 +1202,21 @@ async function processFileWithMapping(
 
       if (!Number.isFinite(parsed)) return 0;
       return isNegative ? -Math.abs(parsed) : parsed;
+    };
+
+    const hasInvalidNumericValue = (value) => {
+      if (value === null || value === undefined || value === '') return false;
+      if (typeof value === 'number') return !Number.isFinite(value);
+
+      const text = String(value).trim();
+      if (!text) return false;
+
+      const numericText = text.replace(/,/g, '').replace(/[^\d.+-]/g, '');
+      if (!numericText || numericText === '-' || numericText === '+' || numericText === '.') {
+        return /[0-9]/.test(text);
+      }
+
+      return !Number.isFinite(Number.parseFloat(numericText));
     };
 
     const getRawValue = (record, field) => {
@@ -1472,12 +1542,55 @@ const normalizeSalesMetric = (record) => {
     const rawCampaignRows = [];
     const summaryRows = [];
     const detailRowsForAggregate = [];
+    const validationWarnings = new Set();
+    const validationErrors = new Set();
+    let invalidNumericRows = 0;
+    let negativeMetricRows = 0;
+    let impossibleImpressionRows = 0;
 
     for (const [rowIndex, record] of records.entries()) {
     const campaignName =
       reportType === 'sales_data'
         ? getText(record, 'product') || 'Sales Item'
         : getText(record, 'campaignName') || getText(record, 'campaign');
+
+     const metricFields =
+       reportType === 'sales_data'
+         ? ['revenue', 'orders', 'quantity', 'refunds', 'profit']
+         : ['spend', 'impressions', 'clicks', 'conversions', 'revenue', 'reach', 'followers'];
+
+     if (
+       metricFields.some((field) => {
+         const rawValue = getRawValue(record, field);
+         return rawValue !== '' && hasInvalidNumericValue(rawValue);
+       })
+     ) {
+       invalidNumericRows += 1;
+       continue;
+     }
+
+     const rawSpend = reportType === 'sales_data' ? 0 : getValue(record, 'spend');
+     const rawImpressions = reportType === 'sales_data' ? 0 : getValue(record, 'impressions');
+     const rawClicks = reportType === 'sales_data' ? 0 : getValue(record, 'clicks');
+     const rawConversions =
+       reportType === 'sales_data' ? getValue(record, 'orders') : getValue(record, 'conversions');
+     const rawRevenue = getValue(record, 'revenue');
+
+     if (
+       rawSpend < 0 ||
+       rawClicks < 0 ||
+       rawConversions < 0 ||
+       rawRevenue < 0 ||
+       rawImpressions < 0
+     ) {
+       negativeMetricRows += 1;
+       continue;
+     }
+
+     if (rawImpressions > 0 && rawClicks > 0 && rawImpressions < rawClicks) {
+       impossibleImpressionRows += 1;
+       continue;
+     }
 
      const metrics =
        reportType === 'sales_data'
@@ -1532,6 +1645,32 @@ const normalizeSalesMetric = (record) => {
           rowIndex,
         });
       }
+    }
+
+    const requiredMetricFields =
+      reportType === 'sales_data'
+        ? ['revenue', 'orders']
+        : ['spend', 'impressions', 'clicks', 'conversions', 'revenue'];
+    const metricColumnsFound = requiredMetricFields.filter((field) => Boolean(resolvedColumns[field]));
+
+    if (metricColumnsFound.length === 0) {
+      validationErrors.add('No usable metric columns found');
+    }
+
+    if (invalidNumericRows > 0) {
+      validationErrors.add('Invalid numeric data');
+    }
+
+    if (negativeMetricRows > 0) {
+      validationErrors.add('Metric values cannot be negative');
+    }
+
+    if (impossibleImpressionRows > 0) {
+      validationErrors.add('Impressions cannot be smaller than clicks');
+    }
+
+    if (!summaryRows.length && !detailRowsForAggregate.length) {
+      validationErrors.add('All metric values are zero');
     }
 
     const campaignsByName = new Map();
@@ -1645,14 +1784,78 @@ const aggregateRowsByMonth = Array.from(monthlyAggregates.entries()).reduce((acc
   return acc;
 }, {});
 
-console.log('[Upload Import Validation]', {
+const detectedMonths = Array.from(monthlyAggregates.keys()).sort();
+const hasAnyRowDate = [...summaryRows, ...detailRowsForAggregate].some((row) => row.hasRowDate);
+
+if (selectedRangeSpansMultipleMonths && !hasAnyRowDate) {
+  validationErrors.add('No date/month detected in multi-month file');
+}
+
+if ((normalizedPlatform || 'other') === 'other') {
+  validationWarnings.add('Unknown platform detected');
+}
+
+if (!summaryRows.length) {
+  validationWarnings.add('No aggregate summary row detected. Totals were calculated from campaign rows.');
+}
+
+const importedTotals = buildMonthlySummary(
+  Array.from(monthlyAggregates.values()).flatMap((month) => month.rows)
+);
+
+if (importedTotals.revenue <= 0) {
+  validationWarnings.add('Revenue missing, ROAS unavailable');
+}
+
+if (summaryRows.length && campaignRows.length) {
+  const summaryTotals = buildMonthlySummary(rowsForAggregate);
+  const campaignTotals = buildMonthlySummary(campaignRows);
+  const base = Math.max(
+    Math.abs(summaryTotals.spend || 0),
+    Math.abs(summaryTotals.revenue || 0),
+    Math.abs(summaryTotals.conversions || 0),
+    1
+  );
+  const differenceAmount = Math.max(
+    Math.abs((campaignTotals.spend || 0) - (summaryTotals.spend || 0)),
+    Math.abs((campaignTotals.revenue || 0) - (summaryTotals.revenue || 0)),
+    Math.abs((campaignTotals.conversions || 0) - (summaryTotals.conversions || 0))
+  );
+
+  if ((differenceAmount / base) * 100 > 5) {
+    validationWarnings.add('Campaign rows total differs from aggregate row by more than 5%');
+  }
+}
+
+const uploadValidation = {
+  isValid: validationErrors.size === 0,
+  warnings: Array.from(new Set([...importWarnings, ...validationWarnings])),
+  errors: Array.from(validationErrors),
+  detectedPlatform: normalizedPlatform,
+  detectedMonths,
+  aggregateRowsFound: summaryRows.length,
+  campaignRowsFound: campaignRows.length,
+  importedTotals,
+};
+
+console.log('UPLOAD VALIDATION SUMMARY', {
   clientId,
-  platform: normalizedPlatform,
-  detectedMonths: Array.from(monthlyAggregates.keys()).sort(),
-  aggregateRowsPerMonth: aggregateRowsByMonth,
-  campaignRowsPerMonth: campaignRowsByMonth,
-  warnings: Array.from(importWarnings),
+  detectedPlatform: uploadValidation.detectedPlatform,
+  detectedMonths: uploadValidation.detectedMonths,
+  aggregateRowsFound: uploadValidation.aggregateRowsFound,
+  campaignRowsFound: uploadValidation.campaignRowsFound,
+  aggregateRowsPerMonth,
+  campaignRowsPerMonth,
+  warnings: uploadValidation.warnings,
+  errors: uploadValidation.errors,
 });
+
+if (!uploadValidation.isValid) {
+  const validationError = new Error(uploadValidation.errors.join('; '));
+  validationError.statusCode = 400;
+  validationError.validation = uploadValidation;
+  throw validationError;
+}
     transactionClient = await db.getClient();
     await transactionClient.query('BEGIN');
     await transactionClient.query(
@@ -1902,6 +2105,7 @@ console.log('[Upload Import Validation]', {
     );
 
     await transactionClient.query('COMMIT');
+    return uploadValidation;
   } catch (error) {
     console.error('Mapping import error:', error);
 
