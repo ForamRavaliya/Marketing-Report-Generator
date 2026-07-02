@@ -1196,22 +1196,14 @@ const selectSummaryRowsByMonth = (rows) => {
   for (const row of rows) {
     const rowMonth = getRowReportMonth(row.rawData || {});
     const monthKey = rowMonth.toISOString().slice(0, 10);
-    const current = byMonth.get(monthKey);
-    const score =
-      Math.abs(row.metrics?.spend || 0) +
-      Math.abs(row.metrics?.revenue || 0) +
-      Math.abs(row.metrics?.conversions || 0) +
-      Math.abs(row.metrics?.clicks || 0) +
-      Math.abs(row.metrics?.impressions || 0);
-    const currentScore = current
-      ? Math.abs(current.metrics?.spend || 0) +
-        Math.abs(current.metrics?.revenue || 0) +
-        Math.abs(current.metrics?.conversions || 0) +
-        Math.abs(current.metrics?.clicks || 0) +
-        Math.abs(current.metrics?.impressions || 0)
-      : -1;
 
-    if (!current || score > currentScore) {
+    const current = byMonth.get(monthKey);
+
+    // IMPORTANT:
+    // Meta exports can contain many "All" summary/breakdown rows.
+    // The correct account-level total is usually the FIRST summary row.
+    // Do NOT pick the largest row; that causes inflated totals.
+    if (!current || Number(row.rowIndex || 0) < Number(current.rowIndex || 0)) {
       byMonth.set(monthKey, row);
     }
   }

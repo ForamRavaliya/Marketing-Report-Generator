@@ -6,87 +6,22 @@ const { authenticate } = require('../middleware/auth');
 
 router.use(authenticate);
 
-const dedupedAgencyMetricsCte = `
-  WITH base_rows AS (
-    SELECT pd.*
+const agencyAggregateMetricsCte = `
+  WITH chosen_months AS (
+    SELECT
+      pd.client_id,
+      pd.report_month,
+      SUM(COALESCE(pd.spend, 0)) AS spend,
+      SUM(COALESCE(pd.impressions, 0)) AS impressions,
+      SUM(COALESCE(pd.clicks, 0)) AS clicks,
+      SUM(COALESCE(pd.conversions, 0)) AS conversions,
+      SUM(COALESCE(pd.revenue, 0)) AS revenue
     FROM performance_data pd
     JOIN clients c ON pd.client_id = c.id
     WHERE c.agency_id = $1
       AND c.is_active = TRUE
-  ),
-  monthly_rollup AS (
-    SELECT
-      client_id,
-      report_month,
-      BOOL_OR(LOWER(TRIM(COALESCE(external_campaign_name, ''))) = 'aggregate') AS has_aggregate,
-      BOOL_OR(LOWER(TRIM(COALESCE(external_campaign_name, ''))) <> 'aggregate') AS has_campaign,
-      SUM(COALESCE(spend, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) = 'aggregate') AS aggregate_spend,
-      SUM(COALESCE(impressions, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) = 'aggregate') AS aggregate_impressions,
-      SUM(COALESCE(clicks, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) = 'aggregate') AS aggregate_clicks,
-      SUM(COALESCE(conversions, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) = 'aggregate') AS aggregate_conversions,
-      SUM(COALESCE(revenue, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) = 'aggregate') AS aggregate_revenue,
-      SUM(COALESCE(spend, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) <> 'aggregate') AS campaign_spend,
-      SUM(COALESCE(impressions, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) <> 'aggregate') AS campaign_impressions,
-      SUM(COALESCE(clicks, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) <> 'aggregate') AS campaign_clicks,
-      SUM(COALESCE(conversions, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) <> 'aggregate') AS campaign_conversions,
-      SUM(COALESCE(revenue, 0)) FILTER (WHERE LOWER(TRIM(COALESCE(external_campaign_name, ''))) <> 'aggregate') AS campaign_revenue
-    FROM base_rows
-    GROUP BY client_id, report_month
-  ),
-  chosen_months AS (
-    SELECT
-      client_id,
-      CASE
-        WHEN has_aggregate AND has_campaign AND (
-          (COALESCE(campaign_spend, 0) > 0 AND COALESCE(aggregate_spend, 0) BETWEEN campaign_spend * 1.8 AND campaign_spend * 2.2)
-          OR (COALESCE(campaign_conversions, 0) > 0 AND COALESCE(aggregate_conversions, 0) BETWEEN campaign_conversions * 1.8 AND campaign_conversions * 2.2)
-          OR (COALESCE(campaign_revenue, 0) > 0 AND COALESCE(aggregate_revenue, 0) BETWEEN campaign_revenue * 1.8 AND campaign_revenue * 2.2)
-        )
-        THEN COALESCE(campaign_spend, 0)
-        WHEN has_aggregate THEN COALESCE(aggregate_spend, 0)
-        ELSE COALESCE(campaign_spend, 0)
-      END AS spend,
-      CASE
-        WHEN has_aggregate AND has_campaign AND (
-          (COALESCE(campaign_spend, 0) > 0 AND COALESCE(aggregate_spend, 0) BETWEEN campaign_spend * 1.8 AND campaign_spend * 2.2)
-          OR (COALESCE(campaign_conversions, 0) > 0 AND COALESCE(aggregate_conversions, 0) BETWEEN campaign_conversions * 1.8 AND campaign_conversions * 2.2)
-          OR (COALESCE(campaign_revenue, 0) > 0 AND COALESCE(aggregate_revenue, 0) BETWEEN campaign_revenue * 1.8 AND campaign_revenue * 2.2)
-        )
-        THEN COALESCE(campaign_impressions, 0)
-        WHEN has_aggregate THEN COALESCE(aggregate_impressions, 0)
-        ELSE COALESCE(campaign_impressions, 0)
-      END AS impressions,
-      CASE
-        WHEN has_aggregate AND has_campaign AND (
-          (COALESCE(campaign_spend, 0) > 0 AND COALESCE(aggregate_spend, 0) BETWEEN campaign_spend * 1.8 AND campaign_spend * 2.2)
-          OR (COALESCE(campaign_conversions, 0) > 0 AND COALESCE(aggregate_conversions, 0) BETWEEN campaign_conversions * 1.8 AND campaign_conversions * 2.2)
-          OR (COALESCE(campaign_revenue, 0) > 0 AND COALESCE(aggregate_revenue, 0) BETWEEN campaign_revenue * 1.8 AND campaign_revenue * 2.2)
-        )
-        THEN COALESCE(campaign_clicks, 0)
-        WHEN has_aggregate THEN COALESCE(aggregate_clicks, 0)
-        ELSE COALESCE(campaign_clicks, 0)
-      END AS clicks,
-      CASE
-        WHEN has_aggregate AND has_campaign AND (
-          (COALESCE(campaign_spend, 0) > 0 AND COALESCE(aggregate_spend, 0) BETWEEN campaign_spend * 1.8 AND campaign_spend * 2.2)
-          OR (COALESCE(campaign_conversions, 0) > 0 AND COALESCE(aggregate_conversions, 0) BETWEEN campaign_conversions * 1.8 AND campaign_conversions * 2.2)
-          OR (COALESCE(campaign_revenue, 0) > 0 AND COALESCE(aggregate_revenue, 0) BETWEEN campaign_revenue * 1.8 AND campaign_revenue * 2.2)
-        )
-        THEN COALESCE(campaign_conversions, 0)
-        WHEN has_aggregate THEN COALESCE(aggregate_conversions, 0)
-        ELSE COALESCE(campaign_conversions, 0)
-      END AS conversions,
-      CASE
-        WHEN has_aggregate AND has_campaign AND (
-          (COALESCE(campaign_spend, 0) > 0 AND COALESCE(aggregate_spend, 0) BETWEEN campaign_spend * 1.8 AND campaign_spend * 2.2)
-          OR (COALESCE(campaign_conversions, 0) > 0 AND COALESCE(aggregate_conversions, 0) BETWEEN campaign_conversions * 1.8 AND campaign_conversions * 2.2)
-          OR (COALESCE(campaign_revenue, 0) > 0 AND COALESCE(aggregate_revenue, 0) BETWEEN campaign_revenue * 1.8 AND campaign_revenue * 2.2)
-        )
-        THEN COALESCE(campaign_revenue, 0)
-        WHEN has_aggregate THEN COALESCE(aggregate_revenue, 0)
-        ELSE COALESCE(campaign_revenue, 0)
-      END AS revenue
-    FROM monthly_rollup
+      AND LOWER(TRIM(COALESCE(pd.external_campaign_name, ''))) = 'aggregate'
+    GROUP BY pd.client_id, pd.report_month
   )
 `;
 
@@ -120,7 +55,7 @@ router.get('/overview', async (req, res) => {
 
       // Top Clients
       db.query(
-        `${dedupedAgencyMetricsCte}
+        `${agencyAggregateMetricsCte}
          SELECT
            c.id,
            c.name,
@@ -144,7 +79,7 @@ router.get('/overview', async (req, res) => {
 
       // 🔥 KPI SUMMARY QUERY
      db.query(
-       `${dedupedAgencyMetricsCte}
+       `${agencyAggregateMetricsCte}
         SELECT
          SUM(COALESCE(spend, 0)) as spend,
          SUM(COALESCE(impressions, 0)) as impressions,
