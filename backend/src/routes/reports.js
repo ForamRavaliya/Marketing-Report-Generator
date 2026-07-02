@@ -218,12 +218,18 @@ router.post('/generate', async (req, res) => {
   const rawCampaigns = campaignsRaw || [];
     const campaigns = rawCampaigns
       .map((campaign) => normalizeMetricRecord(campaign))
-      .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0));
+      .sort((a, b) => {
+        const spendDiff = Number(b.spend || 0) - Number(a.spend || 0);
+        if (spendDiff !== 0) return spendDiff;
+
+        const conversionDiff = Number(b.conversions || 0) - Number(a.conversions || 0);
+        if (conversionDiff !== 0) return conversionDiff;
+
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
 
     const totalCampaignSpend = campaigns.reduce((sum, c) => sum + Number(c.spend || 0), 0);
     const hasTrendChart = displayedTrends.length > 1;
-    const hasCampaignChart = campaigns.length > 0;
-    const campaignDisplayRows = campaigns.slice(0, 6);
 
     const bestCampaign = campaigns.length > 0
       ? [...campaigns].sort((a, b) => {
@@ -1331,61 +1337,122 @@ const reportType =
         my += 15;
       });
 
-      drawCard(35, 560, 525, 190, THEME.card, THEME.border);
-      drawSectionTitle('Top Campaigns', 55, 580, THEME.violet);
+      drawFooter(pageNo++);
+    };
 
-      const cHeaders = ['Campaign', 'Spend', '% Spend', metricLabels.conversion, metricLabels.cpa];
-      const cWidths = [205, 92, 65, 58, 65];
-      let cy = 615;
+    const drawCampaignTableHeader = (tableX, tableY, widths) => {
+      const headers = [
+        'Campaign Name',
+        'Platform',
+        'Spend',
+        'Impr.',
+        'Clicks',
+        metricLabels.conversion,
+        'CTR',
+        'CPC',
+        metricLabels.cpaShort,
+        'Revenue',
+        'ROAS',
+      ];
 
-      doc.roundedRect(55, cy, 485, 24, 7).fill(THEME.violet);
-      x = 55;
-      cHeaders.forEach((h, i) => {
-        doc.fillColor('#FFFFFF').fontSize(7.5).font('Helvetica-Bold').text(h, x + 8, cy + 8, {
-          width: cWidths[i] - 10,
+      doc.roundedRect(tableX, tableY, 525, 24, 7).fill(THEME.violet);
+      let x = tableX;
+      headers.forEach((header, i) => {
+        doc.fillColor('#FFFFFF').fontSize(5.8).font('Helvetica-Bold').text(header, x + 4, tableY + 8, {
+          width: widths[i] - 6,
+          height: 9,
           ellipsis: true,
         });
-        x += cWidths[i];
+        x += widths[i];
       });
+    };
 
-      cy += 28;
-      campaignDisplayRows.slice(0, 4).forEach((row, idx) => {
-        doc.roundedRect(55, cy, 485, 23, 5).fill(idx % 2 === 0 ? '#F8FAFC' : '#F5F3FF');
+    const drawCampaignTablePages = () => {
+      const tableX = 35;
+      const tableW = 525;
+      const widths = [88, 38, 55, 48, 40, 42, 34, 42, 42, 54, 42];
+      const rowH = 24;
+      const headerY = 145;
+      const firstRowY = 174;
+      const bottomY = CONTENT_BOTTOM - 10;
 
-        const spendShare = safeSummary.spend > 0 ? `${formatNum((Number(row.spend || 0) / safeSummary.spend) * 100, 1)}%` : 'N/A';
-        const costPerResult = Number(row.conversions || 0) > 0
-          ? formatCurrency(Number(row.spend || 0) / Number(row.conversions || 0), currency)
-          : 'N/A';
+      doc.addPage();
+      drawPageHeader('Campaign Performance', `All campaign rows for ${client.name} | ${dateLabel}`);
+      drawCard(25, 120, 545, 625, THEME.card, THEME.border);
+      drawSectionTitle('Campaign Table', 45, 130, THEME.violet);
 
-        const vals = [
-          row.name && row.name !== 'Unknown Campaign' ? row.name : 'Campaign Name N/A',
-          formatCurrency(row.spend, currency),
-          spendShare,
-          formatNum(row.conversions),
-          costPerResult,
-        ];
-
-        x = 55;
-        vals.forEach((v, i) => {
-          doc.fillColor(THEME.text).fontSize(7).font('Helvetica').text(v, x + 8, cy + 7, {
-            width: cWidths[i] - 10,
-            height: 11,
-            ellipsis: true,
-          });
-          x += cWidths[i];
-        });
-
-        cy += 24;
-      });
-
-      if (!campaignDisplayRows.length) {
+      if (!campaigns.length) {
         doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
           'No campaign-level rows were available.',
           55,
-          640,
+          210,
           { width: 480, align: 'center' }
         );
+        drawFooter(pageNo++);
+        return;
       }
+
+      let y = firstRowY;
+      let rowIndex = 0;
+      drawCampaignTableHeader(tableX, headerY, widths);
+
+      const startNewCampaignPage = () => {
+        drawFooter(pageNo++);
+        doc.addPage();
+        drawPageHeader('Campaign Performance', `Continued | ${client.name} | ${dateLabel}`);
+        drawCard(25, 120, 545, 625, THEME.card, THEME.border);
+        drawSectionTitle('Campaign Table Continued', 45, 130, THEME.violet);
+        drawCampaignTableHeader(tableX, headerY, widths);
+        y = firstRowY;
+      };
+
+      campaigns.forEach((row) => {
+        if (y + rowH > bottomY) {
+          startNewCampaignPage();
+        }
+
+        doc.roundedRect(tableX, y, tableW, rowH - 2, 4).fill(rowIndex % 2 === 0 ? '#F8FAFC' : '#F5F3FF');
+
+        const ctrText = Number(row.ctr || 0) > 0 ? formatPct(row.ctr) : 'N/A';
+        const cpcText = Number(row.cpc || 0) > 0 ? formatCurrency(row.cpc, currency) : 'N/A';
+        const cpaText = Number(row.cpa || 0) > 0 ? formatCurrency(row.cpa, currency) : 'N/A';
+        const revenueText = Number(row.revenue || 0) > 0 ? formatCurrency(row.revenue, currency) : 'N/A';
+        const roasText = Number(row.roas || 0) > 0 ? `${formatNum(row.roas, 2)}x` : 'N/A';
+
+        const vals = [
+          row.name && row.name !== 'Unknown Campaign' ? row.name : 'Campaign Name N/A',
+          String(row.platform || 'N/A').toUpperCase(),
+          formatCurrency(row.spend, currency),
+          formatNum(row.impressions),
+          formatNum(row.clicks),
+          formatNum(row.conversions),
+          ctrText,
+          cpcText,
+          cpaText,
+          revenueText,
+          roasText,
+        ];
+
+        let x = tableX;
+        vals.forEach((value, i) => {
+          const isName = i === 0;
+          const fontSize = isName ? 5.8 : String(value).length > 10 ? 5.1 : 5.5;
+          doc.fillColor(THEME.text).fontSize(fontSize).font(isName ? 'Helvetica-Bold' : 'Helvetica').text(
+            String(value),
+            x + 4,
+            y + 6,
+            {
+              width: widths[i] - 6,
+              height: 12,
+              ellipsis: true,
+            }
+          );
+          x += widths[i];
+        });
+
+        y += rowH;
+        rowIndex += 1;
+      });
 
       drawFooter(pageNo++);
     };
@@ -1736,6 +1803,7 @@ doc.fillColor('#CBD5E1')
 
   drawSimpleCover();
   drawSimpleTablesPage();
+  drawCampaignTablePages();
   drawSimpleChartsPage();
   drawRecommendationsPage();
   //drawAgencyFinalPage();
