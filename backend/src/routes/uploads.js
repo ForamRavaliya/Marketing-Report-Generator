@@ -1588,13 +1588,16 @@ const normalizeSalesMetric = (record) => {
 
      if (rawImpressions > 0 && rawClicks > 0 && rawImpressions < rawClicks) {
        impossibleImpressionRows += 1;
-       continue;
      }
 
      const metrics =
        reportType === 'sales_data'
          ? normalizeSalesMetric(record)
          : normalizeCampaignMetric(record);
+
+      if (rawImpressions > 0 && rawClicks > 0 && rawImpressions < rawClicks) {
+        metrics.ctr = 0;
+      }
 
       const hasAnyData =
         metrics.spend ||
@@ -1665,7 +1668,7 @@ const normalizeSalesMetric = (record) => {
     }
 
     if (impossibleImpressionRows > 0) {
-      validationErrors.add('Impressions cannot be smaller than clicks');
+      validationWarnings.add('Some rows had invalid impressions/clicks and were normalized.');
     }
 
     if (!summaryRows.length && !detailRowsForAggregate.length) {
@@ -1809,6 +1812,13 @@ const importedTotals = buildMonthlySummary(
 
 if (importedTotals.revenue <= 0) {
   validationWarnings.add('Revenue missing, ROAS unavailable');
+}
+
+if (
+  importedTotals.impressions > 0 &&
+  importedTotals.clicks > importedTotals.impressions
+) {
+  validationErrors.add('Impressions cannot be smaller than clicks');
 }
 
 if (summaryRows.length && campaignRows.length) {
