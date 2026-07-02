@@ -1175,39 +1175,154 @@ async function processFileWithMapping(
     const getText = (record, field) => {
       return String(getRawValue(record, field) || '').trim();
     };
-    const getRowReportMonth = (record) => {
-      const possibleDateColumns = [
+    const toMonthStart = (date) => {
+      if (!date || Number.isNaN(date.getTime())) return null;
+      const month = new Date(date);
+      month.setDate(1);
+      month.setHours(0, 0, 0, 0);
+      return month;
+    };
+
+    const parseDateCandidate = (value, dateRangeStart, dateRangeEnd) => {
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value;
+      }
+
+      if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+        // Excel serial dates are days since 1899-12-30.
+        const excelDate = new Date(Date.UTC(1899, 11, 30 + Math.floor(value)));
+        if (!Number.isNaN(excelDate.getTime())) return excelDate;
+      }
+
+      const raw = String(value || '').trim();
+      if (!raw) return null;
+
+      if (/^\d+(\.\d+)?$/.test(raw)) {
+        const serial = Number(raw);
+        if (serial > 25569 && serial < 60000) {
+          const excelDate = new Date(Date.UTC(1899, 11, 30 + Math.floor(serial)));
+          if (!Number.isNaN(excelDate.getTime())) return excelDate;
+        }
+      }
+
+      const monthNames = {
+        jan: 0, january: 0,
+        feb: 1, february: 1,
+        mar: 2, march: 2,
+        apr: 3, april: 3,
+        may: 4,
+        jun: 5, june: 5,
+        jul: 6, july: 6,
+        aug: 7, august: 7,
+        sep: 8, sept: 8, september: 8,
+        oct: 9, october: 9,
+        nov: 10, november: 10,
+        dec: 11, december: 11,
+      };
+
+      const inSelectedRange = (date) => {
+        if (!date || Number.isNaN(date.getTime())) return false;
+        if (!dateRangeStart || !dateRangeEnd) return true;
+        const start = new Date(dateRangeStart);
+        const end = new Date(dateRangeEnd);
+        return date >= start && date <= end;
+      };
+
+      const numericMatch = raw.match(/^(\d{1,4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,4})$/);
+      if (numericMatch) {
+        const a = Number(numericMatch[1]);
+        const b = Number(numericMatch[2]);
+        const c = Number(numericMatch[3]);
+        const year = a > 999 ? a : c > 999 ? c : c + 2000;
+        const validDate = (y, m, d) => {
+          if (!y || m < 1 || m > 12 || d < 1 || d > 31) return null;
+          const date = new Date(y, m - 1, d);
+          return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
+            ? date
+            : null;
+        };
+        const candidates = (
+          a > 999
+            ? [validDate(year, b, c)]
+            : [
+                validDate(year, b, a), // dd/mm/yyyy
+                validDate(year, a, b), // mm/dd/yyyy
+              ]
+        ).filter(Boolean);
+
+        return candidates.find(inSelectedRange) || candidates.find((d) => !Number.isNaN(d.getTime())) || null;
+      }
+
+      const monthNameMatch = raw.match(
+        /^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$|^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$|^([A-Za-z]+)\s+(\d{4})$/
+      );
+
+      if (monthNameMatch) {
+        const monthText = (monthNameMatch[1] || monthNameMatch[5] || monthNameMatch[7] || '').toLowerCase();
+        const day = Number(monthNameMatch[2] || monthNameMatch[4] || 1);
+        const year = Number(monthNameMatch[3] || monthNameMatch[6] || monthNameMatch[8]);
+        if (Object.prototype.hasOwnProperty.call(monthNames, monthText) && year) {
+          return new Date(year, monthNames[monthText], day || 1);
+        }
+      }
+
+      const parsed = new Date(raw);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const getRowDate = (record) => {
+      const possibleDateColumns = new Set([
         'date',
         'day',
         'month',
         'report date',
         'reporting starts',
         'reporting start',
+        'reporting ends',
+        'reporting end',
         'start date',
         'end date',
+        'campaign start',
+        'campaign end',
         'purchase date',
         'transaction date',
-      ];
+        'created date',
+      ]);
 
-      for (const key of Object.keys(record)) {
+      for (const key of Object.keys(record || {})) {
         const normalized = normalizeHeader(key);
+        if (!possibleDateColumns.has(normalized)) continue;
 
-        if (possibleDateColumns.includes(normalized)) {
-          const value = record[key];
-
-          if (!value) continue;
-
-          const d = new Date(value);
-
-          if (!Number.isNaN(d.getTime())) {
-            d.setDate(1);
-            d.setHours(0, 0, 0, 0);
-            return d;
-          }
-        }
+        const parsed = parseDateCandidate(record[key], finalDateStart, finalDateEnd);
+        if (parsed) return parsed;
       }
 
-      return reportMonth;
+      return null;
+    };
+
+    const selectedRangeSpansMultipleMonths = (() => {
+      if (!finalDateStart || !finalDateEnd) return false;
+      const start = toMonthStart(new Date(finalDateStart));
+      const end = toMonthStart(new Date(finalDateEnd));
+      return Boolean(start && end && start.getTime() !== end.getTime());
+    })();
+
+    const importWarnings = new Set();
+
+    const getRowReportMonth = (record, fallbackDateRangeStart = finalDateStart) => {
+      const rowDate = getRowDate(record || {});
+      const detectedMonth = toMonthStart(rowDate);
+      if (detectedMonth) return detectedMonth;
+
+      const fallbackMonth = toMonthStart(fallbackDateRangeStart ? new Date(fallbackDateRangeStart) : reportMonth) || reportMonth;
+
+      if (selectedRangeSpansMultipleMonths) {
+        importWarnings.add(
+          'File has multi-month date range but no row-level month column. Imported as one period summary.'
+        );
+      }
+
+      return fallbackMonth;
     };
 
     const isSummaryRow = (name) => {
@@ -1237,6 +1352,23 @@ async function processFileWithMapping(
       const n = normalizeHeader(name);
       return (
         !n ||
+        n === 'all' ||
+        n === 'total' ||
+        n === 'aggregate' ||
+        n === 'overall' ||
+        n === 'account total' ||
+        n === 'male' ||
+        n === 'female' ||
+        n === 'unknown' ||
+        n === 'desktop' ||
+        n === 'mobile' ||
+        n === 'tablet' ||
+        n === 'facebook' ||
+        n === 'instagram' ||
+        n === 'audience network' ||
+        n === 'messenger' ||
+        /^\d{1,2}\s*-\s*\d{1,2}$/.test(n) ||
+        /^\d{1,2}\s*\+$/.test(n) ||
         n === 'unknown campaign' ||
         n === 'unknown camp' ||
         n === 'campaign name n/a' ||
@@ -1367,11 +1499,16 @@ const normalizeSalesMetric = (record) => {
 
       if (!hasAnyData) continue;
 
+      const rowHasDetectedDate = Boolean(getRowDate(record));
+      const rowReportMonth = getRowReportMonth(record);
+
       if (isSummaryRow(campaignName)) {
         summaryRows.push({
           name: 'aggregate',
           metrics,
           rawData: record,
+          reportMonth: rowReportMonth,
+          hasRowDate: rowHasDetectedDate,
           rowIndex,
         });
       } else {
@@ -1381,6 +1518,8 @@ const normalizeSalesMetric = (record) => {
           name: campaignName,
           metrics,
           rawData: record,
+          reportMonth: rowReportMonth,
+          hasRowDate: rowHasDetectedDate,
           rowIndex,
         });
 
@@ -1388,6 +1527,8 @@ const normalizeSalesMetric = (record) => {
           name: campaignName,
           metrics,
           rawData: record,
+          reportMonth: rowReportMonth,
+          hasRowDate: rowHasDetectedDate,
           rowIndex,
         });
       }
@@ -1396,9 +1537,11 @@ const normalizeSalesMetric = (record) => {
     const campaignsByName = new Map();
 
     for (const row of rawCampaignRows) {
-      const key = row.name.trim().toLowerCase();
+      const monthKey = row.reportMonth.toISOString().slice(0, 10);
+      const key = `${row.name.trim().toLowerCase()}::${monthKey}`;
       const existing = campaignsByName.get(key) || {
         name: row.name.trim(),
+        reportMonth: row.reportMonth,
        metrics: {
          spend: 0,
          impressions: 0,
@@ -1439,7 +1582,7 @@ const selectSummaryRowsByMonth = (rows) => {
   const byMonth = new Map();
 
   for (const row of rows) {
-    const rowMonth = getRowReportMonth(row.rawData || {});
+    const rowMonth = row.reportMonth || getRowReportMonth(row.rawData || {});
     const monthKey = rowMonth.toISOString().slice(0, 10);
 
     const current = byMonth.get(monthKey);
@@ -1456,14 +1599,29 @@ const selectSummaryRowsByMonth = (rows) => {
   return Array.from(byMonth.values());
 };
 
-const rowsForAggregate = summaryRows.length > 0
-  ? selectSummaryRowsByMonth(summaryRows)
-  : detailRowsForAggregate;
+const detectedMonthKey = (row) => row.reportMonth.toISOString().slice(0, 10);
+const summaryDetectedMonths = new Set(summaryRows.filter((row) => row.hasRowDate).map(detectedMonthKey));
+const detailDetectedMonths = new Set(detailRowsForAggregate.filter((row) => row.hasRowDate).map(detectedMonthKey));
+const useCampaignRowsForMonthlyAggregate =
+  detailDetectedMonths.size > 1 &&
+  summaryRows.length > 0 &&
+  summaryDetectedMonths.size <= 1;
+
+if (useCampaignRowsForMonthlyAggregate) {
+  importWarnings.add(
+    'Detected one period-level summary row plus dated monthly detail rows. Monthly dashboard/PDF totals use dated detail rows to avoid forcing all data into one month.'
+  );
+}
+
+const rowsForAggregate =
+  summaryRows.length > 0 && !useCampaignRowsForMonthlyAggregate
+    ? selectSummaryRowsByMonth(summaryRows)
+    : detailRowsForAggregate;
 
 const monthlyAggregates = new Map();
 
 for (const row of rowsForAggregate) {
-  const rowMonth = getRowReportMonth(row.rawData || {});
+  const rowMonth = row.reportMonth || getRowReportMonth(row.rawData || {});
   const monthKey = rowMonth.toISOString().slice(0, 10);
 
   const existing = monthlyAggregates.get(monthKey) || {
@@ -1475,6 +1633,26 @@ for (const row of rowsForAggregate) {
 
   monthlyAggregates.set(monthKey, existing);
 }
+
+const campaignRowsByMonth = campaignRows.reduce((acc, row) => {
+  const monthKey = (row.reportMonth || getRowReportMonth(row.rawData?.[0] || {})).toISOString().slice(0, 10);
+  acc[monthKey] = (acc[monthKey] || 0) + 1;
+  return acc;
+}, {});
+
+const aggregateRowsByMonth = Array.from(monthlyAggregates.entries()).reduce((acc, [monthKey, value]) => {
+  acc[monthKey] = value.rows.length;
+  return acc;
+}, {});
+
+console.log('[Upload Import Validation]', {
+  clientId,
+  platform: normalizedPlatform,
+  detectedMonths: Array.from(monthlyAggregates.keys()).sort(),
+  aggregateRowsPerMonth: aggregateRowsByMonth,
+  campaignRowsPerMonth: campaignRowsByMonth,
+  warnings: Array.from(importWarnings),
+});
     transactionClient = await db.getClient();
     await transactionClient.query('BEGIN');
     await transactionClient.query(
@@ -1517,6 +1695,24 @@ for (const row of rowsForAggregate) {
 
      aggregate.margin =
        aggregate.revenue > 0 ? (aggregate.profit / aggregate.revenue) * 100 : 0;
+
+     console.log('[Upload Monthly Summary Selected]', {
+       clientId,
+       platform: normalizedPlatform,
+       reportMonth: aggregateReportMonth.toISOString().slice(0, 10),
+       source:
+         summaryRows.length > 0 && !useCampaignRowsForMonthlyAggregate
+           ? 'summary_row'
+           : 'campaign_sum',
+       totals: {
+         spend: aggregate.spend,
+         impressions: aggregate.impressions,
+         clicks: aggregate.clicks,
+         conversions: aggregate.conversions,
+         revenue: aggregate.revenue,
+         roas: aggregate.roas,
+       },
+     });
 
      await transactionClient.query(
        `INSERT INTO performance_data
@@ -1577,7 +1773,10 @@ for (const row of rowsForAggregate) {
                    margin: aggregate.margin,
                  }
                : null,
-           source: summaryRows.length > 0 ? 'summary_row' : 'campaign_sum',
+           source:
+             summaryRows.length > 0 && !useCampaignRowsForMonthlyAggregate
+               ? 'summary_row'
+               : 'campaign_sum',
          }),
        ]
      );
@@ -1587,7 +1786,16 @@ for (const row of rowsForAggregate) {
       const campaignName = row.name;
       const m = row.metrics;
 
-     const rowReportMonth = getRowReportMonth(row.rawData[0] || {});
+     const rowReportMonth = row.reportMonth || getRowReportMonth(row.rawData[0] || {});
+
+     const campaignMonthStart = new Date(rowReportMonth);
+     campaignMonthStart.setDate(1);
+     campaignMonthStart.setHours(0, 0, 0, 0);
+
+     const campaignMonthEnd = new Date(campaignMonthStart);
+     campaignMonthEnd.setMonth(campaignMonthEnd.getMonth() + 1);
+     campaignMonthEnd.setDate(0);
+     campaignMonthEnd.setHours(23, 59, 59, 999);
 
       let campaignId = null;
 
@@ -1647,8 +1855,8 @@ for (const row of rowsForAggregate) {
           normalizedPlatform,
           campaignName,
           rowReportMonth,
-          finalDateStart,
-          finalDateEnd,
+          campaignMonthStart,
+          campaignMonthEnd,
           m.spend,
           m.impressions,
           m.clicks,
