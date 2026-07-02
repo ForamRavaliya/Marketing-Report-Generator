@@ -1045,7 +1045,6 @@ async function buildRecordsFromMappedFile(filePath, fileType) {
   throw new Error('Mapped import supports only CSV and Excel');
 }
 
-
 async function processFileWithMapping(
   uploadId,
   fileType,
@@ -1773,16 +1772,21 @@ for (const row of rowsForAggregate) {
   monthlyAggregates.set(monthKey, existing);
 }
 
-const campaignRowsByMonth = campaignRows.reduce((acc, row) => {
-  const monthKey = (row.reportMonth || getRowReportMonth(row.rawData?.[0] || {})).toISOString().slice(0, 10);
-  acc[monthKey] = (acc[monthKey] || 0) + 1;
-  return acc;
-}, {});
+const aggregateRowsPerMonth = new Map();
+for (const [monthKey, value] of monthlyAggregates.entries()) {
+  aggregateRowsPerMonth.set(monthKey, value.rows.length);
+}
 
-const aggregateRowsByMonth = Array.from(monthlyAggregates.entries()).reduce((acc, [monthKey, value]) => {
-  acc[monthKey] = value.rows.length;
-  return acc;
-}, {});
+const campaignRowsPerMonth = new Map();
+for (const row of campaignRows) {
+  const monthKey = (row.reportMonth || getRowReportMonth(row.rawData?.[0] || {})).toISOString().slice(0, 10);
+  campaignRowsPerMonth.set(monthKey, (campaignRowsPerMonth.get(monthKey) || 0) + 1);
+}
+
+const aggregateRowsFound = Array.from(aggregateRowsPerMonth.values()).reduce((a, b) => a + b, 0);
+const campaignRowsFound = Array.from(campaignRowsPerMonth.values()).reduce((a, b) => a + b, 0);
+const aggregateRowsPerMonthCounts = Object.fromEntries(aggregateRowsPerMonth);
+const campaignRowsPerMonthCounts = Object.fromEntries(campaignRowsPerMonth);
 
 const detectedMonths = Array.from(monthlyAggregates.keys()).sort();
 const hasAnyRowDate = [...summaryRows, ...detailRowsForAggregate].some((row) => row.hasRowDate);
@@ -1833,8 +1837,8 @@ const uploadValidation = {
   errors: Array.from(validationErrors),
   detectedPlatform: normalizedPlatform,
   detectedMonths,
-  aggregateRowsFound: summaryRows.length,
-  campaignRowsFound: campaignRows.length,
+  aggregateRowsFound,
+  campaignRowsFound,
   importedTotals,
 };
 
@@ -1844,8 +1848,8 @@ console.log('UPLOAD VALIDATION SUMMARY', {
   detectedMonths: uploadValidation.detectedMonths,
   aggregateRowsFound: uploadValidation.aggregateRowsFound,
   campaignRowsFound: uploadValidation.campaignRowsFound,
-  aggregateRowsPerMonth,
-  campaignRowsPerMonth,
+  aggregateRowsPerMonth: aggregateRowsPerMonthCounts,
+  campaignRowsPerMonth: campaignRowsPerMonthCounts,
   warnings: uploadValidation.warnings,
   errors: uploadValidation.errors,
 });
