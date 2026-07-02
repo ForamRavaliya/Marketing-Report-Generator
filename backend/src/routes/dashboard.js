@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
+const { calculateDerivedMetrics, safeNumber } = require('../utils/metrics');
 
 router.use(authenticate);
 
@@ -61,11 +62,7 @@ router.get('/overview', async (req, res) => {
            c.name,
            SUM(COALESCE(cm.spend, 0)) as total_spend,
            SUM(COALESCE(cm.conversions, 0)) as total_conversions,
-           CASE
-             WHEN SUM(COALESCE(cm.spend, 0)) > 0
-             THEN SUM(COALESCE(cm.revenue, 0)) / SUM(COALESCE(cm.spend, 0))
-             ELSE 0
-           END as roas
+           SUM(COALESCE(cm.revenue, 0)) as total_revenue
          FROM clients c
          LEFT JOIN chosen_months cm
            ON cm.client_id = c.id
@@ -93,25 +90,35 @@ router.get('/overview', async (req, res) => {
 
     // 🔥 SUMMARY DATA
     const summary = summaryResult.rows[0] || {};
+    const topClients = topClientsResult.rows.map((client) => ({
+      ...client,
+      roas: calculateDerivedMetrics({
+        spend: client.total_spend,
+        conversions: client.total_conversions,
+        revenue: client.total_revenue,
+      }).roas,
+    }));
 
-    const spend = parseFloat(summary.spend || 0);
-    const impressions = parseFloat(summary.impressions || 0);
-    const clicks = parseFloat(summary.clicks || 0);
-    const conversions = parseFloat(summary.conversions || 0);
-    const revenue = parseFloat(summary.revenue || 0);
+    const spend = safeNumber(summary.spend);
+    const impressions = safeNumber(summary.impressions);
+    const clicks = safeNumber(summary.clicks);
+    const conversions = safeNumber(summary.conversions);
+    const revenue = safeNumber(summary.revenue);
 
     // 🔥 KPI CALCULATIONS
-    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-    const cpc = clicks > 0 ? spend / clicks : 0;
-    const cpl = conversions > 0 ? spend / conversions : 0; // using conversions as leads
-    const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
-    const roas = spend > 0 ? revenue / spend : 0;
+    const derived = calculateDerivedMetrics({
+      spend,
+      impressions,
+      clicks,
+      conversions,
+      revenue,
+    });
 
     // ✅ FINAL RESPONSE
     res.json({
       totalClients: parseInt(clientsResult.rows[0].count),
       recentActivity: recentDataResult.rows,
-      topClients: topClientsResult.rows,
+      topClients,
 
       spend,
       impressions,
@@ -119,11 +126,11 @@ router.get('/overview', async (req, res) => {
       conversions,
       revenue,
 
-      ctr,
-      cpc,
-      cpl,
-      conversionRate,
-      roas,
+      ctr: derived.ctr,
+      cpc: derived.cpc,
+      cpl: derived.cpl,
+      conversionRate: derived.conversionRate,
+      roas: derived.roas,
     });
 
   } catch (error) {

@@ -7,6 +7,7 @@ const XLSX = require('xlsx');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { detectReportType } = require('../utils/reportType');
+const { sanitizeImportedMetrics, buildMonthlySummary } = require('../utils/metrics');
 const platformType = require('../utils/platformType');
 const detectPlatform =
   typeof platformType === 'function'
@@ -609,7 +610,7 @@ function buildImportValidationPreview({
       revenue = spend * roasValue;
     }
 
-    return {
+    return sanitizeImportedMetrics({
       spend,
       clicks: Math.round(clicks || 0),
       impressions: Math.round(impressions || 0),
@@ -618,7 +619,7 @@ function buildImportValidationPreview({
       conversions: Math.round(conversions || 0),
       revenue,
       reach: Math.round(reach || 0),
-    };
+    });
   };
 
   const addTotals = (target, source) => {
@@ -632,14 +633,7 @@ function buildImportValidationPreview({
     target.reach += source.reach || 0;
   };
 
-  const finalizeTotals = (totals) => ({
-    ...totals,
-    ctr: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0,
-    cpc: totals.clicks > 0 ? totals.spend / totals.clicks : 0,
-    cpl: totals.leads > 0 ? totals.spend / totals.leads : 0,
-    cpa: totals.conversions > 0 ? totals.spend / totals.conversions : 0,
-    roas: totals.spend > 0 && totals.revenue > 0 ? totals.revenue / totals.spend : 0,
-  });
+  const finalizeTotals = (totals) => sanitizeImportedMetrics(totals);
 
   const emptyTotals = () => ({
     spend: 0,
@@ -1277,7 +1271,7 @@ const normalizeSalesMetric = (record) => {
       ? revenue / orders
       : 0;
 
-  return {
+  return sanitizeImportedMetrics({
     spend: 0,
     impressions: 0,
     clicks: 0,
@@ -1295,7 +1289,7 @@ const normalizeSalesMetric = (record) => {
     profit,
     margin,
     aov,
-  };
+  });
 };
 
     const normalizeCampaignMetric = (record) => {
@@ -1332,80 +1326,15 @@ const normalizeSalesMetric = (record) => {
         revenue = spend * roasValue;
       }
 
-      const ctr = impressions > 0 && clicks > 0 ? (clicks / impressions) * 100 : 0;
-      const cpc = clicks > 0 ? spend / clicks : 0;
-      const cpa = conversions > 0 ? spend / conversions : 0;
-      const roas = spend > 0 && revenue > 0 ? revenue / spend : 0;
-
-    return {
+    return sanitizeImportedMetrics({
       spend,
       impressions: Math.round(impressions || 0),
       clicks: Math.round(clicks || 0),
-      ctr,
-      cpc,
       conversions: Math.round(conversions || 0),
-      cpa,
-      roas,
       revenue,
       reach: Math.round(reach || 0),
       followers: Math.round(followers || 0),
-    };
-    };
-
-    const emptyMonthlySummary = () => ({
-      spend: 0,
-      impressions: 0,
-      clicks: 0,
-      conversions: 0,
-      leads: 0,
-      purchases: 0,
-      revenue: 0,
-      reach: 0,
-      followers: 0,
-      orders: 0,
-      quantity: 0,
-      refunds: 0,
-      profit: 0,
-      ctr: 0,
-      cpc: 0,
-      cpl: 0,
-      cpa: 0,
-      roas: 0,
     });
-
-    const buildMonthlySummary = (rows) => {
-      const summary = emptyMonthlySummary();
-
-      for (const row of rows) {
-        const metrics = row.metrics || {};
-        summary.spend += metrics.spend || 0;
-        summary.impressions += metrics.impressions || 0;
-        summary.clicks += metrics.clicks || 0;
-        summary.conversions += metrics.conversions || 0;
-        summary.revenue += metrics.revenue || 0;
-        summary.reach += metrics.reach || 0;
-        summary.followers += metrics.followers || 0;
-        summary.orders += metrics.orders || 0;
-        summary.quantity += metrics.quantity || 0;
-        summary.refunds += metrics.refunds || 0;
-        summary.profit += metrics.profit || 0;
-      }
-
-      summary.leads = summary.conversions;
-      summary.purchases = summary.conversions;
-      summary.ctr =
-        summary.impressions > 0 && summary.clicks > 0
-          ? (summary.clicks / summary.impressions) * 100
-          : 0;
-      summary.cpc = summary.clicks > 0 ? summary.spend / summary.clicks : 0;
-      summary.cpa = summary.conversions > 0 ? summary.spend / summary.conversions : 0;
-      summary.cpl = summary.cpa;
-      summary.roas =
-        summary.spend > 0 && summary.revenue > 0
-          ? summary.revenue / summary.spend
-          : 0;
-
-      return summary;
     };
 
     const rawCampaignRows = [];
@@ -1501,16 +1430,10 @@ const normalizeSalesMetric = (record) => {
       campaignsByName.set(key, existing);
     }
 
-    const campaignRows = Array.from(campaignsByName.values()).map((row) => {
-      const metrics = row.metrics;
-
-      metrics.ctr = metrics.impressions > 0 ? (metrics.clicks / metrics.impressions) * 100 : 0;
-      metrics.cpc = metrics.clicks > 0 ? metrics.spend / metrics.clicks : 0;
-      metrics.cpa = metrics.conversions > 0 ? metrics.spend / metrics.conversions : 0;
-      metrics.roas = metrics.spend > 0 ? metrics.revenue / metrics.spend : 0;
-
-      return row;
-    });
+    const campaignRows = Array.from(campaignsByName.values()).map((row) => ({
+      ...row,
+      metrics: sanitizeImportedMetrics(row.metrics),
+    }));
 
 const selectSummaryRowsByMonth = (rows) => {
   const byMonth = new Map();
@@ -1588,22 +1511,6 @@ for (const row of rowsForAggregate) {
      monthEnd.setMonth(monthEnd.getMonth() + 1);
      monthEnd.setDate(0);
      monthEnd.setHours(23, 59, 59, 999);
-
-     aggregate.ctr =
-       aggregate.impressions > 0 && aggregate.clicks > 0
-         ? (aggregate.clicks / aggregate.impressions) * 100
-         : 0;
-
-     aggregate.cpc =
-       aggregate.clicks > 0 ? aggregate.spend / aggregate.clicks : 0;
-
-     aggregate.cpa =
-       aggregate.conversions > 0 ? aggregate.spend / aggregate.conversions : 0;
-
-     aggregate.roas =
-       aggregate.spend > 0 && aggregate.revenue > 0
-         ? aggregate.revenue / aggregate.spend
-         : 0;
 
      aggregate.aov =
        aggregate.orders > 0 ? aggregate.revenue / aggregate.orders : 0;

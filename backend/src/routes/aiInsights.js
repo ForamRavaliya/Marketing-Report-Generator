@@ -3,10 +3,16 @@ const router = express.Router();
 
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
+const {
+  getSummaryMetrics,
+  getPlatformMetrics,
+  getCampaignMetrics,
+  safeNumber,
+} = require('../utils/metrics');
 
 router.use(authenticate);
 
-const safeNum = (value) => Number(value || 0);
+const safeNum = (value) => safeNumber(value, 0);
 
 const getPerformanceLevel = (roas, ctr, conversions) => {
   if (roas >= 4 && ctr >= 2 && conversions >= 100) return 'excellent';
@@ -19,20 +25,7 @@ router.post('/generate/:clientId', async (req, res) => {
   try {
     const { clientId } = req.params;
 
-    const performanceResult = await db.query(
-      `SELECT
-         SUM(COALESCE(spend, 0)) AS spend,
-         SUM(COALESCE(impressions, 0)) AS impressions,
-         SUM(COALESCE(clicks, 0)) AS clicks,
-         SUM(COALESCE(conversions, 0)) AS conversions,
-         SUM(COALESCE(revenue, 0)) AS revenue
-       FROM performance_data
-       WHERE client_id = $1
-       AND external_campaign_name = 'aggregate'`,
-      [clientId]
-    );
-
-    const metrics = performanceResult.rows[0];
+    const metrics = await getSummaryMetrics(db, { clientId });
 
     if (!metrics || safeNum(metrics.spend) === 0) {
       return res.status(404).json({
@@ -45,57 +38,18 @@ router.post('/generate/:clientId', async (req, res) => {
     const clicks = safeNum(metrics.clicks);
     const conversions = safeNum(metrics.conversions);
     const revenue = safeNum(metrics.revenue);
+    const ctr = safeNum(metrics.ctr);
+    const cpc = safeNum(metrics.cpc);
+    const cpa = safeNum(metrics.cpa);
+    const roas = safeNum(metrics.roas);
 
-    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-    const cpc = clicks > 0 ? spend / clicks : 0;
-    const cpa = conversions > 0 ? spend / conversions : 0;
-    const roas = spend > 0 ? revenue / spend : 0;
+    const [platformRows, campaignRows] = await Promise.all([
+      getPlatformMetrics(db, { clientId }),
+      getCampaignMetrics(db, { clientId }),
+    ]);
 
-    const platformResult = await db.query(
-      `SELECT
-         platform,
-         SUM(COALESCE(spend, 0)) AS spend,
-         SUM(COALESCE(clicks, 0)) AS clicks,
-         SUM(COALESCE(conversions, 0)) AS conversions,
-         SUM(COALESCE(revenue, 0)) AS revenue,
-         CASE
-           WHEN SUM(COALESCE(spend, 0)) > 0
-           THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
-           ELSE 0
-         END AS roas
-       FROM performance_data
-       WHERE client_id = $1
-       AND external_campaign_name = 'aggregate'
-       GROUP BY platform
-       ORDER BY roas DESC`,
-      [clientId]
-    );
-
-    const campaignResult = await db.query(
-      `SELECT
-         c.name,
-         pd.platform,
-         SUM(COALESCE(pd.spend, 0)) AS spend,
-         SUM(COALESCE(pd.clicks, 0)) AS clicks,
-         SUM(COALESCE(pd.conversions, 0)) AS conversions,
-         SUM(COALESCE(pd.revenue, 0)) AS revenue,
-         CASE
-           WHEN SUM(COALESCE(pd.spend, 0)) > 0
-           THEN SUM(COALESCE(pd.revenue, 0)) / SUM(COALESCE(pd.spend, 0))
-           ELSE 0
-         END AS roas
-       FROM performance_data pd
-       LEFT JOIN campaigns c ON pd.campaign_id = c.id
-       WHERE pd.client_id = $1
-       AND pd.campaign_id IS NOT NULL
-       GROUP BY c.name, pd.platform
-       ORDER BY roas DESC
-       LIMIT 5`,
-      [clientId]
-    );
-
-    const bestPlatform = platformResult.rows[0];
-    const bestCampaign = campaignResult.rows[0];
+    const bestPlatform = [...platformRows].sort((a, b) => safeNum(b.roas) - safeNum(a.roas))[0];
+    const bestCampaign = [...campaignRows].sort((a, b) => safeNum(b.roas) - safeNum(a.roas))[0];
 
     const recommendations = [];
 
@@ -111,7 +65,7 @@ router.post('/generate/:clientId', async (req, res) => {
       );
     }
 
-    if (platformResult.rows.length === 1) {
+    if (platformRows.length === 1) {
       recommendations.push(
         'Only one advertising platform has tracked spend. Upload Google Ads, LinkedIn Ads, or other platform data to compare budget allocation and channel performance.'
       );

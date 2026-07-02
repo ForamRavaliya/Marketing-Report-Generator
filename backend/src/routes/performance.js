@@ -9,6 +9,7 @@ const {
     getCampaignMetrics,
     getLatestReportMonth,
     getPreviousReportMonth,
+    calculatePercentChange,
 
 } = require('../utils/metrics');
 
@@ -166,15 +167,6 @@ router.get('/comparison/:clientId', async (req, res) => {
         : Promise.resolve(emptyMetrics),
     ]);
 
-    const calcChange = (currValue, prevValue) => {
-      const currentNum = Number(currValue || 0);
-      const previousNum = Number(prevValue || 0);
-
-      if (previousNum === 0) return null;
-
-      return ((currentNum - previousNum) / Math.abs(previousNum)) * 100;
-    };
-
    const metrics = [
      'spend',
      'impressions',
@@ -200,12 +192,14 @@ router.get('/comparison/:clientId', async (req, res) => {
     metrics.forEach((metric) => {
       const currentValue = parseFloat(curr?.[metric]) || 0;
       const previousValue = parseFloat(prev?.[metric]) || 0;
+      const change = calculatePercentChange(currentValue, previousValue);
 
       comparison[metric] = {
         current: currentValue,
         previous: previousValue,
-        change: calcChange(currentValue, previousValue),
-        hasPreviousData: previousValue !== 0,
+        change: change.value,
+        changeLabel: change.label,
+        hasPreviousData: change.hasPreviousData,
       };
     });
 

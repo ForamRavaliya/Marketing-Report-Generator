@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { sanitizeImportedMetrics } = require('./metrics');
 
 // Parse CSV/Excel data and extract marketing metrics
 const extractFromCSV = async (filePath, reportType = 'ads') => {
@@ -509,37 +510,29 @@ const parseNum = (val) => {
      totalReach += reach;
      totalFollowers += followers;
 
-     campaigns.push({
+     campaigns.push(sanitizeImportedMetrics({
        name: colMap.campaignName ? record[colMap.campaignName] : 'Campaign',
        platform: colMap.platform ? String(record[colMap.platform] || 'meta').toLowerCase() : 'meta',
        spend,
        impressions,
        clicks,
-       ctr: colMap.ctr ? parseNum(record[colMap.ctr]) : impressions > 0 ? (clicks / impressions) * 100 : 0,
-       cpc: colMap.cpc ? parseNum(record[colMap.cpc]) : clicks > 0 ? spend / clicks : 0,
        conversions,
-       cpa: colMap.cpa ? parseNum(record[colMap.cpa]) : conversions > 0 ? spend / conversions : 0,
-       roas: colMap.roas ? parseNum(record[colMap.roas]) : spend > 0 ? revenue / spend : 0,
        revenue,
        reach,
        followers,
        rawData: record,
-     });
+     }));
    }
 
-   const metrics = {
+   const metrics = sanitizeImportedMetrics({
      spend: totalSpend,
      impressions: totalImpressions,
      clicks: totalClicks,
-     ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-     cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
      conversions: totalConversions,
-     cpa: totalConversions > 0 ? totalSpend / totalConversions : 0,
-     roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
      revenue: totalRevenue,
      reach: totalReach,
      followers: totalFollowers,
-   };
+   });
 
    return {
      metrics,

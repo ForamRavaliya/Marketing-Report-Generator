@@ -1,4 +1,118 @@
 
+const safeNumber = (value, fallback = 0) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+};
+
+const nonNegative = (value) => Math.max(0, safeNumber(value, 0));
+
+const calculateDerivedMetrics = (metrics = {}) => {
+  const spend = nonNegative(metrics.spend);
+  const clicks = nonNegative(metrics.clicks);
+  const impressions = Math.max(nonNegative(metrics.impressions), clicks);
+  const conversions = nonNegative(metrics.conversions);
+  const revenue = nonNegative(metrics.revenue);
+
+  return {
+    ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+    cpc: clicks > 0 ? spend / clicks : 0,
+    cpa: conversions > 0 ? spend / conversions : 0,
+    cpl: conversions > 0 ? spend / conversions : 0,
+    roas: spend > 0 ? revenue / spend : 0,
+    conversionRate: clicks > 0 ? (conversions / clicks) * 100 : 0,
+  };
+};
+
+const sanitizeImportedMetrics = (metrics = {}) => {
+  const base = {
+    ...metrics,
+    spend: nonNegative(metrics.spend),
+    reach: nonNegative(metrics.reach),
+    impressions: Math.max(nonNegative(metrics.impressions), nonNegative(metrics.clicks)),
+    clicks: nonNegative(metrics.clicks),
+    conversions: nonNegative(metrics.conversions),
+    leads: nonNegative(metrics.leads ?? metrics.conversions),
+    purchases: nonNegative(metrics.purchases ?? metrics.conversions),
+    revenue: nonNegative(metrics.revenue),
+    followers: nonNegative(metrics.followers),
+    orders: nonNegative(metrics.orders),
+    quantity: nonNegative(metrics.quantity),
+    refunds: nonNegative(metrics.refunds),
+    profit: safeNumber(metrics.profit, 0),
+  };
+
+  const derived = calculateDerivedMetrics(base);
+
+  return {
+    ...base,
+    ...derived,
+    margin: base.revenue > 0 ? (base.profit / base.revenue) * 100 : 0,
+    aov: base.orders > 0 ? base.revenue / base.orders : nonNegative(metrics.aov),
+  };
+};
+
+const normalizeMetricRecord = (row = {}) => sanitizeImportedMetrics(row);
+
+const buildMonthlySummary = (rows = []) => {
+  const summary = rows.reduce(
+    (total, row) => {
+      const metrics = row?.metrics || row || {};
+
+      total.spend += safeNumber(metrics.spend, 0);
+      total.reach += safeNumber(metrics.reach, 0);
+      total.impressions += safeNumber(metrics.impressions, 0);
+      total.clicks += safeNumber(metrics.clicks, 0);
+      total.conversions += safeNumber(metrics.conversions, 0);
+      total.revenue += safeNumber(metrics.revenue, 0);
+      total.followers += safeNumber(metrics.followers, 0);
+      total.orders += safeNumber(metrics.orders, 0);
+      total.quantity += safeNumber(metrics.quantity, 0);
+      total.refunds += safeNumber(metrics.refunds, 0);
+      total.profit += safeNumber(metrics.profit, 0);
+
+      return total;
+    },
+    {
+      spend: 0,
+      reach: 0,
+      impressions: 0,
+      clicks: 0,
+      conversions: 0,
+      revenue: 0,
+      followers: 0,
+      orders: 0,
+      quantity: 0,
+      refunds: 0,
+      profit: 0,
+    }
+  );
+
+  return sanitizeImportedMetrics({
+    ...summary,
+    leads: summary.conversions,
+    purchases: summary.conversions,
+  });
+};
+
+const calculatePercentChange = (current, previous) => {
+  const currentNum = safeNumber(current, 0);
+  const previousNum = safeNumber(previous, 0);
+
+  if (previousNum === 0) {
+    return {
+      value: null,
+      label: 'No previous data',
+      hasPreviousData: false,
+    };
+  }
+
+  return {
+    value: ((currentNum - previousNum) / Math.abs(previousNum)) * 100,
+    label: null,
+    hasPreviousData: true,
+  };
+};
+
   const normalizeReportTypeSql = `
     CASE
       WHEN MAX(pd.report_type) IN ('sales_campaign', 'lead_generation', 'sales_data')
@@ -104,28 +218,18 @@ const getSummaryMetrics = async (db, options) => {
       BOOL_OR(has_clicks_field) AS has_clicks_field,
       BOOL_OR(has_conversions_field) AS has_conversions_field,
       BOOL_OR(has_revenue_field) AS has_revenue_field,
-      CASE WHEN SUM(COALESCE(impressions, 0)) > 0
-        THEN SUM(COALESCE(clicks, 0))::float / SUM(COALESCE(impressions, 0)) * 100
-        ELSE 0
-      END AS ctr,
-      CASE WHEN SUM(COALESCE(clicks, 0)) > 0
-        THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(clicks, 0))
-        ELSE 0
-      END AS cpc,
-      CASE WHEN SUM(COALESCE(conversions, 0)) > 0
-        THEN SUM(COALESCE(spend, 0)) / SUM(COALESCE(conversions, 0))
-        ELSE 0
-      END AS cpa,
-      CASE WHEN SUM(COALESCE(spend, 0)) > 0
-        THEN SUM(COALESCE(revenue, 0)) / SUM(COALESCE(spend, 0))
-        ELSE 0
-      END AS roas
+      0 AS ctr,
+      0 AS cpc,
+      0 AS cpa,
+      0 AS cpl,
+      0 AS roas,
+      0 AS conversion_rate
     FROM chosen_months
     `,
     params
   );
 
-  return result.rows[0] || {};
+  return normalizeMetricRecord(result.rows[0] || {});
 };
 
 const getMonthlyTrends = async (db, options) => {
@@ -146,17 +250,18 @@ const getMonthlyTrends = async (db, options) => {
       0 AS orders,
       0 AS quantity,
       0 AS profit,
-      CASE WHEN spend > 0
-        THEN revenue / spend
-        ELSE 0
-      END AS roas
+      0 AS ctr,
+      0 AS cpc,
+      0 AS cpa,
+      0 AS cpl,
+      0 AS roas
     FROM chosen_months
     ORDER BY report_month
     `,
     params
   );
 
-  return result.rows;
+  return result.rows.map(normalizeMetricRecord);
 };
 
 const getPlatformMetrics = async (db, options) => {
@@ -184,7 +289,14 @@ const getPlatformMetrics = async (db, options) => {
     params
   );
 
-  return result.rows;
+  const rows = result.rows.map(normalizeMetricRecord);
+  const totalSpend = rows.reduce((sum, row) => sum + safeNumber(row.spend, 0), 0);
+
+  return rows.map((row) => ({
+    ...row,
+    platform_contribution: totalSpend > 0 ? (safeNumber(row.spend, 0) / totalSpend) * 100 : 0,
+    spend_percentage: totalSpend > 0 ? (safeNumber(row.spend, 0) / totalSpend) * 100 : 0,
+  }));
 };
 
 const getCampaignMetrics = async (db, options) => {
@@ -229,18 +341,11 @@ const getCampaignMetrics = async (db, options) => {
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'quantity')::numeric, 0)) AS quantity,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'refunds')::numeric, 0)) AS refunds,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'profit')::numeric, 0)) AS profit,
-      CASE WHEN SUM(COALESCE(pd.impressions, 0)) > 0
-        THEN SUM(COALESCE(pd.clicks, 0))::float / SUM(COALESCE(pd.impressions, 0)) * 100
-        ELSE 0
-      END AS ctr,
-      CASE WHEN SUM(COALESCE(pd.clicks, 0)) > 0
-        THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.clicks, 0))
-        ELSE 0
-      END AS cpc,
-      CASE WHEN SUM(COALESCE(pd.conversions, 0)) > 0
-        THEN SUM(COALESCE(pd.spend, 0)) / SUM(COALESCE(pd.conversions, 0))
-        ELSE 0
-      END AS cpa
+      0 AS ctr,
+      0 AS cpc,
+      0 AS cpa,
+      0 AS cpl,
+      0 AS roas
     FROM performance_data pd
     LEFT JOIN campaigns c ON pd.campaign_id = c.id
     WHERE ${whereSql}
@@ -260,7 +365,13 @@ const getCampaignMetrics = async (db, options) => {
     params
   );
 
-  return result.rows;
+  const rows = result.rows.map(normalizeMetricRecord);
+  const totalSpend = rows.reduce((sum, row) => sum + safeNumber(row.spend, 0), 0);
+
+  return rows.map((row) => ({
+    ...row,
+    spend_percentage: totalSpend > 0 ? (safeNumber(row.spend, 0) / totalSpend) * 100 : 0,
+  }));
 };
 
 const getLatestReportMonth = async (db, options) => {
@@ -271,6 +382,7 @@ const getLatestReportMonth = async (db, options) => {
     SELECT MAX(pd.report_month) AS latest_month
     FROM performance_data pd
     WHERE ${whereSql}
+      AND ${isAggregateExpr}
     `,
     params
   );
@@ -289,6 +401,7 @@ const getPreviousReportMonth = async (db, options, currentMonth) => {
     SELECT MAX(pd.report_month) AS previous_month
     FROM performance_data pd
     WHERE ${whereSql}
+      AND ${isAggregateExpr}
       AND pd.report_month < $${params.length}
     `,
     params
@@ -298,6 +411,13 @@ const getPreviousReportMonth = async (db, options, currentMonth) => {
 };
 
 module.exports = {
+  safeNumber,
+  nonNegative,
+  calculateDerivedMetrics,
+  sanitizeImportedMetrics,
+  normalizeMetricRecord,
+  buildMonthlySummary,
+  calculatePercentChange,
   getSummaryMetrics,
   getMonthlyTrends,
   getPlatformMetrics,

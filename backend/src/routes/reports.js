@@ -10,8 +10,8 @@ const {
    getMonthlyTrends,
    getPlatformMetrics,
    getCampaignMetrics,
-   getLatestReportMonth,
-   getPreviousReportMonth,
+   normalizeMetricRecord,
+   calculatePercentChange,
 } = require('../utils/metrics');
 const { authenticate } = require('../middleware/auth');
 
@@ -69,19 +69,6 @@ const safeNumber = (value, fallback = 0) => {
 
 const positiveNumber = (value) => Math.max(0, safeNumber(value, 0));
 
-const calcRatio = (numerator, denominator) => {
-  const num = safeNumber(numerator);
-  const den = safeNumber(denominator);
-  if (num < 0 || den <= 0) return null;
-  return num / den;
-};
-
-const calcBoundedPct = (numerator, denominator) => {
-  const ratio = calcRatio(numerator, denominator);
-  if (ratio === null || ratio > 1) return null;
-  return ratio * 100;
-};
-
 const getPreviousDateRange = (dateStart, dateEnd) => {
   if (!dateStart || !dateEnd) return null;
 
@@ -132,60 +119,6 @@ router.post('/generate', async (req, res) => {
     if (new Date(dateEnd) < new Date(dateStart)) {
       return res.status(400).json({ error: 'dateEnd must be on or after dateStart' });
     }
-
-    // Fetch metrics
-    let whereClause = `
-      WHERE pd.client_id = $1
-      AND pd.external_campaign_name = 'aggregate'
-    `;
-
-    const params = [clientId];
-    let idx = 2;
-
-    if (dateStart) {
-      whereClause += ` AND COALESCE(pd.date_range_start, pd.report_month) >= $${idx++}::date`;
-      params.push(dateStart);
-    }
-
-    if (dateEnd) {
-      whereClause += ` AND COALESCE(pd.date_range_end, pd.report_month) <= $${idx++}::date`;
-      params.push(dateEnd);
-    }
-
-    if (platform && platform !== 'all') {
-      whereClause += ` AND pd.platform = $${idx++}`;
-      params.push(platform);
-    }
-
-    const aggregateWhereClause = whereClause;
-
-    const campaignWhereClause = whereClause.replace(
-      "AND pd.external_campaign_name = 'aggregate'",
-      "AND LOWER(TRIM(pd.external_campaign_name)) <> 'aggregate'"
-    );
-
-    const validCampaignNameSql = `
-      COALESCE(
-        CASE
-          WHEN c.name IS NOT NULL
-            AND NULLIF(TRIM(c.name), '') IS NOT NULL
-            AND LOWER(TRIM(c.name)) NOT IN (
-              'aggregate', 'total', 'overall', 'account total',
-              'unknown campaign', 'unknown camp', 'campaign name n/a', 'name n/a'
-            )
-          THEN TRIM(c.name)
-        END,
-        CASE
-          WHEN pd.external_campaign_name IS NOT NULL
-            AND NULLIF(TRIM(pd.external_campaign_name), '') IS NOT NULL
-            AND LOWER(TRIM(pd.external_campaign_name)) NOT IN (
-              'aggregate', 'total', 'overall', 'account total',
-              'unknown campaign', 'unknown camp', 'campaign name n/a', 'name n/a'
-            )
-          THEN TRIM(pd.external_campaign_name)
-        END
-      )
-    `;
 
     const metricOptions = {
       clientId,
@@ -284,16 +217,7 @@ router.post('/generate', async (req, res) => {
   const displayedTrends = trends.slice(-6);
   const rawCampaigns = campaignsRaw || [];
     const campaigns = rawCampaigns
-      .map((campaign) => ({
-        ...campaign,
-        spend: positiveNumber(campaign.spend),
-        impressions: positiveNumber(campaign.impressions),
-        clicks: positiveNumber(campaign.clicks),
-        conversions: positiveNumber(campaign.conversions),
-        ctr: calcBoundedPct(campaign.clicks, campaign.impressions),
-        cpc: calcRatio(campaign.spend, campaign.clicks),
-        cpa: calcRatio(campaign.spend, campaign.conversions),
-      }))
+      .map((campaign) => normalizeMetricRecord(campaign))
       .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0));
 
     const totalCampaignSpend = campaigns.reduce((sum, c) => sum + Number(c.spend || 0), 0);
@@ -315,31 +239,7 @@ router.post('/generate', async (req, res) => {
 
    const latestMonth = trends.length >= 1 ? trends[trends.length - 1] : null;
    const previousMonth = trends.length >= 2 ? trends[trends.length - 2] : null;
-   const previousSummary = previousMonth
-     ? {
-         spend: Number(previousMonth.spend || 0),
-         impressions: Number(previousMonth.impressions || 0),
-         clicks: Number(previousMonth.clicks || 0),
-         conversions: Number(previousMonth.conversions || 0),
-         revenue: Number(previousMonth.revenue || 0),
-         ctr:
-           Number(previousMonth.impressions || 0) > 0
-             ? (Number(previousMonth.clicks || 0) / Number(previousMonth.impressions || 0)) * 100
-             : 0,
-         cpc:
-           Number(previousMonth.clicks || 0) > 0
-             ? Number(previousMonth.spend || 0) / Number(previousMonth.clicks || 0)
-             : 0,
-         cpa:
-           Number(previousMonth.conversions || 0) > 0
-             ? Number(previousMonth.spend || 0) / Number(previousMonth.conversions || 0)
-             : 0,
-         roas:
-           Number(previousMonth.spend || 0) > 0
-             ? Number(previousMonth.revenue || 0) / Number(previousMonth.spend || 0)
-             : 0,
-       }
-     : null;
+   const previousSummary = previousMonth ? normalizeMetricRecord(previousMonth) : null;
 
     // Create PDF
     const outputDir = path.join(__dirname, '../../data/reports');
@@ -447,17 +347,18 @@ const reportType =
              quality: 'lead quality',
            };
 
+    const normalizedSummary = normalizeMetricRecord(summary);
     const safeSummary = {
-      spend: positiveNumber(summary?.spend),
-      reach: positiveNumber(summary?.reach),
-      impressions: positiveNumber(summary?.impressions),
-      clicks: positiveNumber(summary?.clicks),
-      conversions: positiveNumber(summary?.conversions),
-      ctr: 0,
-      cpc: 0,
-      cpa: 0,
-      roas: 0,
-      revenue: positiveNumber(summary?.revenue),
+      spend: positiveNumber(normalizedSummary.spend),
+      reach: positiveNumber(normalizedSummary.reach),
+      impressions: positiveNumber(normalizedSummary.impressions),
+      clicks: positiveNumber(normalizedSummary.clicks),
+      conversions: positiveNumber(normalizedSummary.conversions),
+      ctr: positiveNumber(normalizedSummary.ctr),
+      cpc: positiveNumber(normalizedSummary.cpc),
+      cpa: positiveNumber(normalizedSummary.cpa),
+      roas: positiveNumber(normalizedSummary.roas),
+      revenue: positiveNumber(normalizedSummary.revenue),
       hasSpend: Boolean(summary?.has_spend_field) || Number(summary?.spend ?? 0) > 0,
       hasReach: Number(summary?.reach ?? 0) > 0,
       hasClicks: Boolean(summary?.has_clicks_field) || Number(summary?.clicks ?? 0) > 0,
@@ -471,10 +372,10 @@ const reportType =
     safeSummary.hasCtr = safeSummary.hasClicks && safeSummary.hasImpressions && safeSummary.clicks <= safeSummary.impressions;
     safeSummary.hasRoas = safeSummary.hasSpend && safeSummary.hasRevenue;
 
-    safeSummary.ctr = safeSummary.hasCtr ? (safeSummary.clicks / safeSummary.impressions) * 100 : 0;
-    safeSummary.cpc = safeSummary.hasCpc ? safeSummary.spend / safeSummary.clicks : 0;
-    safeSummary.cpa = safeSummary.hasCpa ? safeSummary.spend / safeSummary.conversions : 0;
-    safeSummary.roas = safeSummary.hasRoas ? safeSummary.revenue / safeSummary.spend : 0;
+    safeSummary.ctr = safeSummary.hasCtr ? safeSummary.ctr : 0;
+    safeSummary.cpc = safeSummary.hasCpc ? safeSummary.cpc : 0;
+    safeSummary.cpa = safeSummary.hasCpa ? safeSummary.cpa : 0;
+    safeSummary.roas = safeSummary.hasRoas ? safeSummary.roas : 0;
 
     const weakestMetricName = !safeSummary.hasRoas
       ? 'Revenue / ROAS tracking'
@@ -484,12 +385,7 @@ const reportType =
       ? metricLabels.cpaFull
       : 'Campaign scaling';
 
-    const calcChange = (current, previous) => {
-      const curr = Number(current || 0);
-      const prev = Number(previous || 0);
-      if (!prev || prev === 0) return null;
-      return ((curr - prev) / Math.abs(prev)) * 100;
-    };
+    const calcChange = (current, previous) => calculatePercentChange(current, previous).value;
 
     const formatGrowth = (change, metricKey) => {
       if (change === null || change === undefined || Number.isNaN(change)) {
@@ -509,30 +405,7 @@ const reportType =
       };
     };
 
-    const latestMetrics = latestMonth
-      ? {
-          spend: Number(latestMonth.spend || 0),
-          impressions: Number(latestMonth.impressions || 0),
-          clicks: Number(latestMonth.clicks || 0),
-          conversions: Number(latestMonth.conversions || 0),
-          ctr:
-            Number(latestMonth.impressions || 0) > 0
-              ? (Number(latestMonth.clicks || 0) / Number(latestMonth.impressions || 0)) * 100
-              : 0,
-          cpc:
-            Number(latestMonth.clicks || 0) > 0
-              ? Number(latestMonth.spend || 0) / Number(latestMonth.clicks || 0)
-              : 0,
-          cpa:
-            Number(latestMonth.conversions || 0) > 0
-              ? Number(latestMonth.spend || 0) / Number(latestMonth.conversions || 0)
-              : 0,
-          roas:
-            Number(latestMonth.spend || 0) > 0
-              ? Number(latestMonth.revenue || 0) / Number(latestMonth.spend || 0)
-              : 0,
-        }
-      : safeSummary;
+    const latestMetrics = latestMonth ? normalizeMetricRecord(latestMonth) : safeSummary;
 
     const growth = {
       spend: formatGrowth(calcChange(latestMetrics.spend, previousSummary?.spend), 'spend'),
