@@ -265,6 +265,25 @@ const totalCampaignSpend = campaigns.reduce(
 );
 
 const currentMonthMetrics = comparison?.comparison || {};
+const hasAggregateMetric = (key) =>
+  currentMonthMetrics?.[key]?.current !== undefined &&
+  currentMonthMetrics?.[key]?.current !== null;
+const campaignSummarySpend = hasAggregateMetric('spend')
+  ? Number(currentMonthMetrics.spend.current || 0)
+  : totalCampaignSpend;
+const campaignSummaryConversions = hasAggregateMetric('conversions')
+  ? Number(currentMonthMetrics.conversions.current || 0)
+  : campaigns.reduce(
+      (sum, c) => sum + Number(c.conversions || c.orders || 0),
+      0
+    );
+const campaignSummaryRevenue = hasAggregateMetric('revenue')
+  ? Number(currentMonthMetrics.revenue.current || 0)
+  : campaigns.reduce((sum, c) => sum + Number(c.revenue || 0), 0);
+const campaignSummaryRoas =
+  campaignSummarySpend > 0 && campaignSummaryRevenue > 0
+    ? campaignSummaryRevenue / campaignSummarySpend
+    : 0;
 
 const detectedReportType =
   comparison?.reportType ||
@@ -870,19 +889,14 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
 
                       <MetricCard
                         label="Total Spend"
-                        value={fmtReportCur(totalCampaignSpend)}
+                        value={fmtReportCur(campaignSummarySpend)}
                         icon={DollarSign}
                         color="#16A34A"
                       />
 
                       <MetricCard
                         label={metricConfig.primaryMetricLabel}
-                        value={fmt(
-                          campaigns.reduce(
-                            (sum, c) => sum + Number(c.conversions || c.orders || 0),
-                            0
-                          )
-                        )}
+                        value={fmt(campaignSummaryConversions)}
                         icon={Target}
                         color="#7C3AED"
                       />
@@ -895,11 +909,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                                 campaigns.reduce((sum, c) => sum + Number(c.margin || 0), 0) /
                                   Math.max(campaigns.length, 1)
                               )
-                            : `${fmt(
-                                campaigns.reduce((sum, c) => sum + Number(c.roas || 0), 0) /
-                                  Math.max(campaigns.length, 1),
-                                2
-                              )}x`
+                            : `${fmt(campaignSummaryRoas, 2)}x`
                         }
                         icon={TrendingUp}
                         color="#F59E0B"
