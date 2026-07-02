@@ -45,6 +45,7 @@ export default function UploadData() {
   const [mappingHeaders, setMappingHeaders] = useState([]);
   const [mappingData, setMappingData] = useState({});
   const [previewUploadId, setPreviewUploadId] = useState(null);
+  const [importValidationPreview, setImportValidationPreview] = useState(null);
 
   useEffect(() => {
     getClients().then(setClients).catch(() => {});
@@ -85,6 +86,7 @@ export default function UploadData() {
       setPreviewUploadId(result.uploadId);
       setMappingHeaders(result.headers || []);
       setMappingData(result.suggestedMapping || {});
+      setImportValidationPreview(result.importValidationPreview || null);
       setMappingModal(true);
 
       toast.success('Review column mapping before import');
@@ -130,6 +132,7 @@ const handleConfirmMapping = async () => {
      setPreviewUploadId(null);
      setMappingHeaders([]);
      setMappingData({});
+     setImportValidationPreview(null);
 
 
     if (selectedClient) {
@@ -454,6 +457,38 @@ const handleConfirmMapping = async () => {
                   </select>
                 </div>
               ))}
+
+              {importValidationPreview && (
+                <div
+                  style={{
+                    marginTop: 18,
+                    padding: 14,
+                    borderRadius: 12,
+                    background: importValidationPreview.warningMessage ? '#FFF7ED' : '#EFF6FF',
+                    border: `1px solid ${importValidationPreview.warningMessage ? '#FDBA74' : '#BFDBFE'}`,
+                    color: 'var(--text2)',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <div style={{ fontWeight: 900, color: 'var(--text)', marginBottom: 6 }}>
+                    Import Validation Preview
+                  </div>
+                  <div>Platform: {importValidationPreview.detectedPlatform || 'other'}</div>
+                  <div>Report Type: {importValidationPreview.detectedReportType || 'needs_review'}</div>
+                  <div>
+                    Summary row found: {importValidationPreview.detectedSummaryRowFound ? 'Yes' : 'No'}
+                  </div>
+                  <div>
+                    Difference: {Number(importValidationPreview.differencePercent || 0).toFixed(1)}%
+                  </div>
+                  {importValidationPreview.warningMessage && (
+                    <div style={{ marginTop: 8, fontWeight: 700, color: '#C2410C' }}>
+                      {importValidationPreview.warningMessage}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div
                 style={{

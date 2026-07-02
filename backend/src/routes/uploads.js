@@ -379,6 +379,14 @@ router.post('/preview', upload.single('file'), async (req, res) => {
    const detectedPlatform = detectPlatform(headers, req.file.originalname);
    const finalPlatform = platform || detectedPlatform || 'other';
    const suggestedMapping = suggestColumnMapping(headers, reportType);
+   const records = await buildRecordsFromMappedFile(req.file.path, fileType);
+   const importValidationPreview = buildImportValidationPreview({
+     records,
+     reportType,
+     mapping: suggestedMapping,
+     availableHeaders: headers,
+     detectedPlatform: finalPlatform,
+   });
 
     const uploadResult = await db.query(
       `INSERT INTO report_uploads
@@ -419,6 +427,14 @@ router.post('/preview', upload.single('file'), async (req, res) => {
       headers,
       reportType,
       suggestedMapping,
+      detectedPlatform: importValidationPreview.detectedPlatform,
+      detectedReportType: importValidationPreview.detectedReportType,
+      detectedSummaryRowFound: importValidationPreview.detectedSummaryRowFound,
+      selectedSummaryTotals: importValidationPreview.selectedSummaryTotals,
+      campaignRowsTotals: importValidationPreview.campaignRowsTotals,
+      differencePercent: importValidationPreview.differencePercent,
+      warningMessage: importValidationPreview.warningMessage,
+      importValidationPreview,
     });
   } catch (error) {
     console.error('Preview upload error:', error);
@@ -446,6 +462,264 @@ function validateMapping(mapping) {
   }
 
   return errors;
+}
+
+function buildImportValidationPreview({
+  records,
+  reportType,
+  mapping,
+  availableHeaders,
+  detectedPlatform,
+}) {
+  const suggestedColumns = suggestColumnMapping(availableHeaders, reportType);
+  const mappedFields =
+    reportType === 'sales_data'
+      ? ['product', 'revenue', 'orders', 'quantity', 'refunds', 'profit', 'margin', 'aov']
+      : [
+          'campaignName',
+          'spend',
+          'impressions',
+          'clicks',
+          'conversions',
+          'revenue',
+          'ctr',
+          'cpc',
+          'cpa',
+          'roas',
+          'reach',
+          'followers',
+        ];
+
+  const resolvedColumns = Object.fromEntries(
+    mappedFields.map((field) => {
+      const configured =
+        mapping[field] || (field === 'campaignName' ? mapping.campaign : null);
+
+      if (configured === 'ignore') return [field, null];
+
+      const configuredHeader = configured
+        ? availableHeaders.find(
+            (header) => normalizeHeader(header) === normalizeHeader(configured)
+          )
+        : null;
+
+      return [field, configuredHeader || suggestedColumns[field] || null];
+    })
+  );
+
+  const parseMappedNumber = (value) => {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+    const text = String(value).trim();
+    if (!text) return 0;
+
+    const isNegative = /^\(.*\)$/.test(text);
+    const parsed = Number.parseFloat(
+      text.replace(/,/g, '').replace(/[^\d.+-]/g, '')
+    );
+
+    if (!Number.isFinite(parsed)) return 0;
+    return isNegative ? -Math.abs(parsed) : parsed;
+  };
+
+  const getRawValue = (record, field) => {
+    const col = resolvedColumns[field];
+    if (!col) return '';
+
+    if (record[col] !== undefined && record[col] !== null) return record[col];
+
+    const wanted = normalizeHeader(col);
+    const actualKey = Object.keys(record).find(
+      (key) => normalizeHeader(key) === wanted
+    );
+
+    return actualKey ? record[actualKey] : '';
+  };
+
+  const getValue = (record, field) => parseMappedNumber(getRawValue(record, field));
+  const getText = (record, field) => String(getRawValue(record, field) || '').trim();
+
+  const isSummaryRow = (name) => {
+    const n = normalizeHeader(name);
+
+    return (
+      !n ||
+      n === 'all' ||
+      n === 'total' ||
+      n === 'totals' ||
+      n === 'result' ||
+      n === 'results' ||
+      n === 'overall' ||
+      n === 'aggregate' ||
+      n === 'grand total' ||
+      n === 'overall total' ||
+      n === 'account total' ||
+      n.includes('grand total') ||
+      n.includes('overall total') ||
+      n.includes('total results') ||
+      n.includes('results from') ||
+      n.includes('account total')
+    );
+  };
+
+  const isInvalidCampaignName = (name) => {
+    const n = normalizeHeader(name);
+
+    return (
+      !n ||
+      n === 'unknown campaign' ||
+      n === 'unknown camp' ||
+      n === 'campaign name n/a' ||
+      n === 'name n/a' ||
+      n === 'n/a' ||
+      n === 'na' ||
+      n === 'not available'
+    );
+  };
+
+  const normalizePreviewMetric = (record) => {
+    const spend = reportType === 'sales_data' ? 0 : getValue(record, 'spend');
+    const impressions = reportType === 'sales_data' ? 0 : getValue(record, 'impressions');
+    let clicks = reportType === 'sales_data' ? 0 : getValue(record, 'clicks');
+    const ctrValue = reportType === 'sales_data' ? 0 : getValue(record, 'ctr');
+    const cpcValue = reportType === 'sales_data' ? 0 : getValue(record, 'cpc');
+    let conversions =
+      reportType === 'sales_data'
+        ? getValue(record, 'orders')
+        : getValue(record, 'conversions');
+    const cpaValue = reportType === 'sales_data' ? 0 : getValue(record, 'cpa');
+    let revenue = getValue(record, 'revenue');
+    const roasValue = reportType === 'sales_data' ? 0 : getValue(record, 'roas');
+    const reach = reportType === 'sales_data' ? 0 : getValue(record, 'reach');
+
+    if (!clicks) {
+      if (impressions > 0 && ctrValue > 0) {
+        clicks = (impressions * ctrValue) / 100;
+      } else if (spend > 0 && cpcValue > 0) {
+        clicks = spend / cpcValue;
+      }
+    }
+
+    if (!conversions && spend > 0 && cpaValue > 0) {
+      conversions = spend / cpaValue;
+    }
+
+    if (!revenue && spend > 0 && roasValue > 0) {
+      revenue = spend * roasValue;
+    }
+
+    return {
+      spend,
+      clicks: Math.round(clicks || 0),
+      impressions: Math.round(impressions || 0),
+      leads: Math.round(conversions || 0),
+      purchases: Math.round(conversions || 0),
+      conversions: Math.round(conversions || 0),
+      revenue,
+      reach: Math.round(reach || 0),
+    };
+  };
+
+  const addTotals = (target, source) => {
+    target.spend += source.spend || 0;
+    target.clicks += source.clicks || 0;
+    target.impressions += source.impressions || 0;
+    target.leads += source.leads || 0;
+    target.purchases += source.purchases || 0;
+    target.conversions += source.conversions || 0;
+    target.revenue += source.revenue || 0;
+    target.reach += source.reach || 0;
+  };
+
+  const finalizeTotals = (totals) => ({
+    ...totals,
+    ctr: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0,
+    cpc: totals.clicks > 0 ? totals.spend / totals.clicks : 0,
+    cpl: totals.leads > 0 ? totals.spend / totals.leads : 0,
+    cpa: totals.conversions > 0 ? totals.spend / totals.conversions : 0,
+    roas: totals.spend > 0 && totals.revenue > 0 ? totals.revenue / totals.spend : 0,
+  });
+
+  const emptyTotals = () => ({
+    spend: 0,
+    clicks: 0,
+    impressions: 0,
+    leads: 0,
+    purchases: 0,
+    conversions: 0,
+    revenue: 0,
+    reach: 0,
+  });
+
+  const summaryRows = [];
+  const campaignRows = [];
+
+  records.forEach((record, rowIndex) => {
+    const rowName =
+      reportType === 'sales_data'
+        ? getText(record, 'product') || 'Sales Item'
+        : getText(record, 'campaignName') || getText(record, 'campaign');
+    const metrics = normalizePreviewMetric(record);
+    const hasAnyData =
+      metrics.spend ||
+      metrics.clicks ||
+      metrics.impressions ||
+      metrics.conversions ||
+      metrics.revenue ||
+      metrics.reach;
+
+    if (!hasAnyData) return;
+
+    if (isSummaryRow(rowName)) {
+      summaryRows.push({ rowIndex, metrics });
+      return;
+    }
+
+    if (!isInvalidCampaignName(rowName)) {
+      campaignRows.push({ rowIndex, metrics });
+    }
+  });
+
+  const selectedSummaryRow = summaryRows.sort(
+    (a, b) => Number(a.rowIndex || 0) - Number(b.rowIndex || 0)
+  )[0];
+
+  const selectedSummaryTotals = emptyTotals();
+  if (selectedSummaryRow) addTotals(selectedSummaryTotals, selectedSummaryRow.metrics);
+
+  const campaignRowsTotals = emptyTotals();
+  campaignRows.forEach((row) => addTotals(campaignRowsTotals, row.metrics));
+
+  const summaryTotals = selectedSummaryRow
+    ? selectedSummaryTotals
+    : campaignRowsTotals;
+
+  const base = Math.max(
+    Math.abs(summaryTotals.spend || 0),
+    Math.abs(summaryTotals.revenue || 0),
+    Math.abs(summaryTotals.conversions || 0),
+    1
+  );
+  const differenceAmount = Math.max(
+    Math.abs((campaignRowsTotals.spend || 0) - (summaryTotals.spend || 0)),
+    Math.abs((campaignRowsTotals.revenue || 0) - (summaryTotals.revenue || 0)),
+    Math.abs((campaignRowsTotals.conversions || 0) - (summaryTotals.conversions || 0))
+  );
+  const differencePercent = (differenceAmount / base) * 100;
+
+  return {
+    detectedPlatform,
+    detectedReportType: reportType,
+    detectedSummaryRowFound: Boolean(selectedSummaryRow),
+    selectedSummaryTotals: finalizeTotals(summaryTotals),
+    campaignRowsTotals: finalizeTotals(campaignRowsTotals),
+    differencePercent,
+    warningMessage:
+      selectedSummaryRow && differencePercent > 5
+        ? 'This file contains summary and breakdown rows. We will use the detected summary row for dashboard totals and campaign rows only for campaign tables.'
+        : '',
+  };
 }
 
 router.get('/client/:clientId', async (req, res) => {
@@ -521,6 +795,18 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
     }
 
     const uploadRow = uploadResult.rows[0];
+    const headers = ['csv', 'excel'].includes(uploadRow.file_type)
+      ? await extractHeaders(uploadRow.file_path, uploadRow.file_type)
+      : [];
+    const importValidationPreview = ['csv', 'excel'].includes(uploadRow.file_type)
+      ? buildImportValidationPreview({
+          records: await buildRecordsFromMappedFile(uploadRow.file_path, uploadRow.file_type),
+          reportType: uploadRow.report_type,
+          mapping,
+          availableHeaders: headers,
+          detectedPlatform: uploadRow.platform || 'other',
+        })
+      : null;
 
     for (const [targetField, sourceColumn] of Object.entries(mapping)) {
       if (!sourceColumn || sourceColumn === 'ignore') continue;
@@ -560,6 +846,7 @@ router.post('/:uploadId/confirm-mapping', async (req, res) => {
     res.json({
       success: true,
       message: 'Mapping confirmed and data imported successfully',
+      importValidationPreview,
     });
   } catch (error) {
     console.error('Confirm mapping error:', error);
@@ -593,11 +880,26 @@ const headers = ['csv', 'excel'].includes(fileType)
 const reportType = detectReportType(headers, {});
 const detectedPlatform = detectPlatform(headers, req.file.originalname);
 const finalPlatform = platform || detectedPlatform || 'other';
+const suggestedMapping = ['csv', 'excel'].includes(fileType)
+  ? suggestColumnMapping(headers, reportType)
+  : {};
+const recordsForValidation = ['csv', 'excel'].includes(fileType)
+  ? await buildRecordsFromMappedFile(filePath, fileType)
+  : [];
+const importValidationPreview = ['csv', 'excel'].includes(fileType)
+  ? buildImportValidationPreview({
+      records: recordsForValidation,
+      reportType,
+      mapping: suggestedMapping,
+      availableHeaders: headers,
+      detectedPlatform: finalPlatform,
+    })
+  : null;
 
     const uploadResult = await db.query(
       `INSERT INTO report_uploads
       (client_id, uploaded_by, file_name, file_type, file_path, file_size, platform, date_range_start, date_range_end, report_type, extraction_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'processing')
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
       [
         clientId,
@@ -611,10 +913,30 @@ const finalPlatform = platform || detectedPlatform || 'other';
         dateRangeStart || null,
         dateRangeEnd || null,
          reportType,
+        ['csv', 'excel'].includes(fileType) ? 'mapping_required' : 'processing',
       ]
     );
 
     const uploadId = uploadResult.rows[0].id;
+
+if (['csv', 'excel'].includes(fileType)) {
+  return res.status(201).json({
+    uploadId,
+    fileType,
+    headers,
+    reportType,
+    suggestedMapping,
+    requiresConfirmation: true,
+    detectedPlatform: importValidationPreview.detectedPlatform,
+    detectedReportType: importValidationPreview.detectedReportType,
+    detectedSummaryRowFound: importValidationPreview.detectedSummaryRowFound,
+    selectedSummaryTotals: importValidationPreview.selectedSummaryTotals,
+    campaignRowsTotals: importValidationPreview.campaignRowsTotals,
+    differencePercent: importValidationPreview.differencePercent,
+    warningMessage: importValidationPreview.warningMessage,
+    importValidationPreview,
+  });
+}
 
 processFileWithMapping(
   uploadId,
