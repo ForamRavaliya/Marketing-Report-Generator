@@ -7,6 +7,8 @@ const {
   getSummaryMetrics,
   getPlatformMetrics,
   getCampaignMetrics,
+  getMonthlyTrends,
+  calculatePercentChange,
   safeNumber,
 } = require('../utils/metrics');
 
@@ -19,6 +21,26 @@ const getPerformanceLevel = (roas, ctr, conversions) => {
   if (roas >= 2 && ctr >= 1 && conversions >= 30) return 'strong';
   if (roas >= 1) return 'moderate';
   return 'needs improvement';
+};
+
+const formatPct = (value) => `${Math.abs(Number(value || 0)).toFixed(1)}%`;
+const directionText = (value, up = 'increased', down = 'decreased') =>
+  Number(value || 0) >= 0 ? up : down;
+
+const metricChangeText = (metric, change, reason) => {
+  if (!change?.hasPreviousData || change.value === null) return null;
+  return `${metric} ${directionText(change.value)} by ${formatPct(change.value)}. ${reason}`;
+};
+
+const getReportLabels = (reportType, revenue, conversions) => {
+  const isSales =
+    reportType === 'sales_campaign' ||
+    reportType === 'sales_data' ||
+    (Number(revenue || 0) > 0 && Number(conversions || 0) > 0);
+
+  return isSales
+    ? { outcome: 'Purchases', cost: 'CPA', reportName: 'sales' }
+    : { outcome: 'Leads', cost: 'CPL', reportName: 'lead generation' };
 };
 
 router.post('/generate/:clientId', async (req, res) => {
@@ -43,87 +65,114 @@ router.post('/generate/:clientId', async (req, res) => {
     const cpa = safeNum(metrics.cpa);
     const roas = safeNum(metrics.roas);
 
-    const [platformRows, campaignRows] = await Promise.all([
+    const [platformRows, campaignRows, trends] = await Promise.all([
       getPlatformMetrics(db, { clientId }),
       getCampaignMetrics(db, { clientId }),
+      getMonthlyTrends(db, { clientId }),
     ]);
 
-    const bestPlatform = [...platformRows].sort((a, b) => safeNum(b.roas) - safeNum(a.roas))[0];
-    const bestCampaign = [...campaignRows].sort((a, b) => safeNum(b.roas) - safeNum(a.roas))[0];
+    const latestMonth = trends.length > 0 ? trends[trends.length - 1] : null;
+    const previousMonth = trends.length > 1 ? trends[trends.length - 2] : null;
+    const labels = getReportLabels(metrics.report_type, revenue, conversions);
+    const bestPlatform = [...platformRows].sort((a, b) => safeNum(b.spend) - safeNum(a.spend))[0];
+    const bestCampaign = [...campaignRows].sort((a, b) => safeNum(b.conversions) - safeNum(a.conversions) || safeNum(a.cpa) - safeNum(b.cpa))[0];
+    const worstCampaign = [...campaignRows]
+      .filter((campaign) => safeNum(campaign.spend) > 0 || safeNum(campaign.conversions) > 0)
+      .sort((a, b) => safeNum(b.cpa) - safeNum(a.cpa) || safeNum(a.conversions) - safeNum(b.conversions))[0];
+    const highestSpendCampaign = [...campaignRows].sort((a, b) => safeNum(b.spend) - safeNum(a.spend))[0];
 
     const recommendations = [];
 
+    if (latestMonth && previousMonth) {
+      const spendChange = calculatePercentChange(latestMonth.spend, previousMonth.spend);
+      const conversionChange = calculatePercentChange(latestMonth.conversions, previousMonth.conversions);
+      const clickChange = calculatePercentChange(latestMonth.clicks, previousMonth.clicks);
+      const impressionChange = calculatePercentChange(latestMonth.impressions, previousMonth.impressions);
+      const cpcChange = calculatePercentChange(latestMonth.cpc, previousMonth.cpc);
+      const cpaChange = calculatePercentChange(latestMonth.cpa, previousMonth.cpa);
+      const ctrChange = calculatePercentChange(latestMonth.ctr, previousMonth.ctr);
+      const roasChange = calculatePercentChange(latestMonth.roas, previousMonth.roas);
+      const revenueChange = calculatePercentChange(latestMonth.revenue, previousMonth.revenue);
+
+      const spendVsOutcome = metricChangeText(
+        `Spend and ${labels.outcome}`,
+        conversionChange,
+        `Spend ${spendChange.value !== null ? directionText(spendChange.value) + ` by ${formatPct(spendChange.value)}` : 'had no previous-month baseline'}, while ${labels.outcome.toLowerCase()} ${directionText(conversionChange.value)}.`
+      );
+      if (spendVsOutcome) recommendations.push(spendVsOutcome);
+
+      if (cpcChange.hasPreviousData) {
+        recommendations.push(
+          metricChangeText(
+            'CPC',
+            cpcChange,
+            clickChange.hasPreviousData && spendChange.hasPreviousData
+              ? `Clicks ${directionText(clickChange.value)} by ${formatPct(clickChange.value)} while spend ${directionText(spendChange.value)} by ${formatPct(spendChange.value)}.`
+              : 'This is based on the imported spend and click totals.'
+          )
+        );
+      }
+
+      if (cpaChange.hasPreviousData) {
+        recommendations.push(
+          metricChangeText(
+            labels.cost,
+            cpaChange,
+            conversionChange.hasPreviousData && spendChange.hasPreviousData
+              ? `${labels.outcome} ${directionText(conversionChange.value)} by ${formatPct(conversionChange.value)} while spend ${directionText(spendChange.value)} by ${formatPct(spendChange.value)}.`
+              : 'This is based on spend divided by imported conversions.'
+          )
+        );
+      }
+
+      if (ctrChange.hasPreviousData) {
+        recommendations.push(
+          metricChangeText(
+            'CTR',
+            ctrChange,
+            impressionChange.hasPreviousData && clickChange.hasPreviousData
+              ? `Impressions ${directionText(impressionChange.value)} by ${formatPct(impressionChange.value)} while clicks ${directionText(clickChange.value)} by ${formatPct(clickChange.value)}.`
+              : 'This is based on imported clicks and impressions.'
+          )
+        );
+      }
+
+      if (revenue > 0 && roasChange.hasPreviousData) {
+        recommendations.push(
+          metricChangeText(
+            'ROAS',
+            roasChange,
+            revenueChange.hasPreviousData && spendChange.hasPreviousData
+              ? `Revenue ${directionText(revenueChange.value)} by ${formatPct(revenueChange.value)} while spend ${directionText(spendChange.value)} by ${formatPct(spendChange.value)}.`
+              : 'This is based on imported revenue divided by spend.'
+          )
+        );
+      }
+    } else {
+      recommendations.push('No previous month data is available, so month-over-month change explanations were not generated.');
+    }
+
     if (revenue === 0) {
-      recommendations.push(
-        'Revenue data is missing in the uploaded reports, so ROAS cannot be calculated accurately. Map or upload revenue values to enable profit-based performance analysis.'
-      );
+      recommendations.push('Revenue is unavailable in the imported data, therefore ROAS cannot be calculated.');
     }
-
-    if (roas === 0) {
-      recommendations.push(
-        'ROAS is currently 0.00x because revenue is not available. Once revenue data is added, the system can identify high-return campaigns and budget scaling opportunities.'
-      );
-    }
-
-    if (platformRows.length === 1) {
-      recommendations.push(
-        'Only one advertising platform has tracked spend. Upload Google Ads, LinkedIn Ads, or other platform data to compare budget allocation and channel performance.'
-      );
-    }
-
-    if (revenue > 0 && roas < 2) {
-      recommendations.push(
-        'ROAS is below the ideal level. Review campaign targeting, offer quality, landing pages, and budget allocation.'
-      );
-    }
-
-    if (clicks > 0 && ctr < 1) {
-      recommendations.push(
-        'CTR is low. Test stronger headlines, clearer CTAs, short-form creatives, and better audience segmentation.'
-      );
-    }
-
-    if (clicks === 0) {
-      recommendations.push(
-        'Click and CTR data were not available in the uploaded report. Include click metrics in future exports to evaluate engagement accurately.'
-      );
-    }
-
-    if (conversions < 50) {
-      recommendations.push(
-        'Conversion volume is low. Improve landing page speed, form simplicity, and offer clarity to increase lead generation.'
-      );
-    }
-
-    if (cpa > 1000) {
-      recommendations.push(
-        'CPA is high. Reduce spend on expensive campaigns and shift budget toward campaigns with lower cost per conversion.'
-      );
-    }
-
-    if (spend > 5000 && roas > 4) {
-      recommendations.push(
-        'High spend is producing strong returns. Consider scaling budget gradually on the best-performing campaigns.'
-      );
-    }
-
-  if (bestPlatform && safeNum(bestPlatform.spend) > 0) {
-    recommendations.push(
-      `${String(bestPlatform.platform || 'Platform').toUpperCase()} is the top tracked platform by spend. Review its CTR, CPA, and conversion quality before increasing budget.`
-    );
-  }
 
     if (bestCampaign?.name) {
-      recommendations.push(
-        `"${bestCampaign.name}" is one of the best-performing campaigns. Use its audience, creative, and messaging pattern for future campaigns.`
-      );
+      recommendations.push(`Top performing campaign by ${labels.outcome.toLowerCase()} is "${bestCampaign.name}" with ${safeNum(bestCampaign.conversions).toLocaleString()} ${labels.outcome.toLowerCase()}.`);
     }
 
-    recommendations.push(
-      'Retarget existing website visitors and engaged users to improve conversion efficiency and ROAS.'
-    );
+    if (worstCampaign?.name && safeNum(worstCampaign.cpa) > 0) {
+      recommendations.push(`Lowest efficiency campaign is "${worstCampaign.name}" based on ${labels.cost} of INR ${safeNum(worstCampaign.cpa).toFixed(2)}.`);
+    }
 
-    const finalRecommendations = recommendations.slice(0, 6);
+    if (highestSpendCampaign?.name) {
+      recommendations.push(`Highest spend campaign is "${highestSpendCampaign.name}" with INR ${safeNum(highestSpendCampaign.spend).toLocaleString('en-IN', { maximumFractionDigits: 2 })} spend.`);
+    }
+
+    if (bestPlatform && safeNum(bestPlatform.spend) > 0) {
+      recommendations.push(`${String(bestPlatform.platform || 'Platform').toUpperCase()} has the highest tracked spend at INR ${safeNum(bestPlatform.spend).toLocaleString('en-IN', { maximumFractionDigits: 2 })}.`);
+    }
+
+    const finalRecommendations = recommendations.filter(Boolean).slice(0, 8);
     const performanceLevel = getPerformanceLevel(roas, ctr, conversions);
 
     const clickText =
@@ -142,7 +191,7 @@ router.post('/generate/:clientId', async (req, res) => {
           ? `Revenue is INR ${revenue.toLocaleString('en-IN', {
               maximumFractionDigits: 2,
             })} with ROAS ${roas.toFixed(2)}x. Overall performance is ${performanceLevel}.`
-          : `Revenue data is not available, so ROAS cannot be evaluated yet. Overall lead-generation performance is ${performanceLevel}.`
+          : `Revenue data is not available, so ROAS cannot be evaluated. Overall ${labels.reportName} performance is ${performanceLevel}.`
       );
 
     const saved = await db.query(

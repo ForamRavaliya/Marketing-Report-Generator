@@ -2,6 +2,10 @@ export const REPORT_TYPES = {
   SALES_CAMPAIGN: 'sales_campaign',
   LEAD_GENERATION: 'lead_generation',
   SALES_DATA: 'sales_data',
+  TRAFFIC: 'traffic',
+  ENGAGEMENT: 'engagement',
+  APP: 'app',
+  ACQUISITION: 'acquisition',
   NEEDS_REVIEW: 'needs_review',
 };
 
@@ -67,6 +71,90 @@ export const getReportMetricConfig = (reportType = REPORT_TYPES.NEEDS_REVIEW) =>
           refunds: 'Refunds',
           conversions: 'Orders',
           cpa: 'Average Order Value',
+        },
+      };
+
+    case REPORT_TYPES.TRAFFIC:
+      return {
+        title: 'Traffic Report',
+        primaryMetricLabel: 'Landing Page Views',
+        costMetricLabel: 'Cost Per Landing Page View',
+        revenueLabel: 'Revenue',
+        roasLabel: 'ROAS',
+        overviewCards: ['spend', 'clicks', 'conversions', 'ctr', 'cpc', 'cpa', 'impressions'],
+        labels: {
+          spend: 'Total Spend',
+          impressions: 'Impressions',
+          clicks: 'Clicks',
+          conversions: 'Landing Page Views',
+          ctr: 'CTR',
+          cpc: 'CPC',
+          cpa: 'Cost Per Landing Page View',
+          revenue: 'Revenue',
+          roas: 'ROAS',
+        },
+      };
+
+    case REPORT_TYPES.ENGAGEMENT:
+      return {
+        title: 'Engagement Report',
+        primaryMetricLabel: 'Engagements',
+        costMetricLabel: 'Cost Per Engagement',
+        revenueLabel: 'Revenue',
+        roasLabel: 'ROAS',
+        overviewCards: ['spend', 'conversions', 'cpa', 'ctr', 'cpc', 'clicks', 'impressions'],
+        labels: {
+          spend: 'Total Spend',
+          impressions: 'Impressions',
+          clicks: 'Clicks',
+          conversions: 'Engagements',
+          ctr: 'CTR',
+          cpc: 'CPC',
+          cpa: 'Cost Per Engagement',
+          revenue: 'Revenue',
+          roas: 'ROAS',
+        },
+      };
+
+    case REPORT_TYPES.APP:
+      return {
+        title: 'App Campaign Report',
+        primaryMetricLabel: 'App Results',
+        costMetricLabel: 'Cost Per App Result',
+        revenueLabel: 'Revenue',
+        roasLabel: 'ROAS',
+        overviewCards: ['spend', 'conversions', 'cpa', 'ctr', 'cpc', 'clicks', 'impressions'],
+        labels: {
+          spend: 'Total Spend',
+          impressions: 'Impressions',
+          clicks: 'Clicks',
+          conversions: 'App Results',
+          ctr: 'CTR',
+          cpc: 'CPC',
+          cpa: 'Cost Per App Result',
+          revenue: 'Revenue',
+          roas: 'ROAS',
+        },
+      };
+
+    case REPORT_TYPES.ACQUISITION:
+      return {
+        title: 'Acquisition Report',
+        primaryMetricLabel: 'Conversions',
+        costMetricLabel: 'Cost Per Conversion',
+        revenueLabel: 'Revenue',
+        roasLabel: 'ROAS',
+        overviewCards: ['spend', 'conversions', 'cpa', 'ctr', 'cpc', 'clicks', 'impressions'],
+        labels: {
+          spend: 'Total Spend',
+          impressions: 'Impressions',
+          clicks: 'Clicks',
+          conversions: 'Conversions',
+          ctr: 'CTR',
+          cpc: 'CPC',
+          cpa: 'Cost Per Conversion',
+          revenue: 'Revenue',
+          roas: 'ROAS',
         },
       };
 

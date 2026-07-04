@@ -389,6 +389,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
    const detectedPlatform = detectPlatform(headers, req.file.originalname);
    const finalPlatform = platform || detectedPlatform || 'other';
    const suggestedMapping = suggestColumnMapping(headers, reportType, finalPlatform);
+   const dictionaryMapping = suggestMetricMappingFromDictionary(headers, finalPlatform);
    const records = await buildRecordsFromMappedFile(req.file.path, fileType);
    const importValidationPreview = buildImportValidationPreview({
      records,
@@ -444,6 +445,8 @@ router.post('/preview', upload.single('file'), async (req, res) => {
       campaignRowsTotals: importValidationPreview.campaignRowsTotals,
       differencePercent: importValidationPreview.differencePercent,
       warningMessage: importValidationPreview.warningMessage,
+      mappingConfidence: dictionaryMapping.confidence,
+      lowConfidenceFields: dictionaryMapping.lowConfidenceFields,
       validation: importValidationPreview.validation,
       importValidationPreview,
     });
@@ -940,6 +943,9 @@ const finalPlatform = platform || detectedPlatform || 'other';
 const suggestedMapping = ['csv', 'excel'].includes(fileType)
   ? suggestColumnMapping(headers, reportType, finalPlatform)
   : {};
+const dictionaryMapping = ['csv', 'excel'].includes(fileType)
+  ? suggestMetricMappingFromDictionary(headers, finalPlatform)
+  : { confidence: {}, lowConfidenceFields: [] };
 const recordsForValidation = ['csv', 'excel'].includes(fileType)
   ? await buildRecordsFromMappedFile(filePath, fileType)
   : [];
@@ -991,6 +997,8 @@ if (['csv', 'excel'].includes(fileType)) {
     campaignRowsTotals: importValidationPreview.campaignRowsTotals,
     differencePercent: importValidationPreview.differencePercent,
     warningMessage: importValidationPreview.warningMessage,
+    mappingConfidence: dictionaryMapping.confidence,
+    lowConfidenceFields: dictionaryMapping.lowConfidenceFields,
     validation: importValidationPreview.validation,
     importValidationPreview,
   });

@@ -208,6 +208,15 @@ const suggestMetricMappingFromDictionary = (headers = [], platform = 'meta') => 
   return {
     mapping,
     matchedColumns,
+    confidence: Object.fromEntries(
+      Object.entries(mapping).map(([field, header]) => [
+        field,
+        Math.max(0, Math.min(1, (mappingScores[field] || 0) / 50)),
+      ])
+    ),
+    lowConfidenceFields: Object.entries(mapping)
+      .filter(([field]) => (mappingScores[field] || 0) < 25)
+      .map(([field]) => field),
     dictionary,
   };
 };

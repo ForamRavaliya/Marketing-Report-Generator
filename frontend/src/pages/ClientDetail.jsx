@@ -294,7 +294,7 @@ const detectedReportType =
   'needs_review';
 
 const normalizeFrontendReportType = (type) => {
-  if (type === 'sales_campaign' || type === 'lead_generation' || type === 'sales_data') {
+  if (['sales_campaign', 'lead_generation', 'sales_data', 'traffic', 'engagement', 'app', 'acquisition'].includes(type)) {
     return type;
   }
 
