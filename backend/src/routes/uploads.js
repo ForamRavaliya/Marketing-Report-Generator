@@ -8,6 +8,10 @@ const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { detectReportType } = require('../utils/reportType');
 const { sanitizeImportedMetrics, buildMonthlySummary } = require('../utils/metrics');
+const {
+  suggestMetricMappingFromDictionary,
+  getDictionaryRequiredMetricFields,
+} = require('../utils/metricDictionaries');
 const platformType = require('../utils/platformType');
 const detectPlatform =
   typeof platformType === 'function'
@@ -134,8 +138,9 @@ async function extractHeaders(filePath, fileType) {
   return [];
 }
 
-function suggestColumnMapping(headers, reportType = 'ads') {
+function suggestColumnMapping(headers, reportType = 'ads', platform = 'meta') {
   const mapping = {};
+  const dictionarySuggestion = suggestMetricMappingFromDictionary(headers, platform || 'meta');
 
   const find = (words, excluded = []) => {
     const normalizedHeaders = headers.map((header) => ({
@@ -243,6 +248,8 @@ mapping.revenue = find([
       'sku',
     ]);
 
+    Object.assign(mapping, dictionarySuggestion.mapping);
+
     return Object.fromEntries(
       Object.entries(mapping).filter(([, value]) => value)
     );
@@ -338,6 +345,8 @@ mapping.revenue = find([
     'campaign',
   ]);
 
+  Object.assign(mapping, dictionarySuggestion.mapping);
+
   Object.keys(mapping).forEach((key) => {
     if (!mapping[key]) delete mapping[key];
   });
@@ -379,7 +388,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
    const reportType = detectReportType(headers, {});
    const detectedPlatform = detectPlatform(headers, req.file.originalname);
    const finalPlatform = platform || detectedPlatform || 'other';
-   const suggestedMapping = suggestColumnMapping(headers, reportType);
+   const suggestedMapping = suggestColumnMapping(headers, reportType, finalPlatform);
    const records = await buildRecordsFromMappedFile(req.file.path, fileType);
    const importValidationPreview = buildImportValidationPreview({
      records,
@@ -473,7 +482,7 @@ function buildImportValidationPreview({
   availableHeaders,
   detectedPlatform,
 }) {
-  const suggestedColumns = suggestColumnMapping(availableHeaders, reportType);
+  const suggestedColumns = suggestColumnMapping(availableHeaders, reportType, detectedPlatform);
   const mappedFields =
     reportType === 'sales_data'
       ? ['product', 'revenue', 'orders', 'quantity', 'refunds', 'profit', 'margin', 'aov']
@@ -929,7 +938,7 @@ const reportType = detectReportType(headers, {});
 const detectedPlatform = detectPlatform(headers, req.file.originalname);
 const finalPlatform = platform || detectedPlatform || 'other';
 const suggestedMapping = ['csv', 'excel'].includes(fileType)
-  ? suggestColumnMapping(headers, reportType)
+  ? suggestColumnMapping(headers, reportType, finalPlatform)
   : {};
 const recordsForValidation = ['csv', 'excel'].includes(fileType)
   ? await buildRecordsFromMappedFile(filePath, fileType)
@@ -1133,7 +1142,7 @@ async function processFileWithMapping(
     const normalizedPlatform = platform || detectedPlatform || 'other';
     const reportType = existingReportType || detectReportType(availableHeaders, mapping);
 
-    const suggestedColumns = suggestColumnMapping(availableHeaders, reportType);
+    const suggestedColumns = suggestColumnMapping(availableHeaders, reportType, normalizedPlatform);
     const mappedFields =
       reportType === 'sales_data'
         ? [
@@ -1652,7 +1661,7 @@ const normalizeSalesMetric = (record) => {
     const requiredMetricFields =
       reportType === 'sales_data'
         ? ['revenue', 'orders']
-        : ['spend', 'impressions', 'clicks', 'conversions', 'revenue'];
+        : getDictionaryRequiredMetricFields(reportType);
     const metricColumnsFound = requiredMetricFields.filter((field) => Boolean(resolvedColumns[field]));
 
     if (metricColumnsFound.length === 0) {
@@ -1812,6 +1821,10 @@ const importedTotals = buildMonthlySummary(
 
 if (importedTotals.revenue <= 0) {
   validationWarnings.add('Revenue missing, ROAS unavailable');
+}
+
+if (importedTotals.conversions <= 0 && ['sales_campaign', 'lead_generation', 'traffic', 'engagement', 'app'].includes(reportType)) {
+  validationWarnings.add('Primary result metric missing for detected report type.');
 }
 
 if (

@@ -1,3 +1,5 @@
+const { detectReportTypeFromDictionary } = require('./metricDictionaries');
+
 const normalize = (value = '') =>
   String(value)
     .toLowerCase()
@@ -62,6 +64,9 @@ const SALES_DATA_KEYWORDS = [
 ];
 
 function detectReportType(headers = [], mapping = {}) {
+  const dictionaryType = detectReportTypeFromDictionary(headers, mapping, 'meta');
+  if (dictionaryType) return dictionaryType;
+
   const text = [
     ...headers,
     ...Object.keys(mapping || {}),
