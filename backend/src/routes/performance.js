@@ -10,6 +10,7 @@ const {
     getLatestReportMonth,
     getPreviousReportMonth,
     calculatePercentChange,
+    isMetricAvailable,
 
 } = require('../utils/metrics');
 
@@ -195,6 +196,14 @@ router.get('/comparison/:clientId', async (req, res) => {
 
 
     const comparison = {};
+    const availability = {
+      hasSpend: Boolean(curr?.has_spend_field) || Number(curr?.spend || 0) > 0,
+      hasReach: Boolean(curr?.has_reach_field) || Number(curr?.reach || 0) > 0,
+      hasImpressions: Boolean(curr?.has_impressions_field) || Number(curr?.impressions || 0) > 0,
+      hasClicks: Boolean(curr?.has_clicks_field),
+      hasConversions: Boolean(curr?.has_conversions_field) || Number(curr?.conversions || 0) > 0,
+      hasRevenue: Boolean(curr?.has_revenue_field),
+    };
 
     metrics.forEach((metric) => {
       const currentValue = parseFloat(curr?.[metric]) || 0;
@@ -207,6 +216,7 @@ router.get('/comparison/:clientId', async (req, res) => {
         change: change.value,
         changeLabel: change.label,
         hasPreviousData: change.hasPreviousData,
+        available: isMetricAvailable(metric, availability),
       };
     });
 

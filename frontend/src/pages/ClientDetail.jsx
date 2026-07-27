@@ -332,6 +332,22 @@ const metricConfig = getReportMetricConfig(normalizedReportType);
 
 console.log('TYPE:', normalizedReportType, metricConfig);
 
+const isDashboardMetricAvailable = (key) => {
+  const metric = currentMonthMetrics?.[key];
+  if (metric && Object.prototype.hasOwnProperty.call(metric, 'available')) {
+    return metric.available !== false;
+  }
+
+  return true;
+};
+
+const visibleOverviewCards = metricConfig.overviewCards.filter(isDashboardMetricAvailable);
+const hasRevenueMetric = isDashboardMetricAvailable('revenue');
+const hasRoasMetric = isDashboardMetricAvailable('roas');
+const hasClickMetrics = isDashboardMetricAvailable('clicks');
+const hasCtrMetric = isDashboardMetricAvailable('ctr');
+const hasCpcMetric = isDashboardMetricAvailable('cpc');
+
 
 const fmtReportCur = (value) => fmtCur(value, reportCurrency);
 const currencySymbol =
@@ -350,9 +366,9 @@ const getCurrentValue = (key) =>
         { key: 'spend', label: 'Spend', format: (c) => fmtReportCur(c.spend) },
         { key: 'conversions', label: metricConfig.primaryMetricLabel, format: (c) => fmt(c.conversions) },
         { key: 'cpa',label: metricConfig.costMetricLabel, format: (c) =>fmtReportCur(c.cpa) },
-        { key: 'revenue', label: 'Revenue', format: (c) => fmtReportCur(c.revenue) },
-        { key: 'roas', label: 'Return', format: (c) => `${fmt(c.roas, 2)}x` },
-      ];
+        hasRevenueMetric ? { key: 'revenue', label: 'Revenue', format: (c) => fmtReportCur(c.revenue) } : null,
+        hasRoasMetric ? { key: 'roas', label: 'Return', format: (c) => `${fmt(c.roas, 2)}x` } : null,
+      ].filter(Boolean);
     }
 
     if (normalizedReportType === 'lead_generation') {
@@ -361,9 +377,9 @@ const getCurrentValue = (key) =>
         { key: 'spend', label: 'Spend', format: (c) => fmtReportCur(c.spend) },
         { key: 'conversions',label: metricConfig.primaryMetricLabel, format: (c) => fmt(c.conversions) },
         { key: 'cpa', label: metricConfig.costMetricLabel, format: (c) => fmtReportCur(c.cpa) },
-        { key: 'ctr', label: 'Click Rate', format: (c) => fmtPct(c.ctr) },
-        { key: 'cpc', label: 'Cost / Click', format: (c) => fmtReportCur(c.cpc) },
-      ];
+        hasCtrMetric ? { key: 'ctr', label: 'Click Rate', format: (c) => fmtPct(c.ctr) } : null,
+        hasCpcMetric ? { key: 'cpc', label: 'Cost / Click', format: (c) => fmtReportCur(c.cpc) } : null,
+      ].filter(Boolean);
     }
 
     if (normalizedReportType === 'sales_data') {
@@ -405,9 +421,9 @@ const getCurrentValue = (key) =>
         { key: 'spend', label: 'Spend', format: (p) => fmtReportCur(p.spend) },
         { key: 'conversions',label: metricConfig.primaryMetricLabel, format: (p) => fmt(p.conversions) },
         { key: 'cpa', label: metricConfig.costMetricLabel, format: (p) => fmtReportCur(p.cpa) },
-        { key: 'ctr', label: 'CTR', format: (p) => fmtPct(p.ctr) },
-        { key: 'cpc', label: 'CPC', format: (p) => fmtReportCur(p.cpc) },
-      ];
+        hasCtrMetric ? { key: 'ctr', label: 'CTR', format: (p) => fmtPct(p.ctr) } : null,
+        hasCpcMetric ? { key: 'cpc', label: 'CPC', format: (p) => fmtReportCur(p.cpc) } : null,
+      ].filter(Boolean);
     }
 
     if (normalizedReportType === 'sales_data') {
@@ -468,6 +484,18 @@ const lowCampaign = campaigns.length
         };
 
       case 'lead_generation':
+        if (!hasClickMetrics) {
+          return {
+            title: 'Impressions vs Leads',
+            firstKey: 'impressions',
+            firstLabel: 'Impressions',
+            secondKey: 'conversions',
+            secondLabel: 'Leads',
+            tableSecond: 'Impressions',
+            tableThird: 'Leads',
+          };
+        }
+
         return {
           title: 'Clicks vs Leads',
           firstKey: 'clicks',
@@ -785,7 +813,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
             <div>
              {/* KPI Cards */}
              <div className="grid grid-4" style={{ marginBottom: 20 }}>
-               {metricConfig.overviewCards.map((key) => (
+               {visibleOverviewCards.map((key) => (
                  <MetricCard
                    key={key}
                    label={metricConfig.labels[key] || key}
@@ -830,7 +858,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {metricConfig.overviewCards.map((key) => ({
+                        {visibleOverviewCards.map((key) => ({
                            key,
                            label: metricConfig.labels[key] || key,
                            fmt: (value) => formatMetric(key, value),
@@ -901,19 +929,21 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                         color="#7C3AED"
                       />
 
-                      <MetricCard
-                        label={metricConfig.roasLabel}
-                        value={
-                          normalizedReportType === 'sales_data'
-                            ? fmtPct(
-                                campaigns.reduce((sum, c) => sum + Number(c.margin || 0), 0) /
-                                  Math.max(campaigns.length, 1)
-                              )
-                            : `${fmt(campaignSummaryRoas, 2)}x`
-                        }
-                        icon={TrendingUp}
-                        color="#F59E0B"
-                      />
+                      {(normalizedReportType === 'sales_data' || hasRoasMetric) && (
+                        <MetricCard
+                          label={metricConfig.roasLabel}
+                          value={
+                            normalizedReportType === 'sales_data'
+                              ? fmtPct(
+                                  campaigns.reduce((sum, c) => sum + Number(c.margin || 0), 0) /
+                                    Math.max(campaigns.length, 1)
+                                )
+                              : `${fmt(campaignSummaryRoas, 2)}x`
+                          }
+                          icon={TrendingUp}
+                          color="#F59E0B"
+                        />
+                      )}
                     </div>
                   </div>
                 )}
