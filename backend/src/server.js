@@ -7,6 +7,8 @@ const { router: emailRoutes } = require('./routes/email');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const ENABLE_PLATFORM_SYNC = process.env.ENABLE_PLATFORM_SYNC === 'true';
+const ENABLE_EMAIL_SCHEDULER = process.env.ENABLE_EMAIL_SCHEDULER === 'true';
 
 // Ensure upload and output directories exist
 ['uploads', 'reports', 'logos'].forEach(dir => {
@@ -39,7 +41,7 @@ app.use('/api/ai-insights', require('./routes/aiInsights'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/agency', require('./routes/agency'));
 //app.use('/api/ad-accounts', require('./routes/adAccounts'));
-//app.use('/api/integrations', require('./routes/integrations'));
+app.use('/api/integrations', require('./routes/integrations'));
 app.use('/api/subscription', require('./routes/subscription'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/super-admin', require('./routes/superAdmin'));
@@ -70,11 +72,20 @@ app.listen(PORT, async () => {
     const { pool } = require('./db');
     await pool.query('SELECT 1');
     console.log(`✅ PostgreSQL connected`);
-    startAutoSyncJob();
-    console.log('⏱ Auto sync job started');
+    if (ENABLE_PLATFORM_SYNC) {
+      startAutoSyncJob();
+      console.log('⏱ Auto sync job started');
+    } else {
+      console.log('⏸ Auto sync job disabled');
+    }
 
     startSubscriptionExpiryJob();
-    startMonthlyEmailReportJob();
+    if (ENABLE_EMAIL_SCHEDULER) {
+      startMonthlyEmailReportJob();
+      console.log('⏱ Monthly email report job started');
+    } else {
+      console.log('⏸ Monthly email report job disabled');
+    }
     console.log('⏱ Subscription expiry job started');
   } catch (err) {
     console.error(`\n❌ PostgreSQL connection FAILED: ${err.message}`);

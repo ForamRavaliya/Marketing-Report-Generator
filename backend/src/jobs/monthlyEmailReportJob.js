@@ -204,6 +204,11 @@ const runMonthlyEmailReportJob = async () => {
 };
 
 const startMonthlyEmailReportJob = () => {
+  if (process.env.ENABLE_EMAIL_SCHEDULER !== 'true') {
+    console.log('Monthly email report job skipped because ENABLE_EMAIL_SCHEDULER is not true.');
+    return null;
+  }
+
   cron.schedule('15 9 * * *', () => {
     runMonthlyEmailReportJob().catch((error) => {
       console.error('Monthly email report job error:', error);

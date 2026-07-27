@@ -15,11 +15,14 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Subscription from './pages/Subscription';
 import Billing from './pages/Billing';
+import Integrations from './pages/Integrations';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import SuperAdminAgencies from './pages/SuperAdminAgencies';
 import SuperAdminSubscriptions from './pages/SuperAdminSubscriptions';
 import SuperAdminPayments from './pages/SuperAdminPayments';
 import SuperAdminSettings from './pages/SuperAdminSettings';
+
+const ENABLE_PLATFORM_SYNC = process.env.REACT_APP_ENABLE_PLATFORM_SYNC === 'true';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -196,6 +199,15 @@ function App() {
              element={
                <RoleRoute allowedRoles={['admin']}>
                  <Billing />
+               </RoleRoute>
+             }
+           />
+
+           <Route
+             path="integrations"
+             element={
+               <RoleRoute allowedRoles={['admin']}>
+                 {ENABLE_PLATFORM_SYNC ? <Integrations /> : <Navigate to="/dashboard" replace />}
                </RoleRoute>
              }
            />

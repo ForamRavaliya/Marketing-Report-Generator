@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
-const { calculateDerivedMetrics, safeNumber } = require('../utils/metrics');
+const { allResultsSql, calculateDerivedMetrics, primaryOutcomeSql, qualifiedLeadSql, safeNumber } = require('../utils/metrics');
 
 router.use(authenticate);
 
@@ -15,7 +15,9 @@ const agencyAggregateMetricsCte = `
       SUM(COALESCE(pd.spend, 0)) AS spend,
       SUM(COALESCE(pd.impressions, 0)) AS impressions,
       SUM(COALESCE(pd.clicks, 0)) AS clicks,
-      SUM(COALESCE(pd.conversions, 0)) AS conversions,
+      SUM(${primaryOutcomeSql('pd')}) AS conversions,
+      SUM(${qualifiedLeadSql('pd')}) AS qualified_leads,
+      SUM(${allResultsSql('pd')}) AS all_results,
       SUM(COALESCE(pd.revenue, 0)) AS revenue
     FROM performance_data pd
     JOIN clients c ON pd.client_id = c.id
@@ -62,6 +64,8 @@ router.get('/overview', async (req, res) => {
            c.name,
            SUM(COALESCE(cm.spend, 0)) as total_spend,
            SUM(COALESCE(cm.conversions, 0)) as total_conversions,
+           SUM(COALESCE(cm.qualified_leads, 0)) as total_qualified_leads,
+           SUM(COALESCE(cm.all_results, 0)) as total_all_results,
            SUM(COALESCE(cm.revenue, 0)) as total_revenue
          FROM clients c
          LEFT JOIN chosen_months cm
@@ -82,6 +86,8 @@ router.get('/overview', async (req, res) => {
          SUM(COALESCE(impressions, 0)) as impressions,
          SUM(COALESCE(clicks, 0)) as clicks,
          SUM(COALESCE(conversions, 0)) as conversions,
+         SUM(COALESCE(qualified_leads, 0)) as qualified_leads,
+         SUM(COALESCE(all_results, 0)) as all_results,
          SUM(COALESCE(revenue, 0)) as revenue
         FROM chosen_months`,
        [agencyId]
@@ -92,6 +98,8 @@ router.get('/overview', async (req, res) => {
     const summary = summaryResult.rows[0] || {};
     const topClients = topClientsResult.rows.map((client) => ({
       ...client,
+      total_qualified_leads: safeNumber(client.total_qualified_leads),
+      total_all_results: safeNumber(client.total_all_results),
       roas: calculateDerivedMetrics({
         spend: client.total_spend,
         conversions: client.total_conversions,
@@ -103,6 +111,8 @@ router.get('/overview', async (req, res) => {
     const impressions = safeNumber(summary.impressions);
     const clicks = safeNumber(summary.clicks);
     const conversions = safeNumber(summary.conversions);
+    const qualifiedLeads = safeNumber(summary.qualified_leads);
+    const allResults = safeNumber(summary.all_results);
     const revenue = safeNumber(summary.revenue);
 
     // 🔥 KPI CALCULATIONS
@@ -111,6 +121,8 @@ router.get('/overview', async (req, res) => {
       impressions,
       clicks,
       conversions,
+      qualified_leads: qualifiedLeads,
+      all_results: allResults,
       revenue,
     });
 

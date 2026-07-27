@@ -128,6 +128,16 @@ const {
   getGoogleUserInfo,
 } = require('../utils/googleOAuthService');
 
+const ENABLE_EMAIL_SCHEDULER = process.env.ENABLE_EMAIL_SCHEDULER === 'true';
+const emailReportsDisabled = (req, res) =>
+  res.status(503).json({
+    error: 'Scheduled email reports are temporarily disabled while data accuracy validation is in progress.',
+  });
+
+if (!ENABLE_EMAIL_SCHEDULER) {
+  router.use(emailReportsDisabled);
+}
+
 router.get('/google/callback', async (req, res) => {
   try {
     const { code, state, error } = req.query;

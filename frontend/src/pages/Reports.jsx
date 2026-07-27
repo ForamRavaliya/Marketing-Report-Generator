@@ -24,10 +24,16 @@ const convertCurrency = (amount, currencyCode) => {
   const rate = CURRENCY_RATES[currencyCode] || 1;
   return Number(amount || 0) * rate;
 };
-const BACKEND_URL = 'https://marketing-report-generator-p9wj.onrender.com';
+const API_BASE_URL =
+  process.env.REACT_APP_API_BASE_URL ||
+  (['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? 'http://localhost:5000/api'
+    : '');
+
+const BACKEND_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 const getPdfUrl = (pathOrUrl) => {
   if (!pathOrUrl) return '#';
-  if (pathOrUrl.startsWith('http')) return pathOrUrl;
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
   return `${BACKEND_URL}${pathOrUrl}`;
 };
 
@@ -104,7 +110,7 @@ useEffect(() => {
       });
 
 
-      const url = getPdfUrl(result.url);
+      const url = getPdfUrl(result.pdfUrl || result.url);
       setGeneratedUrl(url);
 
       toast.success('Report generated!');
@@ -517,9 +523,9 @@ const handleDeleteReport = async (reportId) => {
                     </div>
                   </div>
 
-                 {r.file_path && (
+                 {r.file_path && r.file_available !== false ? (
                      <a
-                       href={getPdfUrl(r.file_path)}
+                       href={getPdfUrl(r.pdf_url || r.file_path)}
                        target="_blank"
                        rel="noreferrer"
                        className="btn btn-ghost btn-sm"
@@ -527,7 +533,17 @@ const handleDeleteReport = async (reportId) => {
                      >
                        <Download size={12} />
                      </a>
-                   )}
+                   ) : r.file_path ? (
+                     <button
+                       type="button"
+                       className="btn btn-ghost btn-sm"
+                       style={{ color: 'var(--text3)' }}
+                       title="Report file is no longer available. Generate the report again."
+                       onClick={() => toast.error('Report file is no longer available. Generate the report again.')}
+                     >
+                       <Download size={12} />
+                     </button>
+                   ) : null}
 
                    <button
                      type="button"

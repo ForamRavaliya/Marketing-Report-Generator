@@ -12,6 +12,18 @@ const {
   suggestMetricMappingFromDictionary,
   getDictionaryRequiredMetricFields,
 } = require('../utils/metricDictionaries');
+const {
+  detectResultType,
+  detectRowLevel,
+  getExplicitResultValue: readExplicitResultValue,
+  isApprovedPrimaryResultType,
+  isSummaryName,
+  mergeResultBreakdowns,
+  primaryResultValue,
+  preferredAggregateSourceRows,
+  selectCanonicalCampaignRows,
+  uniqueResultTypes,
+} = require('../utils/importGranularity');
 const platformType = require('../utils/platformType');
 const detectPlatform =
   typeof platformType === 'function'
@@ -554,28 +566,19 @@ function buildImportValidationPreview({
   const getValue = (record, field) => parseMappedNumber(getRawValue(record, field));
   const getText = (record, field) => String(getRawValue(record, field) || '').trim();
 
-  const isSummaryRow = (name) => {
-    const n = normalizeHeader(name);
-
-    return (
-      !n ||
-      n === 'all' ||
-      n === 'total' ||
-      n === 'totals' ||
-      n === 'result' ||
-      n === 'results' ||
-      n === 'overall' ||
-      n === 'aggregate' ||
-      n === 'grand total' ||
-      n === 'overall total' ||
-      n === 'account total' ||
-      n.includes('grand total') ||
-      n.includes('overall total') ||
-      n.includes('total results') ||
-      n.includes('results from') ||
-      n.includes('account total')
-    );
+  const getExplicitResultValue = (record) => {
+    return readExplicitResultValue(record, parseMappedNumber, getValue(record, 'conversions'));
   };
+
+  const buildResultBreakdown = (record, resultType) => {
+    const resultValue = getExplicitResultValue(record);
+    return {
+      resultValue,
+      resultBreakdown: resultValue > 0 && resultType ? { [resultType]: resultValue } : {},
+    };
+  };
+
+  const isSummaryRow = (name) => isSummaryName(name);
 
   const isInvalidCampaignName = (name) => {
     const n = normalizeHeader(name);
@@ -592,17 +595,17 @@ function buildImportValidationPreview({
     );
   };
 
-  const normalizePreviewMetric = (record) => {
+  const normalizePreviewMetric = (record, resultType = '') => {
     const spend = reportType === 'sales_data' ? 0 : getValue(record, 'spend');
     const impressions = reportType === 'sales_data' ? 0 : getValue(record, 'impressions');
     let clicks = reportType === 'sales_data' ? 0 : getValue(record, 'clicks');
     const ctrValue = reportType === 'sales_data' ? 0 : getValue(record, 'ctr');
     const cpcValue = reportType === 'sales_data' ? 0 : getValue(record, 'cpc');
+    const resultMetric = buildResultBreakdown(record, resultType);
     let conversions =
       reportType === 'sales_data'
         ? getValue(record, 'orders')
-        : getValue(record, 'conversions');
-    const cpaValue = reportType === 'sales_data' ? 0 : getValue(record, 'cpa');
+        : primaryResultValue(resultMetric.resultBreakdown, reportType);
     let revenue = getValue(record, 'revenue');
     const roasValue = reportType === 'sales_data' ? 0 : getValue(record, 'roas');
     const reach = reportType === 'sales_data' ? 0 : getValue(record, 'reach');
@@ -613,10 +616,6 @@ function buildImportValidationPreview({
       } else if (spend > 0 && cpcValue > 0) {
         clicks = spend / cpcValue;
       }
-    }
-
-    if (!conversions && spend > 0 && cpaValue > 0) {
-      conversions = spend / cpaValue;
     }
 
     if (!revenue && spend > 0 && roasValue > 0) {
@@ -632,6 +631,8 @@ function buildImportValidationPreview({
       conversions: Math.round(conversions || 0),
       revenue,
       reach: Math.round(reach || 0),
+      result_value: resultMetric.resultValue,
+      result_breakdown: resultMetric.resultBreakdown,
     });
   };
 
@@ -667,7 +668,8 @@ function buildImportValidationPreview({
       reportType === 'sales_data'
         ? getText(record, 'product') || 'Sales Item'
         : getText(record, 'campaignName') || getText(record, 'campaign');
-    const metrics = normalizePreviewMetric(record);
+    const resultType = detectResultType(record, resolvedColumns.conversions);
+    const metrics = normalizePreviewMetric(record, resultType);
     const hasAnyData =
       metrics.spend ||
       metrics.clicks ||
@@ -1035,7 +1037,10 @@ async function buildRecordsFromMappedFile(filePath, fileType) {
     return parse(content, {
       columns: true,
       skip_empty_lines: true,
-    });
+    }).map((record, index) => ({
+      ...record,
+      __rowIndex: index,
+    }));
   }
 
   if (fileType === 'excel') {
@@ -1047,14 +1052,19 @@ async function buildRecordsFromMappedFile(filePath, fileType) {
 
     return rows
       .slice(headerIndex + 1)
-      .filter((row) => row.some((cell) => String(cell).trim() !== ''))
-      .map((row) => {
+      .map((row, index) => ({
+        row,
+        rowIndex: headerIndex + 1 + index,
+      }))
+      .filter(({ row }) => row.some((cell) => String(cell).trim() !== ''))
+      .map(({ row, rowIndex }) => {
         const obj = {};
 
         headerCells.forEach(({ name, index }) => {
           obj[name] = row[index];
         });
 
+        obj.__rowIndex = rowIndex;
         return obj;
       });
   }
@@ -1261,6 +1271,18 @@ async function processFileWithMapping(
     const getText = (record, field) => {
       return String(getRawValue(record, field) || '').trim();
     };
+
+    const getExplicitResultValue = (record) => {
+      return readExplicitResultValue(record, parseMappedNumber, getValue(record, 'conversions'));
+    };
+
+    const buildResultBreakdown = (record, resultType) => {
+      const resultValue = getExplicitResultValue(record);
+      return {
+        resultValue,
+        resultBreakdown: resultValue > 0 && resultType ? { [resultType]: resultValue } : {},
+      };
+    };
     const toMonthStart = (date) => {
       if (!date || Number.isNaN(date.getTime())) return null;
       const month = new Date(date);
@@ -1411,28 +1433,7 @@ async function processFileWithMapping(
       return fallbackMonth;
     };
 
-    const isSummaryRow = (name) => {
-      const n = normalizeHeader(name);
-
-      return (
-        !n ||
-        n === 'all' ||
-        n === 'total' ||
-        n === 'totals' ||
-        n === 'result' ||
-        n === 'results' ||
-        n === 'overall' ||
-        n === 'aggregate' ||
-        n === 'grand total' ||
-        n === 'overall total' ||
-        n === 'account total' ||
-        n.includes('grand total') ||
-        n.includes('overall total') ||
-        n.includes('total results') ||
-        n.includes('results from') ||
-        n.includes('account total')
-      );
-    };
+    const isSummaryRow = (name) => isSummaryName(name);
 
     const isInvalidCampaignName = (name) => {
       const n = normalizeHeader(name);
@@ -1510,7 +1511,7 @@ const normalizeSalesMetric = (record) => {
   });
 };
 
-    const normalizeCampaignMetric = (record) => {
+    const normalizeCampaignMetric = (record, resultType = '') => {
       const spend = getValue(record, 'spend');
       const impressions = getValue(record, 'impressions');
 
@@ -1519,8 +1520,8 @@ const normalizeSalesMetric = (record) => {
       const ctrValue = getValue(record, 'ctr');
       const cpcValue = getValue(record, 'cpc');
 
-      let conversions = getValue(record, 'conversions');
-      const cpaValue = getValue(record, 'cpa');
+      const resultMetric = buildResultBreakdown(record, resultType);
+      let conversions = primaryResultValue(resultMetric.resultBreakdown, reportType);
 
       let revenue = getValue(record, 'revenue');
       const roasValue = getValue(record, 'roas');
@@ -1536,10 +1537,6 @@ const normalizeSalesMetric = (record) => {
         }
       }
 
-      if (!conversions && spend > 0 && cpaValue > 0) {
-        conversions = spend / cpaValue;
-      }
-
       if (!revenue && spend > 0 && roasValue > 0) {
         revenue = spend * roasValue;
       }
@@ -1552,6 +1549,8 @@ const normalizeSalesMetric = (record) => {
       revenue,
       reach: Math.round(reach || 0),
       followers: Math.round(followers || 0),
+      result_value: resultMetric.resultValue,
+      result_breakdown: resultMetric.resultBreakdown,
     });
     };
 
@@ -1565,10 +1564,19 @@ const normalizeSalesMetric = (record) => {
     let impossibleImpressionRows = 0;
 
     for (const [rowIndex, record] of records.entries()) {
+    const originalRowIndex = Number.isFinite(Number(record.__rowIndex))
+      ? Number(record.__rowIndex)
+      : rowIndex;
     const campaignName =
       reportType === 'sales_data'
         ? getText(record, 'product') || 'Sales Item'
         : getText(record, 'campaignName') || getText(record, 'campaign');
+     const rowLevel = reportType === 'sales_data'
+       ? 'campaign'
+       : detectRowLevel(record, campaignName);
+     const resultType = reportType === 'sales_data'
+       ? 'order'
+       : detectResultType(record, resolvedColumns.conversions);
 
      const metricFields =
        reportType === 'sales_data'
@@ -1589,7 +1597,9 @@ const normalizeSalesMetric = (record) => {
      const rawImpressions = reportType === 'sales_data' ? 0 : getValue(record, 'impressions');
      const rawClicks = reportType === 'sales_data' ? 0 : getValue(record, 'clicks');
      const rawConversions =
-       reportType === 'sales_data' ? getValue(record, 'orders') : getValue(record, 'conversions');
+       reportType === 'sales_data'
+         ? getValue(record, 'orders')
+         : primaryResultValue(buildResultBreakdown(record, resultType).resultBreakdown, reportType);
      const rawRevenue = getValue(record, 'revenue');
 
      if (
@@ -1603,6 +1613,14 @@ const normalizeSalesMetric = (record) => {
        continue;
      }
 
+     if (
+       reportType !== 'sales_data' &&
+       getExplicitResultValue(record) > 0 &&
+       !isApprovedPrimaryResultType(resultType, reportType)
+     ) {
+       validationWarnings.add('Some Meta result rows used a non-primary result type and were not counted as leads/purchases.');
+     }
+
      if (rawImpressions > 0 && rawClicks > 0 && rawImpressions < rawClicks) {
        impossibleImpressionRows += 1;
      }
@@ -1610,7 +1628,7 @@ const normalizeSalesMetric = (record) => {
      const metrics =
        reportType === 'sales_data'
          ? normalizeSalesMetric(record)
-         : normalizeCampaignMetric(record);
+         : normalizeCampaignMetric(record, resultType);
 
       if (rawImpressions > 0 && rawClicks > 0 && rawImpressions < rawClicks) {
         metrics.ctr = 0;
@@ -1641,7 +1659,9 @@ const normalizeSalesMetric = (record) => {
           rawData: record,
           reportMonth: rowReportMonth,
           hasRowDate: rowHasDetectedDate,
-          rowIndex,
+          rowIndex: originalRowIndex,
+          rowLevel: 'account',
+          resultType,
         });
       } else {
         if (isInvalidCampaignName(campaignName)) continue;
@@ -1652,7 +1672,9 @@ const normalizeSalesMetric = (record) => {
           rawData: record,
           reportMonth: rowReportMonth,
           hasRowDate: rowHasDetectedDate,
-          rowIndex,
+          rowIndex: originalRowIndex,
+          rowLevel,
+          resultType,
         });
 
         rawCampaignRows.push({
@@ -1661,7 +1683,9 @@ const normalizeSalesMetric = (record) => {
           rawData: record,
           reportMonth: rowReportMonth,
           hasRowDate: rowHasDetectedDate,
-          rowIndex,
+          rowIndex: originalRowIndex,
+          rowLevel,
+          resultType,
         });
       }
     }
@@ -1692,9 +1716,10 @@ const normalizeSalesMetric = (record) => {
       validationErrors.add('All metric values are zero');
     }
 
+    const canonicalCampaignSourceRows = selectCanonicalCampaignRows(rawCampaignRows);
     const campaignsByName = new Map();
 
-    for (const row of rawCampaignRows) {
+    for (const row of canonicalCampaignSourceRows) {
       const monthKey = row.reportMonth.toISOString().slice(0, 10);
       const key = `${row.name.trim().toLowerCase()}::${monthKey}`;
       const existing = campaignsByName.get(key) || {
@@ -1712,8 +1737,12 @@ const normalizeSalesMetric = (record) => {
          quantity: 0,
          refunds: 0,
          profit: 0,
+         result_value: 0,
+         result_breakdown: {},
        },
         rawData: [],
+        rowLevel: row.rowLevel || 'unknown',
+        resultTypes: new Set(),
       };
 
       existing.metrics.spend += row.metrics.spend;
@@ -1727,13 +1756,23 @@ const normalizeSalesMetric = (record) => {
       existing.metrics.quantity += row.metrics.quantity || 0;
       existing.metrics.refunds += row.metrics.refunds || 0;
       existing.metrics.profit += row.metrics.profit || 0;
+      existing.metrics.result_value += row.metrics.result_value || 0;
+      existing.metrics.result_breakdown = mergeResultBreakdowns([
+        existing.metrics.result_breakdown,
+        row.metrics.result_breakdown,
+      ]);
       existing.rawData.push(row.rawData);
+      uniqueResultTypes(row.metrics.result_breakdown, [row.resultType]).forEach((type) => existing.resultTypes.add(type));
+      if ((row.rowLevel || 'unknown') !== (existing.rowLevel || 'unknown')) {
+        existing.rowLevel = 'mixed';
+      }
       campaignsByName.set(key, existing);
     }
 
     const campaignRows = Array.from(campaignsByName.values()).map((row) => ({
       ...row,
       metrics: sanitizeImportedMetrics(row.metrics),
+      resultTypes: Array.from(row.resultTypes || []).filter(Boolean),
     }));
 
 const selectSummaryRowsByMonth = (rows) => {
@@ -1771,10 +1810,20 @@ if (useCampaignRowsForMonthlyAggregate) {
   );
 }
 
-const rowsForAggregate =
-  summaryRows.length > 0 && !useCampaignRowsForMonthlyAggregate
-    ? selectSummaryRowsByMonth(summaryRows)
-    : detailRowsForAggregate;
+const rowsForAggregate = preferredAggregateSourceRows({
+  summaryRows: selectSummaryRowsByMonth(summaryRows),
+  detailRows: detailRowsForAggregate,
+  useCampaignRowsForMonthlyAggregate,
+});
+
+if (
+  (!summaryRows.length || useCampaignRowsForMonthlyAggregate) &&
+  rowsForAggregate.some((row) => Number(row.metrics?.reach || 0) > 0)
+) {
+  importWarnings.add(
+    'Reach is non-additive. No account-level reach row was available, so aggregate reach was not summed from detail rows.'
+  );
+}
 
 const monthlyAggregates = new Map();
 
@@ -1917,6 +1966,20 @@ if (!uploadValidation.isValid) {
      // doubles summary KPIs, so aggregate rows are built from only the detected
      // total row(s), falling back to campaign rows only when no total row exists.
      const aggregate = buildMonthlySummary(monthlyAggregate.rows);
+     const aggregateResultBreakdown = mergeResultBreakdowns(
+       monthlyAggregate.rows.map((row) => row.metrics?.result_breakdown)
+     );
+     const aggregateResultTypes = uniqueResultTypes(
+       aggregateResultBreakdown,
+       monthlyAggregate.rows.map((row) => row.resultType)
+     );
+     aggregate.result_value = Object.values(aggregateResultBreakdown).reduce((sum, value) => sum + Number(value || 0), 0);
+     aggregate.result_breakdown = aggregateResultBreakdown;
+     const aggregateSourceIsSummary = summaryRows.length > 0 && !useCampaignRowsForMonthlyAggregate;
+     if (!aggregateSourceIsSummary && aggregate.reach > 0) {
+       aggregate.reach = 0;
+       importWarnings.add('Reach is non-additive. No account-level reach row was available, so aggregate reach was not summed from detail rows.');
+     }
      const aggregateReportMonth = monthlyAggregate.reportMonth;
 
      const monthStart = new Date(aggregateReportMonth);
@@ -1939,7 +2002,7 @@ if (!uploadValidation.isValid) {
        platform: normalizedPlatform,
        reportMonth: aggregateReportMonth.toISOString().slice(0, 10),
        source:
-         summaryRows.length > 0 && !useCampaignRowsForMonthlyAggregate
+         aggregateSourceIsSummary
            ? 'summary_row'
            : 'campaign_sum',
        totals: {
@@ -1955,8 +2018,8 @@ if (!uploadValidation.isValid) {
      await transactionClient.query(
        `INSERT INTO performance_data
          (client_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
-          spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, report_type, raw_data)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+          spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, report_type, row_level, result_type, result_value, result_breakdown, raw_data)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
         ON CONFLICT (client_id, platform, external_campaign_name, report_month)
         DO UPDATE SET
           upload_id = EXCLUDED.upload_id,
@@ -1974,6 +2037,10 @@ if (!uploadValidation.isValid) {
           reach = EXCLUDED.reach,
           followers = EXCLUDED.followers,
           report_type = EXCLUDED.report_type,
+          row_level = EXCLUDED.row_level,
+          result_type = EXCLUDED.result_type,
+          result_value = EXCLUDED.result_value,
+          result_breakdown = EXCLUDED.result_breakdown,
           raw_data = EXCLUDED.raw_data,
           updated_at = NOW()`,
        [
@@ -1996,9 +2063,14 @@ if (!uploadValidation.isValid) {
          aggregate.reach,
          aggregate.followers,
          reportType,
+         'account',
+         aggregateResultTypes.join(',') || null,
+         aggregate.result_value,
+         JSON.stringify(aggregateResultBreakdown),
          JSON.stringify({
            ...aggregate,
            reportType,
+           resultBreakdown: aggregateResultBreakdown,
            mapping,
            salesMetrics:
              reportType === 'sales_data'
@@ -2012,7 +2084,7 @@ if (!uploadValidation.isValid) {
                  }
                : null,
            source:
-             summaryRows.length > 0 && !useCampaignRowsForMonthlyAggregate
+             aggregateSourceIsSummary
                ? 'summary_row'
                : 'campaign_sum',
          }),
@@ -2064,8 +2136,8 @@ if (!uploadValidation.isValid) {
       await transactionClient.query(
         `INSERT INTO performance_data
           (client_id, campaign_id, upload_id, platform, external_campaign_name, report_month, date_range_start, date_range_end,
-          spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, report_type, raw_data)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+          spend, impressions, clicks, ctr, cpc, conversions, cpa, roas, revenue, reach, followers, report_type, row_level, result_type, result_value, result_breakdown, raw_data)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
          ON CONFLICT (client_id, platform, external_campaign_name, report_month)
          DO UPDATE SET
            campaign_id = EXCLUDED.campaign_id,
@@ -2085,6 +2157,10 @@ if (!uploadValidation.isValid) {
            followers = EXCLUDED.followers,
            raw_data = EXCLUDED.raw_data,
            report_type = EXCLUDED.report_type,
+           row_level = EXCLUDED.row_level,
+           result_type = EXCLUDED.result_type,
+           result_value = EXCLUDED.result_value,
+           result_breakdown = EXCLUDED.result_breakdown,
            updated_at = NOW()`,
         [
           clientId,
@@ -2107,10 +2183,17 @@ if (!uploadValidation.isValid) {
           m.reach,
           m.followers,
           reportType,
+          row.rowLevel || 'campaign',
+          (row.resultTypes || []).join(',') || null,
+          m.result_value || 0,
+          JSON.stringify(m.result_breakdown || {}),
           JSON.stringify({
             ...m,
             campaignName,
             reportType,
+            rowLevel: row.rowLevel || 'campaign',
+            resultTypes: row.resultTypes || [],
+            resultBreakdown: m.result_breakdown || {},
             mapping,
             salesMetrics:
               reportType === 'sales_data'

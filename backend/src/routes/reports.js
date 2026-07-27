@@ -12,8 +12,14 @@ const {
    getCampaignMetrics,
    normalizeMetricRecord,
    calculatePercentChange,
+   isMetricAvailable,
 } = require('../utils/metrics');
 const { authenticate } = require('../middleware/auth');
+const {
+  uploadReportPdf,
+  validateLocalPdf,
+  validateRemotePdfUrl,
+} = require('../utils/cloudinary');
 
 
 
@@ -33,6 +39,21 @@ const downloadImageToBuffer = (url) => {
       })
       .on('error', () => resolve(null));
   });
+};
+
+const isAbsoluteUrl = (value = '') => /^https?:\/\//i.test(String(value));
+
+const legacyReportLocalPath = (filePath = '') => {
+  if (!filePath || isAbsoluteUrl(filePath)) return null;
+  return path.join(__dirname, '../../data/reports', path.basename(String(filePath)));
+};
+
+const reportFileAvailability = (filePath = '') => {
+  if (!filePath) return false;
+  if (isAbsoluteUrl(filePath)) return true;
+
+  const localPath = legacyReportLocalPath(filePath);
+  return Boolean(localPath && fs.existsSync(localPath));
 };
 
 const CURRENCY_SYMBOLS = {
@@ -229,6 +250,50 @@ router.post('/generate', async (req, res) => {
       });
 
     const totalCampaignSpend = campaigns.reduce((sum, c) => sum + Number(c.spend || 0), 0);
+    const campaignConversionsTotal = campaigns.reduce((sum, c) => sum + Number(c.conversions || 0), 0);
+    const platformSpendTotal = platforms.reduce((sum, p) => sum + Number(p.spend || 0), 0);
+    const reportMismatchWarnings = [];
+    const percentDiff = (a, b) => {
+      const base = Math.max(Math.abs(Number(a || 0)), Math.abs(Number(b || 0)), 1);
+      return (Math.abs(Number(a || 0) - Number(b || 0)) / base) * 100;
+    };
+
+    if (campaigns.length && percentDiff(totalCampaignSpend, summary.spend) > 5) {
+      reportMismatchWarnings.push({
+        metric: 'spend',
+        summary: Number(summary.spend || 0),
+        campaigns: totalCampaignSpend,
+        differencePercent: percentDiff(totalCampaignSpend, summary.spend),
+      });
+    }
+
+    if (campaigns.length && Number(summary.conversions || 0) > 0 && percentDiff(campaignConversionsTotal, summary.conversions) > 5) {
+      reportMismatchWarnings.push({
+        metric: 'conversions',
+        summary: Number(summary.conversions || 0),
+        campaigns: campaignConversionsTotal,
+        differencePercent: percentDiff(campaignConversionsTotal, summary.conversions),
+      });
+    }
+
+    if (platforms.length && percentDiff(platformSpendTotal, summary.spend) > 1) {
+      reportMismatchWarnings.push({
+        metric: 'platform_spend',
+        summary: Number(summary.spend || 0),
+        platforms: platformSpendTotal,
+        differencePercent: percentDiff(platformSpendTotal, summary.spend),
+      });
+    }
+
+    if (reportMismatchWarnings.length) {
+      console.warn('[Report Data Consistency Warning]', {
+        clientId,
+        dateStart,
+        dateEnd,
+        platform,
+        warnings: reportMismatchWarnings,
+      });
+    }
     const hasTrendChart = displayedTrends.length > 1;
 
     const bestCampaign = campaigns.length > 0
@@ -300,7 +365,7 @@ router.post('/generate', async (req, res) => {
 
 
 
-const rawReportType = String(client.report_type || '').toLowerCase();
+const rawReportType = String(summary?.report_type || client.report_type || '').toLowerCase();
 
 const hasSalesRevenue =
   Number(summary?.revenue || 0) > 0 &&
@@ -383,6 +448,20 @@ const reportType =
     safeSummary.cpa = safeSummary.hasCpa ? safeSummary.cpa : 0;
     safeSummary.roas = safeSummary.hasRoas ? safeSummary.roas : 0;
 
+    const metricAvailable = (metricKey) => isMetricAvailable(metricKey, safeSummary);
+
+    const fitWidths = (columns, totalWidth) => {
+      const baseTotal = columns.reduce((sum, column) => sum + Number(column.width || 0), 0) || totalWidth;
+      let used = 0;
+      return columns.map((column, index) => {
+        const width = index === columns.length - 1
+          ? totalWidth - used
+          : Math.round((Number(column.width || 0) / baseTotal) * totalWidth);
+        used += width;
+        return width;
+      });
+    };
+
     const weakestMetricName = !safeSummary.hasRoas
       ? 'Revenue / ROAS tracking'
       : !safeSummary.hasCtr
@@ -445,7 +524,7 @@ const reportType =
       { key: 'cpc', label: 'CPC', previous: previousSummary?.cpc, current: latestMetrics.cpc, change: growth.cpc },
       { key: 'clicks', label: 'Clicks', previous: previousSummary?.clicks, current: latestMetrics.clicks, change: growth.clicks },
       { key: 'impressions', label: 'Impressions', previous: previousSummary?.impressions, current: latestMetrics.impressions, change: growth.impressions },
-    ];
+    ].filter((row) => metricAvailable(row.key));
 
     const comparisonCards = [
       {
@@ -934,9 +1013,9 @@ const reportType =
                 .sort((a, b) => Number(a.cpa || 999999999) - Number(b.cpa || 999999999))[0]
             : null;
 
-          const needsImprovementCampaign = campaigns.length
+          const needsImprovementCampaign = campaigns.length > 1
             ? [...campaigns]
-                .filter((c) => Number(c.spend || 0) > 0)
+                .filter((c) => Number(c.spend || 0) > 0 && c.name !== bestCampaignByCost?.name)
                 .sort((a, b) => Number(b.cpa || 0) - Number(a.cpa || 0))[0]
             : null;
 
@@ -980,11 +1059,14 @@ const reportType =
                 displayedTrends.reduce((sum, row) => sum + Number(row.conversions || 0), 0)
               : null;
 
-          const volumeImproved = growth.conversions ? growth.conversions.value >= 0 : safeSummary.hasConversions;
-          const costImproved = growth.cpa ? growth.cpa.value <= 0 : campaignHealth !== 'Needs Improvement';
+          const hasValidComparison = Boolean(growth.conversions || growth.cpa || growth.clicks);
+          const volumeImproved = hasValidComparison && growth.conversions ? growth.conversions.value >= 0 : false;
+          const costImproved = hasValidComparison && growth.cpa ? growth.cpa.value <= 0 : campaignHealth !== 'Needs Improvement';
           const engagementHealthy = safeSummary.hasCtr || (growth.clicks && growth.clicks.value >= 0);
           const aiExecutiveSummaryText =
-            safeSummary.hasRoas
+            !hasValidComparison
+              ? `${metricLabels.conversion} totaled ${formatNum(safeSummary.conversions)} from ${formatCurrency(safeSummary.spend, currency)} spend. Previous-period comparison is unavailable because only one valid reporting period is present. ${safeSummary.hasRoas ? `ROAS is available at ${formatNum(safeSummary.roas, 2)}x for profitability review.` : 'Revenue tracking is currently unavailable, so profitability analysis will become more accurate after revenue mapping is enabled.'}`
+              : safeSummary.hasRoas
               ? `Overall campaign performance ${volumeImproved ? 'improved' : 'remained mixed'} during this reporting period. ${metricLabels.conversion} performance and acquisition efficiency indicate ${costImproved ? 'healthier budget utilization' : 'an opportunity to improve cost control'}, while engagement ${engagementHealthy ? 'remained healthy across the funnel' : 'needs closer monitoring'}. With ROAS available at ${formatNum(safeSummary.roas, 2)}x, profitability can be reviewed alongside ${metricLabels.quality} before scaling further.`
               : `Overall campaign performance ${volumeImproved ? 'improved' : 'remained mixed'} during this reporting period. ${metricLabels.conversion} generation and acquisition cost trends indicate ${costImproved ? 'better campaign efficiency' : 'room for efficiency improvement'}, while engagement ${engagementHealthy ? 'remained healthy' : 'should be monitored closely'}. Revenue tracking is currently unavailable, so profitability analysis will become more accurate after revenue mapping is enabled.`;
 
@@ -1235,8 +1317,22 @@ const reportType =
       drawCard(35, 120, 525, 210, THEME.card, THEME.border);
       drawSectionTitle('Monthly Summary', 55, 140, THEME.royal);
 
-      const headers = ['Month', 'Spend', 'Clicks', metricLabels.conversion, 'ROAS'];
-      const widths = [120, 115, 80, 95, 75];
+      const monthlyColumns = [
+        { key: 'month', label: 'Month', width: 120, value: (row) => row.month },
+        { key: 'spend', label: 'Spend', width: 115, value: (row) => formatCurrency(row.spend, currency) },
+        metricAvailable('impressions')
+          ? { key: 'impressions', label: 'Impressions', width: 95, value: (row) => formatNum(row.impressions) }
+          : null,
+        metricAvailable('clicks')
+          ? { key: 'clicks', label: 'Clicks', width: 80, value: (row) => formatNum(row.clicks) }
+          : null,
+        { key: 'conversions', label: metricLabels.conversion, width: 95, value: (row) => formatNum(row.conversions) },
+        metricAvailable('roas')
+          ? { key: 'roas', label: 'ROAS', width: 75, value: (row) => Number(row.roas || 0) > 0 ? `${formatNum(row.roas, 2)}x` : '0.00x' }
+          : null,
+      ].filter(Boolean);
+      const headers = monthlyColumns.map((column) => column.label);
+      const widths = fitWidths(monthlyColumns, 485);
       let y = 180;
 
       doc.roundedRect(55, y, 485, 24, 7).fill(THEME.royal);
@@ -1253,13 +1349,7 @@ const reportType =
       (displayedTrends.length ? displayedTrends : []).slice(-6).forEach((row, idx) => {
         doc.roundedRect(55, y, 485, 24, 5).fill(idx % 2 === 0 ? '#F8FAFC' : '#EEF2FF');
 
-        const vals = [
-          row.month,
-          formatCurrency(row.spend, currency),
-          formatNum(row.clicks),
-          formatNum(row.conversions),
-          Number(row.roas || 0) > 0 ? `${formatNum(row.roas, 2)}x` : 'N/A',
-        ];
+        const vals = monthlyColumns.map((column) => column.value(row));
 
         x = 55;
         vals.forEach((v, i) => {
@@ -1340,20 +1430,36 @@ const reportType =
       drawFooter(pageNo++);
     };
 
+    const campaignTableColumns = [
+      { key: 'name', label: 'Campaign Name', width: 110, value: (row) => row.name && row.name !== 'Unknown Campaign' ? row.name : 'Campaign Name N/A' },
+      { key: 'platform', label: 'Platform', width: 42, value: (row) => String(row.platform || 'N/A').toUpperCase() },
+      { key: 'spend', label: 'Spend', width: 60, value: (row) => formatCurrency(row.spend, currency) },
+      metricAvailable('impressions')
+        ? { key: 'impressions', label: 'Impr.', width: 58, value: (row) => formatNum(row.impressions) }
+        : null,
+      metricAvailable('clicks')
+        ? { key: 'clicks', label: 'Clicks', width: 45, value: (row) => formatNum(row.clicks) }
+        : null,
+      { key: 'conversions', label: metricLabels.conversion, width: 52, value: (row) => formatNum(row.conversions) },
+      metricAvailable('ctr')
+        ? { key: 'ctr', label: 'CTR', width: 38, value: (row) => formatPct(row.ctr) }
+        : null,
+      metricAvailable('cpc')
+        ? { key: 'cpc', label: 'CPC', width: 45, value: (row) => formatCurrency(row.cpc, currency) }
+        : null,
+      metricAvailable('cpa')
+        ? { key: 'cpa', label: metricLabels.cpaShort, width: 46, value: (row) => Number(row.cpa || 0) > 0 ? formatCurrency(row.cpa, currency) : 'N/A' }
+        : null,
+      metricAvailable('revenue')
+        ? { key: 'revenue', label: 'Revenue', width: 58, value: (row) => formatCurrency(row.revenue, currency) }
+        : null,
+      metricAvailable('roas')
+        ? { key: 'roas', label: 'ROAS', width: 44, value: (row) => Number(row.roas || 0) > 0 ? `${formatNum(row.roas, 2)}x` : '0.00x' }
+        : null,
+    ].filter(Boolean);
+
     const drawCampaignTableHeader = (tableX, tableY, widths) => {
-      const headers = [
-        'Campaign Name',
-        'Platform',
-        'Spend',
-        'Impr.',
-        'Clicks',
-        metricLabels.conversion,
-        'CTR',
-        'CPC',
-        metricLabels.cpaShort,
-        'Revenue',
-        'ROAS',
-      ];
+      const headers = campaignTableColumns.map((column) => column.label);
 
       doc.roundedRect(tableX, tableY, 525, 24, 7).fill(THEME.violet);
       let x = tableX;
@@ -1370,7 +1476,7 @@ const reportType =
     const drawCampaignTablePages = () => {
       const tableX = 35;
       const tableW = 525;
-      const widths = [88, 38, 55, 48, 40, 42, 34, 42, 42, 54, 42];
+      const widths = fitWidths(campaignTableColumns, tableW);
       const rowH = 24;
       const headerY = 145;
       const firstRowY = 174;
@@ -1413,29 +1519,11 @@ const reportType =
 
         doc.roundedRect(tableX, y, tableW, rowH - 2, 4).fill(rowIndex % 2 === 0 ? '#F8FAFC' : '#F5F3FF');
 
-        const ctrText = Number(row.ctr || 0) > 0 ? formatPct(row.ctr) : 'N/A';
-        const cpcText = Number(row.cpc || 0) > 0 ? formatCurrency(row.cpc, currency) : 'N/A';
-        const cpaText = Number(row.cpa || 0) > 0 ? formatCurrency(row.cpa, currency) : 'N/A';
-        const revenueText = Number(row.revenue || 0) > 0 ? formatCurrency(row.revenue, currency) : 'N/A';
-        const roasText = Number(row.roas || 0) > 0 ? `${formatNum(row.roas, 2)}x` : 'N/A';
-
-        const vals = [
-          row.name && row.name !== 'Unknown Campaign' ? row.name : 'Campaign Name N/A',
-          String(row.platform || 'N/A').toUpperCase(),
-          formatCurrency(row.spend, currency),
-          formatNum(row.impressions),
-          formatNum(row.clicks),
-          formatNum(row.conversions),
-          ctrText,
-          cpcText,
-          cpaText,
-          revenueText,
-          roasText,
-        ];
+        const vals = campaignTableColumns.map((column) => column.value(row));
 
         let x = tableX;
         vals.forEach((value, i) => {
-          const isName = i === 0;
+          const isName = campaignTableColumns[i]?.key === 'name';
           const fontSize = isName ? 5.8 : String(value).length > 10 ? 5.1 : 5.5;
           doc.fillColor(THEME.text).fontSize(fontSize).font(isName ? 'Helvetica-Bold' : 'Helvetica').text(
             String(value),
@@ -1517,8 +1605,8 @@ const reportType =
           ['Platform Contribution', platformContribution],
           ['Campaign Count', topPlatformCampaignCount ? formatNum(topPlatformCampaignCount) : 'N/A'],
           [metricLabels.conversion, formatNum(topPlatform.conversions)],
-          [metricLabels.cpa, platformCpa],
-        ];
+          metricAvailable('cpa') ? [metricLabels.cpa, platformCpa] : null,
+        ].filter(Boolean);
 
         platformItems.forEach(([label, value], i) => {
           doc.fillColor(THEME.muted).fontSize(6.8).font('Helvetica-Bold').text(label.toUpperCase(), 330, 422 + i * 25);
@@ -1811,51 +1899,91 @@ doc.fillColor('#CBD5E1')
   doc.end();
 
     writeStream.on('finish', async () => {
-      const BASE_URL = "https://marketing-report-generator-p9wj.onrender.com";
-      const fileUrl = `${BASE_URL}/data/reports/${fileName}`;
+      let fileUrl = null;
+      let cloudinaryPublicId = null;
 
-    await db.query(
-      `INSERT INTO generated_reports (
-         client_id,
-         agency_id,
-         created_by,
-         title,
-         date_range_start,
-         date_range_end,
-         file_path,
-         currency
-       )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [
-        clientId,
-        req.user.agency_id,
-        req.user.id,
-        customTitle || title || `Report - ${client.name}`,
-        dateStart,
-        dateEnd,
-        fileUrl,
-        currency || 'INR',
-      ]
-    );
+      try {
+        validateLocalPdf(filePath);
+        const uploadedReport = await uploadReportPdf(
+          filePath,
+          fileName
+        );
+        fileUrl = uploadedReport.url;
+        cloudinaryPublicId = uploadedReport.publicId;
 
-    await db.query(
-      `INSERT INTO report_usage_logs (
-         agency_id,
-         client_id,
-         user_id,
-         plan_name,
-         action
-       )
-       VALUES ($1,$2,$3,$4,'generate')`,
-      [
-        req.user.agency_id,
-        clientId,
-        req.user.id,
-        currentPlan,
-      ]
-    );
+        await validateRemotePdfUrl(fileUrl);
 
-      res.json({ url: fileUrl, fileName });
+        fs.unlink(filePath, (unlinkError) => {
+          if (unlinkError) {
+            console.warn('Temporary report cleanup failed:', unlinkError.message);
+          }
+        });
+      } catch (uploadError) {
+        if (process.env.NODE_ENV === 'production') {
+          console.error('Persistent PDF upload failed:', uploadError.message);
+          return res.status(500).json({
+            error: 'Report generated but persistent PDF storage failed. Please check Cloudinary configuration.',
+          });
+        }
+
+        console.warn('Cloudinary unavailable; using local development report URL:', uploadError.message);
+        fileUrl = `${req.protocol}://${req.get('host')}/data/reports/${fileName}`;
+      }
+
+      try {
+        const savedReport = await db.query(
+          `INSERT INTO generated_reports (
+             client_id,
+             agency_id,
+             created_by,
+             title,
+             date_range_start,
+             date_range_end,
+             file_path,
+             currency
+           )
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+           RETURNING id`,
+          [
+            clientId,
+            req.user.agency_id,
+            req.user.id,
+            customTitle || title || `Report - ${client.name}`,
+            dateStart,
+            dateEnd,
+            fileUrl,
+            currency || 'INR',
+          ]
+        );
+
+        await db.query(
+          `INSERT INTO report_usage_logs (
+             agency_id,
+             client_id,
+             user_id,
+             plan_name,
+             action
+           )
+           VALUES ($1,$2,$3,$4,'generate')`,
+          [
+            req.user.agency_id,
+            clientId,
+            req.user.id,
+            currentPlan,
+          ]
+        );
+
+        res.json({
+          url: fileUrl,
+          pdfUrl: fileUrl,
+          reportId: savedReport.rows[0]?.id,
+          fileName,
+          storage: cloudinaryPublicId ? 'cloudinary' : 'local',
+        });
+      } catch (saveError) {
+        console.error('Report persistence error:', saveError);
+        res.status(500).json({ error: 'Report generated but could not be saved.' });
+      }
     });
 
     writeStream.on('error', (err) => {
@@ -1901,7 +2029,13 @@ router.get('/history/:clientId', async (req, res) => {
        ORDER BY gr.created_at DESC LIMIT 20`,
       [req.params.clientId]
     );
-    res.json(result.rows);
+    res.json(
+      result.rows.map((report) => ({
+        ...report,
+        pdf_url: report.file_path || null,
+        file_available: reportFileAvailability(report.file_path),
+      }))
+    );
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch reports' });
   }

@@ -252,10 +252,14 @@ function generateCampaignInsights({ campaigns, summary }) {
       ? intelligence.highestRoas || intelligence.highestRevenue || intelligence.lowestCost || intelligence.highestConversions
       : intelligence.lowestCost || intelligence.highestConversions || intelligence.highestCtr;
 
-  const worstCampaign =
+  const selectedWorstCampaign =
     labels.reportName === 'sales'
       ? intelligence.lowestRoas || intelligence.highestCost || intelligence.lowestConversionRate
       : intelligence.highestCost || intelligence.lowestConversionRate || intelligence.lowestCtr;
+  const worstCampaign =
+    cleanCampaigns.length > 1 && selectedWorstCampaign?.name !== bestCampaign?.name
+      ? selectedWorstCampaign
+      : null;
 
   const costComparison = intelligence.lowestCost ? aboveBelow(intelligence.lowestCost.cpa, averages.cpa, true) : null;
   const ctrComparison = intelligence.highestCtr ? aboveBelow(intelligence.highestCtr.ctr, averages.ctr) : null;
@@ -289,7 +293,7 @@ function generateCampaignInsights({ campaigns, summary }) {
   return {
     highlights,
     bestCampaign: bestCampaign || null,
-    worstCampaign: worstCampaign || null,
+    worstCampaign,
     highestSpend: intelligence.highestSpend,
     highestCtr: intelligence.highestCtr,
     highestRoas: intelligence.highestRoas,

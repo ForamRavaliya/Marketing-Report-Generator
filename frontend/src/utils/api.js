@@ -163,20 +163,29 @@ export const getDashboardOverview = () => api.get('/dashboard/overview').then(r 
 export const generateReceipt = (paymentId) =>
   api.get(`/payments/receipt/${paymentId}`).then(r => r.data);
 
-// Integrations
-/*
 export const getIntegrations = () =>
   api.get('/integrations').then(r => r.data);
 
-export const demoConnectIntegration = (data) =>
-  api.post('/integrations/demo-connect', data).then(r => r.data);
+export const startMetaConnection = (clientId) =>
+  api.post(`/integrations/${clientId}/meta/connect`).then(r => r.data);
+
+export const startGoogleConnection = (clientId) =>
+  api.post(`/integrations/${clientId}/google/connect`).then(r => r.data);
+
+export const startLinkedInConnection = (clientId) =>
+  api.post(`/integrations/${clientId}/linkedin/connect`).then(r => r.data);
+
+export const startShopifyConnection = (clientId, shop) =>
+  api.post(`/integrations/${clientId}/shopify/connect`, { shop }).then(r => r.data);
 
 export const syncIntegration = (id) =>
   api.post(`/integrations/${id}/sync`).then(r => r.data);
 
-export const getIntegrationLogs = () =>
-  api.get('/integrations/logs').then(r => r.data);
-*/
+export const disconnectIntegration = (id) =>
+  api.delete(`/integrations/${id}`).then(r => r.data);
+
+export const getIntegrationLogs = (id) =>
+  api.get(`/integrations/${id}/logs`).then(r => r.data);
 // Agency
 export const getAgency = () => api.get('/agency').then(r => r.data);
 export const updateAgency = async (data) => {

@@ -4,16 +4,18 @@ import { getSubscription, getAgency } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import {
    LayoutDashboard, Users, Upload, FileBarChart2,
-    Settings, LogOut, Menu, BarChart3, ChevronRight, CreditCard, Receipt,
+    Settings, LogOut, Menu, BarChart3, ChevronRight, CreditCard, Receipt, Plug,
     Building2, WalletCards,
 } from 'lucide-react';
 
+const ENABLE_PLATFORM_SYNC = process.env.REACT_APP_ENABLE_PLATFORM_SYNC === 'true';
 
 const adminNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/clients', icon: Users, label: 'Clients' },
   { to: '/upload', icon: Upload, label: 'Upload Data' },
   { to: '/reports', icon: FileBarChart2, label: 'Reports' },
+  ...(ENABLE_PLATFORM_SYNC ? [{ to: '/integrations', icon: Plug, label: 'Integrations' }] : []),
   { to: '/subscription', icon: CreditCard, label: 'Subscription' },
   { to: '/billing', icon: Receipt, label: 'Billing' },
   { to: '/settings', icon: Settings, label: 'Settings' },
