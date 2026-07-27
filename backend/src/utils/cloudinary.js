@@ -22,6 +22,13 @@ const configureCloudinary = () => {
   return true;
 };
 
+const logCloudinaryReportEvent = (event, details = {}) => {
+  const safeDetails = Object.fromEntries(
+    Object.entries(details).filter(([, value]) => value !== undefined && value !== null)
+  );
+  console.info(`[Cloudinary PDF] ${event}:`, safeDetails);
+};
+
 const uploadReportPdf = async (filePath, publicId) => {
   if (!configureCloudinary()) {
     const error = new Error('Cloudinary is not configured for persistent PDF storage.');
@@ -29,18 +36,39 @@ const uploadReportPdf = async (filePath, publicId) => {
     throw error;
   }
 
-  const result = await cloudinary.uploader.upload(filePath, {
+  const uploadOptions = {
     resource_type: 'raw',
+    type: 'upload',
     folder: 'marketing-report-generator/reports',
     public_id: publicId,
     overwrite: true,
     use_filename: false,
     unique_filename: false,
+  };
+
+  logCloudinaryReportEvent('upload_start', {
+    resource_type: uploadOptions.resource_type,
+    delivery_type: uploadOptions.type,
+    public_id: `${uploadOptions.folder}/${publicId}`,
+    format: 'pdf',
+  });
+
+  const result = await cloudinary.uploader.upload(filePath, uploadOptions);
+
+  logCloudinaryReportEvent('upload_success', {
+    resource_type: result.resource_type,
+    delivery_type: result.type,
+    public_id: result.public_id,
+    format: result.format,
+    secure_url: result.secure_url,
   });
 
   return {
     url: result.secure_url,
     publicId: result.public_id,
+    resourceType: result.resource_type,
+    deliveryType: result.type,
+    format: result.format,
   };
 };
 
@@ -83,9 +111,25 @@ const validateRemotePdfUrl = (url) =>
     };
 
     const request = client.get(url, (response) => {
+      const xCldError = response.headers['x-cld-error'];
+      logCloudinaryReportEvent('delivery_check', {
+        secure_url: url,
+        http_status: response.statusCode,
+        x_cld_error: xCldError,
+        content_type: response.headers['content-type'],
+      });
+
       if (response.statusCode < 200 || response.statusCode >= 300) {
         response.resume();
-        return finish(reject, new Error(`Persistent PDF URL returned HTTP ${response.statusCode}.`));
+        const message =
+          response.statusCode === 401
+            ? "Cloudinary PDF delivery is disabled. Enable 'Allow delivery of PDF and ZIP files' in Cloudinary Security settings."
+            : `Persistent PDF URL returned HTTP ${response.statusCode}.`;
+        const error = new Error(message);
+        error.code = response.statusCode === 401 ? 'CLOUDINARY_PDF_DELIVERY_DISABLED' : 'CLOUDINARY_DELIVERY_FAILED';
+        error.httpStatus = response.statusCode;
+        error.xCldError = xCldError;
+        return finish(reject, error);
       }
 
       const chunks = [];

@@ -1920,9 +1920,17 @@ doc.fillColor('#CBD5E1')
         });
       } catch (uploadError) {
         if (process.env.NODE_ENV === 'production') {
-          console.error('Persistent PDF upload failed:', uploadError.message);
+          console.error('Persistent PDF upload failed:', {
+            message: uploadError.message,
+            code: uploadError.code,
+            httpStatus: uploadError.httpStatus,
+            xCldError: uploadError.xCldError,
+          });
           return res.status(500).json({
-            error: 'Report generated but persistent PDF storage failed. Please check Cloudinary configuration.',
+            error:
+              uploadError.code === 'CLOUDINARY_PDF_DELIVERY_DISABLED'
+                ? "Cloudinary PDF delivery is disabled. Enable 'Allow delivery of PDF and ZIP files' in Cloudinary Security settings."
+                : 'Report generated but persistent PDF storage failed. Please check Cloudinary configuration.',
           });
         }
 
