@@ -343,16 +343,18 @@ const handleDeleteReport = async (reportId) => {
                     maximumFractionDigits: 2,
                   })}`,
                 },
-                {
+                summary.has_reach_field
+                  ? {
                   label: 'Reach',
                   value: Number(summary.reach || 0).toLocaleString('en-IN'),
-                },
+                    }
+                  : null,
             {
               label: 'Impressions',
               value: Number(summary.impressions || 0).toLocaleString('en-IN'),
             },
             { label: 'Leads', value: Number(summary.conversions || 0).toLocaleString('en-IN') },
-              ].map((item, i) => (
+              ].filter(Boolean).map((item, i) => (
                 <div
                   key={i}
                   style={{

@@ -43,6 +43,12 @@ router.get('/summary/:clientId', async (req, res) => {
        roas: parseFloat(summary.roas) || 0,
        revenue: parseFloat(summary.revenue) || 0,
        report_type: summary.report_type || 'needs_review',
+       has_spend_field: Boolean(summary.has_spend_field),
+       has_reach_field: Boolean(summary.has_reach_field),
+       has_impressions_field: Boolean(summary.has_impressions_field),
+       has_clicks_field: Boolean(summary.has_clicks_field),
+       has_conversions_field: Boolean(summary.has_conversions_field),
+       has_revenue_field: Boolean(summary.has_revenue_field),
        dataPoints: 1,
      });
    } catch (error) {

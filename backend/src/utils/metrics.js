@@ -30,6 +30,12 @@ const normalizeOutcomeKey = (value = '') =>
     .toLowerCase()
     .replace(/[\s-]+/g, '_');
 
+const readRawDataRows = (row = {}) => {
+  const raw = row.raw_data || row.rawData || {};
+  const rows = raw.rawData || raw.raw_data || [];
+  return Array.isArray(rows) ? rows : [];
+};
+
 const isApprovedOutcomeType = (resultType = '', reportType = '') => {
   const key = normalizeOutcomeKey(resultType);
   const allowed = PRIMARY_OUTCOME_KEYS[reportType];
@@ -51,6 +57,11 @@ const getAllResults = (row = {}) => {
   const breakdownTotal = Object.values(breakdown).reduce((sum, value) => sum + nonNegative(value), 0);
   if (breakdownTotal > 0) return breakdownTotal;
 
+  const rawTotal = readRawDataRows(row).reduce((sum, rawRow) => {
+    return sum + nonNegative(rawRow.Results ?? rawRow.results ?? rawRow.Result ?? rawRow.result);
+  }, 0);
+  if (rawTotal > 0) return rawTotal;
+
   return nonNegative(row.result_value ?? row.resultValue ?? row.all_results ?? row.allResults ?? row.conversions);
 };
 
@@ -60,8 +71,23 @@ const getQualifiedLeads = (row = {}) => {
     return nonNegative(breakdown.qualified_lead);
   }
 
+  const rawQualified = readRawDataRows(row).reduce((sum, rawRow) => {
+    const type = normalizeOutcomeKey(rawRow['Result type'] || rawRow.result_type || rawRow.resultType);
+    if (type !== 'qualified_leads' && type !== 'qualified_lead') return sum;
+    return sum + nonNegative(rawRow.Results ?? rawRow.results ?? rawRow.Result ?? rawRow.result);
+  }, 0);
+  if (rawQualified > 0) return rawQualified;
+
   return nonNegative(row.qualified_leads ?? row.qualifiedLeads);
 };
+
+const getRawDataPrimaryOutcome = (row = {}, reportType = '') =>
+  readRawDataRows(row).reduce((sum, rawRow) => {
+    const type = normalizeOutcomeKey(rawRow['Result type'] || rawRow.result_type || rawRow.resultType);
+    return isApprovedOutcomeType(type, reportType)
+      ? sum + nonNegative(rawRow.Results ?? rawRow.results ?? rawRow.Result ?? rawRow.result)
+      : sum;
+  }, 0);
 
 const getCanonicalReportType = (row = {}, fallbackReportType = row.report_type || row.reportType || '') => {
   const fallback = String(fallbackReportType || '').trim().toLowerCase();
@@ -70,6 +96,9 @@ const getCanonicalReportType = (row = {}, fallbackReportType = row.report_type |
   if (getBreakdownPrimaryOutcome(breakdown, 'lead_generation') > 0) return 'lead_generation';
   if (getBreakdownPrimaryOutcome(breakdown, 'sales_campaign') > 0) return 'sales_campaign';
   if (getBreakdownPrimaryOutcome(breakdown, 'app') > 0) return 'app';
+  if (getRawDataPrimaryOutcome(row, 'lead_generation') > 0) return 'lead_generation';
+  if (getRawDataPrimaryOutcome(row, 'sales_campaign') > 0) return 'sales_campaign';
+  if (getRawDataPrimaryOutcome(row, 'app') > 0) return 'app';
 
   const hasBreakdown = Object.keys(breakdown).length > 0;
   const resultType = String(row.result_type || row.resultType || '').trim().toLowerCase();
@@ -99,6 +128,8 @@ const interpretResultSemantics = (row = {}, reportType = row.report_type || row.
   if (hasBreakdown) {
     primaryValue = getBreakdownPrimaryOutcome(breakdown, canonicalReportType);
     if (canonicalReportType === 'needs_review') primaryValue = 0;
+  } else if (getRawDataPrimaryOutcome(row, canonicalReportType) > 0) {
+    primaryValue = getRawDataPrimaryOutcome(row, canonicalReportType);
   } else if (resultValue > 0 && isApprovedOutcomeType(resultType, canonicalReportType)) {
     primaryValue = resultValue;
   } else {
@@ -268,6 +299,18 @@ const isMetricAvailable = (metricKey, availability = {}) => {
 const jsonbNumberSql = (alias, key) =>
   `COALESCE(NULLIF(${alias}.result_breakdown->>'${key}', '')::numeric, 0)`;
 
+const rawResultNumberSql = "COALESCE(NULLIF(regexp_replace(raw_result.row->>'Results', '[^0-9.-]', '', 'g'), '')::numeric, 0)";
+
+const rawResultTypeSql = "LOWER(TRIM(COALESCE(raw_result.row->>'Result type', '')))";
+
+const rawResultSumSql = (alias = 'pd', conditionSql = 'TRUE') => `
+  COALESCE((
+    SELECT SUM(${rawResultNumberSql})
+    FROM jsonb_array_elements(COALESCE(${alias}.raw_data->'rawData', '[]'::jsonb)) AS raw_result(row)
+    WHERE ${conditionSql}
+  ), 0)
+`;
+
 const resultBreakdownExistsSql = (alias = 'pd') =>
   `COALESCE(${alias}.result_breakdown, '{}'::jsonb) <> '{}'::jsonb`;
 
@@ -281,6 +324,16 @@ const primaryLeadBreakdownSql = (alias = 'pd') => `(
     + ${jsonbNumberSql(alias, 'leads')}
   )`;
 
+const primaryLeadRawDataSql = (alias = 'pd') => rawResultSumSql(
+  alias,
+  `(
+    ${rawResultTypeSql} LIKE '%lead%form%'
+    OR ${rawResultTypeSql} IN ('lead', 'leads', 'website lead', 'website leads', 'on facebook lead')
+    OR ${rawResultTypeSql} LIKE '%onsite%lead%'
+  )
+  AND ${rawResultTypeSql} NOT LIKE '%qualified%'`
+);
+
 const primaryPurchaseBreakdownSql = (alias = 'pd') => `(
     ${jsonbNumberSql(alias, 'purchase')}
     + ${jsonbNumberSql(alias, 'purchases')}
@@ -292,6 +345,11 @@ const primaryPurchaseBreakdownSql = (alias = 'pd') => `(
     + ${jsonbNumberSql(alias, 'orders')}
   )`;
 
+const primaryPurchaseRawDataSql = (alias = 'pd') => rawResultSumSql(
+  alias,
+  `(${rawResultTypeSql} LIKE '%purchase%' OR ${rawResultTypeSql} LIKE '%order%')`
+);
+
 const primaryAppBreakdownSql = (alias = 'pd') => `(
     ${jsonbNumberSql(alias, 'app_install')}
     + ${jsonbNumberSql(alias, 'mobile_app_install')}
@@ -299,7 +357,15 @@ const primaryAppBreakdownSql = (alias = 'pd') => `(
     + ${jsonbNumberSql(alias, 'app_registration')}
   )`;
 
-const qualifiedLeadSql = (alias = 'pd') => jsonbNumberSql(alias, 'qualified_lead');
+const primaryAppRawDataSql = (alias = 'pd') => rawResultSumSql(
+  alias,
+  `(${rawResultTypeSql} LIKE '%app%install%' OR ${rawResultTypeSql} LIKE '%mobile%app%' OR ${rawResultTypeSql} LIKE '%app%activation%' OR ${rawResultTypeSql} LIKE '%app%registration%')`
+);
+
+const qualifiedLeadSql = (alias = 'pd') => `(
+  ${jsonbNumberSql(alias, 'qualified_lead')}
+  + ${rawResultSumSql(alias, `(${rawResultTypeSql} LIKE '%qualified%lead%')`)}
+)`;
 
 const allResultsSql = (alias = 'pd') => `
   CASE
@@ -308,6 +374,7 @@ const allResultsSql = (alias = 'pd') => `
       FROM jsonb_each_text(${alias}.result_breakdown) AS rb(key, value)
       WHERE NULLIF(value, '') IS NOT NULL
     )
+    WHEN COALESCE(${alias}.raw_data->'rawData', '[]'::jsonb) <> '[]'::jsonb THEN ${rawResultSumSql(alias)}
     ELSE COALESCE(${alias}.result_value, ${alias}.conversions, 0)
   END
 `;
@@ -317,6 +384,9 @@ const semanticReportTypeSql = (alias = 'pd') => `
     WHEN ${primaryLeadBreakdownSql(alias)} > 0 THEN 'lead_generation'
     WHEN ${primaryPurchaseBreakdownSql(alias)} > 0 THEN 'sales_campaign'
     WHEN ${primaryAppBreakdownSql(alias)} > 0 THEN 'app'
+    WHEN ${primaryLeadRawDataSql(alias)} > 0 THEN 'lead_generation'
+    WHEN ${primaryPurchaseRawDataSql(alias)} > 0 THEN 'sales_campaign'
+    WHEN ${primaryAppRawDataSql(alias)} > 0 THEN 'app'
     WHEN NOT ${resultBreakdownExistsSql(alias)}
       AND LOWER(TRIM(COALESCE(${alias}.result_type, ''))) IN (
         'lead_form', 'lead form', 'on_facebook_lead', 'on facebook lead', 'website_lead', 'website lead', 'website_leads', 'website leads', 'onsite_conversion_lead_grouped', 'onsite conversion lead grouped', 'lead', 'leads'
@@ -350,6 +420,7 @@ const primaryOutcomeSql = (alias = 'pd') => `
     WHEN ${semanticReportTypeSql(alias)} = 'lead_generation' THEN
       CASE
         WHEN ${resultBreakdownExistsSql(alias)} THEN ${primaryLeadBreakdownSql(alias)}
+        WHEN ${primaryLeadRawDataSql(alias)} > 0 THEN ${primaryLeadRawDataSql(alias)}
         WHEN LOWER(TRIM(COALESCE(${alias}.result_type, ''))) IN (
           'lead_form', 'lead form', 'on_facebook_lead', 'on facebook lead', 'website_lead', 'website lead', 'website_leads', 'website leads', 'onsite_conversion_lead_grouped', 'onsite conversion lead grouped', 'lead', 'leads'
         ) THEN COALESCE(${alias}.result_value, 0)
@@ -358,6 +429,7 @@ const primaryOutcomeSql = (alias = 'pd') => `
     WHEN ${semanticReportTypeSql(alias)} = 'sales_campaign' THEN
       CASE
         WHEN ${resultBreakdownExistsSql(alias)} THEN ${primaryPurchaseBreakdownSql(alias)}
+        WHEN ${primaryPurchaseRawDataSql(alias)} > 0 THEN ${primaryPurchaseRawDataSql(alias)}
         WHEN LOWER(TRIM(COALESCE(${alias}.result_type, ''))) IN (
           'purchase', 'purchases', 'website_purchase', 'website purchase', 'website_purchases', 'website purchases', 'omni_purchase', 'omni purchase', 'omni_purchases', 'omni purchases', 'order', 'orders'
         ) THEN COALESCE(${alias}.result_value, 0)
@@ -366,6 +438,7 @@ const primaryOutcomeSql = (alias = 'pd') => `
     WHEN ${semanticReportTypeSql(alias)} = 'app' THEN
       CASE
         WHEN ${resultBreakdownExistsSql(alias)} THEN ${primaryAppBreakdownSql(alias)}
+        WHEN ${primaryAppRawDataSql(alias)} > 0 THEN ${primaryAppRawDataSql(alias)}
         WHEN LOWER(TRIM(COALESCE(${alias}.result_type, ''))) IN (
           'app_install', 'app install', 'mobile_app_install', 'mobile app install', 'app_activation', 'app activation', 'app_registration', 'app registration'
         ) THEN COALESCE(${alias}.result_value, 0)
@@ -391,6 +464,8 @@ const primaryOutcomeSql = (alias = 'pd') => `
 
 const isAggregateExpr = "LOWER(TRIM(COALESCE(pd.external_campaign_name, ''))) = 'aggregate'";
 const isNotAggregateExpr = "LOWER(TRIM(COALESCE(pd.external_campaign_name, ''))) <> 'aggregate'";
+const trustworthyReachSql = (alias = 'pd') =>
+  `CASE WHEN COALESCE(${alias}.raw_data->>'source', '') = 'campaign_sum' THEN 0 ELSE COALESCE(${alias}.reach, 0) END`;
 
 const buildBaseFilters = ({ clientId, dateStart, dateEnd, platform, reportType }, startIndex = 1) => {
   const filters = [`pd.client_id = $${startIndex}`];
@@ -424,20 +499,66 @@ const buildBaseFilters = ({ clientId, dateStart, dateEnd, platform, reportType }
 };
 
 const monthlyAggregateMetricsCte = (whereSql) => `
-  WITH chosen_months AS (
+  WITH campaign_semantics AS (
     SELECT
       report_month,
+      SUM(${primaryOutcomeSql('pd')}) AS campaign_conversions,
+      SUM(${qualifiedLeadSql('pd')}) AS campaign_qualified_leads,
+      SUM(${allResultsSql('pd')}) AS campaign_all_results,
+      CASE
+        WHEN SUM(CASE WHEN ${semanticReportTypeSql('pd')} = 'lead_generation' THEN ${primaryOutcomeSql('pd')} ELSE 0 END) > 0
+          THEN 'lead_generation'
+        WHEN SUM(CASE WHEN ${semanticReportTypeSql('pd')} = 'sales_campaign' THEN ${primaryOutcomeSql('pd')} ELSE 0 END) > 0
+          THEN 'sales_campaign'
+        WHEN SUM(CASE WHEN ${semanticReportTypeSql('pd')} = 'app' THEN ${primaryOutcomeSql('pd')} ELSE 0 END) > 0
+          THEN 'app'
+        ELSE NULL
+      END AS campaign_report_type
+    FROM performance_data pd
+    WHERE ${whereSql}
+      AND ${isNotAggregateExpr}
+    GROUP BY report_month
+  ),
+  chosen_months AS (
+    SELECT
+      pd.report_month,
       SUM(COALESCE(spend, 0)) AS spend,
-      SUM(COALESCE(reach, 0)) AS reach,
+      SUM(${trustworthyReachSql('pd')}) AS reach,
       SUM(COALESCE(impressions, 0)) AS impressions,
       SUM(COALESCE(clicks, 0)) AS clicks,
-      SUM(${primaryOutcomeSql('pd')}) AS conversions,
-      SUM(${qualifiedLeadSql('pd')}) AS qualified_leads,
-      SUM(${allResultsSql('pd')}) AS all_results,
+      SUM(
+        CASE
+          WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum'
+            AND COALESCE(cs.campaign_conversions, 0) > 0
+          THEN cs.campaign_conversions
+          ELSE ${primaryOutcomeSql('pd')}
+        END
+      ) AS conversions,
+      SUM(
+        CASE
+          WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum'
+          THEN COALESCE(cs.campaign_qualified_leads, 0)
+          ELSE ${qualifiedLeadSql('pd')}
+        END
+      ) AS qualified_leads,
+      SUM(
+        CASE
+          WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum'
+            AND COALESCE(cs.campaign_all_results, 0) > 0
+          THEN cs.campaign_all_results
+          ELSE ${allResultsSql('pd')}
+        END
+      ) AS all_results,
       SUM(COALESCE(revenue, 0)) AS revenue,
-      ${normalizeReportTypeSql} AS report_type,
+      COALESCE(
+        MAX(CASE WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum' THEN cs.campaign_report_type END),
+        ${normalizeReportTypeSql}
+      ) AS report_type,
       BOOL_OR(COALESCE((raw_data->'mapping') ? 'spend', false) OR COALESCE(spend, 0) > 0) AS has_spend_field,
-      BOOL_OR(COALESCE((raw_data->'mapping') ? 'reach', false) OR COALESCE(reach, 0) > 0) AS has_reach_field,
+      BOOL_OR(
+        COALESCE(raw_data->>'source', '') <> 'campaign_sum'
+        AND (COALESCE((raw_data->'mapping') ? 'reach', false) OR COALESCE(reach, 0) > 0)
+      ) AS has_reach_field,
       BOOL_OR(COALESCE((raw_data->'mapping') ? 'impressions', false) OR COALESCE(impressions, 0) > 0) AS has_impressions_field,
       BOOL_OR(COALESCE((raw_data->'mapping') ? 'clicks', false) OR COALESCE(clicks, 0) > 0) AS has_clicks_field,
       BOOL_OR(
@@ -448,9 +569,10 @@ const monthlyAggregateMetricsCte = (whereSql) => `
       ) AS has_conversions_field,
       BOOL_OR(COALESCE((raw_data->'mapping') ? 'revenue', false) OR COALESCE(revenue, 0) > 0) AS has_revenue_field
     FROM performance_data pd
+    LEFT JOIN campaign_semantics cs ON cs.report_month = pd.report_month
     WHERE ${whereSql}
       AND ${isAggregateExpr}
-    GROUP BY report_month
+    GROUP BY pd.report_month
   )
 `;
 
@@ -535,20 +657,64 @@ const getPlatformMetrics = async (db, options) => {
 
   const result = await db.query(
     `
+    WITH campaign_semantics AS (
+      SELECT
+        pd.platform,
+        SUM(${primaryOutcomeSql('pd')}) AS campaign_conversions,
+        SUM(${qualifiedLeadSql('pd')}) AS campaign_qualified_leads,
+        SUM(${allResultsSql('pd')}) AS campaign_all_results,
+        CASE
+          WHEN SUM(CASE WHEN ${semanticReportTypeSql('pd')} = 'lead_generation' THEN ${primaryOutcomeSql('pd')} ELSE 0 END) > 0
+            THEN 'lead_generation'
+          WHEN SUM(CASE WHEN ${semanticReportTypeSql('pd')} = 'sales_campaign' THEN ${primaryOutcomeSql('pd')} ELSE 0 END) > 0
+            THEN 'sales_campaign'
+          WHEN SUM(CASE WHEN ${semanticReportTypeSql('pd')} = 'app' THEN ${primaryOutcomeSql('pd')} ELSE 0 END) > 0
+            THEN 'app'
+          ELSE NULL
+        END AS campaign_report_type
+      FROM performance_data pd
+      WHERE ${whereSql}
+        AND ${isNotAggregateExpr}
+      GROUP BY pd.platform
+    )
     SELECT
       pd.platform,
       SUM(COALESCE(pd.spend, 0)) AS spend,
       SUM(COALESCE(pd.impressions, 0)) AS impressions,
       SUM(COALESCE(pd.clicks, 0)) AS clicks,
-      SUM(${primaryOutcomeSql('pd')}) AS conversions,
-      SUM(${qualifiedLeadSql('pd')}) AS qualified_leads,
-      SUM(${allResultsSql('pd')}) AS all_results,
+      SUM(
+        CASE
+          WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum'
+            AND COALESCE(cs.campaign_conversions, 0) > 0
+          THEN cs.campaign_conversions
+          ELSE ${primaryOutcomeSql('pd')}
+        END
+      ) AS conversions,
+      SUM(
+        CASE
+          WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum'
+          THEN COALESCE(cs.campaign_qualified_leads, 0)
+          ELSE ${qualifiedLeadSql('pd')}
+        END
+      ) AS qualified_leads,
+      SUM(
+        CASE
+          WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum'
+            AND COALESCE(cs.campaign_all_results, 0) > 0
+          THEN cs.campaign_all_results
+          ELSE ${allResultsSql('pd')}
+        END
+      ) AS all_results,
       SUM(COALESCE(pd.revenue, 0)) AS revenue,
-      ${normalizeReportTypeSql} AS report_type,
+      COALESCE(
+        MAX(CASE WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum' THEN cs.campaign_report_type END),
+        ${normalizeReportTypeSql}
+      ) AS report_type,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'orders')::numeric, 0)) AS orders,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'quantity')::numeric, 0)) AS quantity,
       SUM(COALESCE((pd.raw_data->'salesMetrics'->>'profit')::numeric, 0)) AS profit
     FROM performance_data pd
+    LEFT JOIN campaign_semantics cs ON cs.platform = pd.platform
     WHERE ${whereSql}
       AND ${isAggregateExpr}
     GROUP BY pd.platform

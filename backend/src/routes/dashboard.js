@@ -8,19 +8,57 @@ const { allResultsSql, calculateDerivedMetrics, primaryOutcomeSql, qualifiedLead
 router.use(authenticate);
 
 const agencyAggregateMetricsCte = `
-  WITH chosen_months AS (
+  WITH campaign_semantics AS (
+    SELECT
+      pd.client_id,
+      pd.report_month,
+      SUM(${primaryOutcomeSql('pd')}) AS campaign_conversions,
+      SUM(${qualifiedLeadSql('pd')}) AS campaign_qualified_leads,
+      SUM(${allResultsSql('pd')}) AS campaign_all_results
+    FROM performance_data pd
+    JOIN clients c ON pd.client_id = c.id
+    WHERE c.agency_id = $1
+      AND c.is_active = TRUE
+      AND LOWER(TRIM(COALESCE(pd.external_campaign_name, ''))) <> 'aggregate'
+    GROUP BY pd.client_id, pd.report_month
+  ),
+  chosen_months AS (
     SELECT
       pd.client_id,
       pd.report_month,
       SUM(COALESCE(pd.spend, 0)) AS spend,
       SUM(COALESCE(pd.impressions, 0)) AS impressions,
       SUM(COALESCE(pd.clicks, 0)) AS clicks,
-      SUM(${primaryOutcomeSql('pd')}) AS conversions,
-      SUM(${qualifiedLeadSql('pd')}) AS qualified_leads,
-      SUM(${allResultsSql('pd')}) AS all_results,
+      SUM(
+        CASE
+          WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum'
+            AND COALESCE(cs.campaign_all_results, 0) > 0
+          THEN COALESCE(cs.campaign_conversions, 0)
+          ELSE ${primaryOutcomeSql('pd')}
+        END
+      ) AS conversions,
+      SUM(
+        CASE
+          WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum'
+            AND COALESCE(cs.campaign_all_results, 0) > 0
+          THEN COALESCE(cs.campaign_qualified_leads, 0)
+          ELSE ${qualifiedLeadSql('pd')}
+        END
+      ) AS qualified_leads,
+      SUM(
+        CASE
+          WHEN COALESCE(pd.raw_data->>'source', '') = 'campaign_sum'
+            AND COALESCE(cs.campaign_all_results, 0) > 0
+          THEN COALESCE(cs.campaign_all_results, 0)
+          ELSE ${allResultsSql('pd')}
+        END
+      ) AS all_results,
       SUM(COALESCE(pd.revenue, 0)) AS revenue
     FROM performance_data pd
     JOIN clients c ON pd.client_id = c.id
+    LEFT JOIN campaign_semantics cs
+      ON cs.client_id = pd.client_id
+     AND cs.report_month = pd.report_month
     WHERE c.agency_id = $1
       AND c.is_active = TRUE
       AND LOWER(TRIM(COALESCE(pd.external_campaign_name, ''))) = 'aggregate'
