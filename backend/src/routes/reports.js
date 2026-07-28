@@ -1431,42 +1431,58 @@ const reportType =
     };
 
     const campaignTableColumns = [
-      { key: 'name', label: 'Campaign Name', width: 110, value: (row) => row.name && row.name !== 'Unknown Campaign' ? row.name : 'Campaign Name N/A' },
-      { key: 'platform', label: 'Platform', width: 42, value: (row) => String(row.platform || 'N/A').toUpperCase() },
-      { key: 'spend', label: 'Spend', width: 60, value: (row) => formatCurrency(row.spend, currency) },
+      { key: 'name', label: 'Campaign Name', weight: 0.34, align: 'left', value: (row) => row.name && row.name !== 'Unknown Campaign' ? row.name : 'Campaign Name N/A' },
+      { key: 'platform', label: 'Platform', weight: 0.11, align: 'center', value: (row) => String(row.platform || 'N/A').toUpperCase() },
+      { key: 'spend', label: 'Spend', weight: 0.16, align: 'right', value: (row) => formatCurrency(row.spend, currency) },
       metricAvailable('impressions')
-        ? { key: 'impressions', label: 'Impr.', width: 58, value: (row) => formatNum(row.impressions) }
+        ? { key: 'impressions', label: 'Impressions', shortLabel: 'Impr.', weight: 0.14, align: 'right', value: (row) => formatNum(row.impressions) }
         : null,
       metricAvailable('clicks')
-        ? { key: 'clicks', label: 'Clicks', width: 45, value: (row) => formatNum(row.clicks) }
+        ? { key: 'clicks', label: 'Clicks', weight: 0.1, align: 'right', value: (row) => formatNum(row.clicks) }
         : null,
-      { key: 'conversions', label: metricLabels.conversion, width: 52, value: (row) => formatNum(row.conversions) },
+      { key: 'conversions', label: metricLabels.conversion, weight: 0.105, align: 'right', value: (row) => formatNum(row.conversions) },
       metricAvailable('ctr')
-        ? { key: 'ctr', label: 'CTR', width: 38, value: (row) => formatPct(row.ctr) }
+        ? { key: 'ctr', label: 'CTR', weight: 0.08, align: 'right', value: (row) => formatPct(row.ctr) }
         : null,
       metricAvailable('cpc')
-        ? { key: 'cpc', label: 'CPC', width: 45, value: (row) => formatCurrency(row.cpc, currency) }
+        ? { key: 'cpc', label: 'CPC', weight: 0.12, align: 'right', value: (row) => formatCurrency(row.cpc, currency) }
         : null,
       metricAvailable('cpa')
-        ? { key: 'cpa', label: metricLabels.cpaShort, width: 46, value: (row) => Number(row.cpa || 0) > 0 ? formatCurrency(row.cpa, currency) : 'N/A' }
+        ? { key: 'cpa', label: metricLabels.cpaShort, weight: 0.145, align: 'right', value: (row) => Number(row.cpa || 0) > 0 ? formatCurrency(row.cpa, currency) : 'N/A' }
         : null,
       metricAvailable('revenue')
-        ? { key: 'revenue', label: 'Revenue', width: 58, value: (row) => formatCurrency(row.revenue, currency) }
+        ? { key: 'revenue', label: 'Revenue', weight: 0.15, align: 'right', value: (row) => formatCurrency(row.revenue, currency) }
         : null,
       metricAvailable('roas')
-        ? { key: 'roas', label: 'ROAS', width: 44, value: (row) => Number(row.roas || 0) > 0 ? `${formatNum(row.roas, 2)}x` : '0.00x' }
+        ? { key: 'roas', label: 'ROAS', weight: 0.085, align: 'right', value: (row) => Number(row.roas || 0) > 0 ? `${formatNum(row.roas, 2)}x` : '0.00x' }
         : null,
     ].filter(Boolean);
 
-    const drawCampaignTableHeader = (tableX, tableY, widths) => {
-      const headers = campaignTableColumns.map((column) => column.label);
+    const fitCampaignTableWidths = (columns, totalWidth) => {
+      const totalWeight = columns.reduce((sum, column) => sum + Number(column.weight || 0), 0) || 1;
+      let used = 0;
+      return columns.map((column, index) => {
+        const width = index === columns.length - 1
+          ? totalWidth - used
+          : Math.round((Number(column.weight || 0) / totalWeight) * totalWidth);
+        used += width;
+        return width;
+      });
+    };
 
-      doc.roundedRect(tableX, tableY, 525, 24, 7).fill(THEME.violet);
+    const drawCampaignTableHeader = (tableX, tableY, widths) => {
+      const headerH = 26;
+      const cellPadX = 6;
+      doc.roundedRect(tableX, tableY, 525, headerH, 7).fill(THEME.violet);
       let x = tableX;
-      headers.forEach((header, i) => {
-        doc.fillColor('#FFFFFF').fontSize(5.8).font('Helvetica-Bold').text(header, x + 4, tableY + 8, {
-          width: widths[i] - 6,
-          height: 9,
+      campaignTableColumns.forEach((column, i) => {
+        const header = column.shortLabel && doc.widthOfString(column.label) > widths[i] - (cellPadX * 2)
+          ? column.shortLabel
+          : column.label;
+        doc.fillColor('#FFFFFF').fontSize(5.8).font('Helvetica-Bold').text(header, x + cellPadX, tableY + 9, {
+          width: widths[i] - (cellPadX * 2),
+          height: 10,
+          align: column.align === 'right' ? 'right' : column.align === 'center' ? 'center' : 'left',
           ellipsis: true,
         });
         x += widths[i];
@@ -1476,11 +1492,23 @@ const reportType =
     const drawCampaignTablePages = () => {
       const tableX = 35;
       const tableW = 525;
-      const widths = fitWidths(campaignTableColumns, tableW);
-      const rowH = 24;
+      const widths = fitCampaignTableWidths(campaignTableColumns, tableW);
       const headerY = 145;
-      const firstRowY = 174;
+      const firstRowY = 176;
       const bottomY = CONTENT_BOTTOM - 10;
+      const cellPadX = 6;
+      const nameColumnIndex = campaignTableColumns.findIndex((column) => column.key === 'name');
+
+      const getCampaignRowHeight = (row) => {
+        const nameValue = String(campaignTableColumns[nameColumnIndex]?.value(row) || '');
+        const nameWidth = Math.max(40, widths[nameColumnIndex] - (cellPadX * 2));
+        doc.font('Helvetica-Bold').fontSize(6.7);
+        const nameHeight = doc.heightOfString(nameValue, {
+          width: nameWidth,
+          lineGap: 1,
+        });
+        return Math.max(28, Math.ceil(nameHeight) + 14);
+      };
 
       doc.addPage();
       drawPageHeader('Campaign Performance', `All campaign rows for ${client.name} | ${dateLabel}`);
@@ -1513,26 +1541,37 @@ const reportType =
       };
 
       campaigns.forEach((row) => {
+        const rowH = getCampaignRowHeight(row);
         if (y + rowH > bottomY) {
           startNewCampaignPage();
         }
 
-        doc.roundedRect(tableX, y, tableW, rowH - 2, 4).fill(rowIndex % 2 === 0 ? '#F8FAFC' : '#F5F3FF');
+        doc.roundedRect(tableX, y, tableW, rowH - 3, 4).fill(rowIndex % 2 === 0 ? '#F8FAFC' : '#F5F3FF');
 
         const vals = campaignTableColumns.map((column) => column.value(row));
 
         let x = tableX;
         vals.forEach((value, i) => {
-          const isName = campaignTableColumns[i]?.key === 'name';
-          const fontSize = isName ? 5.8 : String(value).length > 10 ? 5.1 : 5.5;
+          const column = campaignTableColumns[i];
+          const isName = column?.key === 'name';
+          const valueText = String(value);
+          const fontSize = isName ? 6.7 : valueText.length > 14 ? 4.9 : valueText.length > 11 ? 5.2 : 5.7;
+          const textWidth = widths[i] - (cellPadX * 2);
+          const textHeight = isName
+            ? rowH - 10
+            : Math.min(rowH - 8, doc.font('Helvetica').fontSize(fontSize).heightOfString(valueText, {
+                width: textWidth,
+              }));
           doc.fillColor(THEME.text).fontSize(fontSize).font(isName ? 'Helvetica-Bold' : 'Helvetica').text(
             String(value),
-            x + 4,
-            y + 6,
+            x + cellPadX,
+            isName ? y + 6 : y + Math.max(5, (rowH - textHeight) / 2),
             {
-              width: widths[i] - 6,
-              height: 12,
-              ellipsis: true,
+              width: textWidth,
+              height: isName ? rowH - 10 : textHeight,
+              align: column.align || 'left',
+              lineGap: isName ? 1 : 0,
+              ellipsis: false,
             }
           );
           x += widths[i];
