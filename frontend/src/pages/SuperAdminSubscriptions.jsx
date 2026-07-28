@@ -6,9 +6,9 @@ const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
 const planPrice = {
   free: 0,
-  // TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 1.
+  // TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 999.
   // Restore to INR 999 after verification.
-  pro: 1,
+  pro: 999,
   agency: 2999,
 };
 
