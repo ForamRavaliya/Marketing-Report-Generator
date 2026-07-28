@@ -26,7 +26,9 @@ router.post('/create-order', async (req, res) => {
 
     const pricing = {
       free: 0,
-      pro: billingCycle === 'yearly' ? 9990 : 999,
+      // TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 1.
+      // Restore to INR 999 after verification.
+      pro: billingCycle === 'yearly' ? 9990 : 1,
       agency: billingCycle === 'yearly' ? 25000 : 2500,
     };
 
