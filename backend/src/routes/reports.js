@@ -1479,9 +1479,9 @@ const reportType =
         const header = column.shortLabel && doc.widthOfString(column.label) > widths[i] - (cellPadX * 2)
           ? column.shortLabel
           : column.label;
-        doc.fillColor('#FFFFFF').fontSize(5.8).font('Helvetica-Bold').text(header, x + cellPadX, tableY + 9, {
+        doc.fillColor('#FFFFFF').fontSize(6.3).font('Helvetica-Bold').text(header, x + cellPadX, tableY + 8.5, {
           width: widths[i] - (cellPadX * 2),
-          height: 10,
+          height: 11,
           align: column.align === 'right' ? 'right' : column.align === 'center' ? 'center' : 'left',
           ellipsis: true,
         });
@@ -1493,6 +1493,10 @@ const reportType =
       const tableX = 35;
       const tableW = 525;
       const widths = fitCampaignTableWidths(campaignTableColumns, tableW);
+      const cardX = 25;
+      const cardY = 120;
+      const cardW = 545;
+      const cardBottomPadding = 16;
       const headerY = 145;
       const firstRowY = 176;
       const bottomY = CONTENT_BOTTOM - 10;
@@ -1502,20 +1506,19 @@ const reportType =
       const getCampaignRowHeight = (row) => {
         const nameValue = String(campaignTableColumns[nameColumnIndex]?.value(row) || '');
         const nameWidth = Math.max(40, widths[nameColumnIndex] - (cellPadX * 2));
-        doc.font('Helvetica-Bold').fontSize(6.7);
+        doc.font('Helvetica-Bold').fontSize(7.2);
         const nameHeight = doc.heightOfString(nameValue, {
           width: nameWidth,
           lineGap: 1,
         });
-        return Math.max(28, Math.ceil(nameHeight) + 14);
+        return Math.min(bottomY - firstRowY, Math.max(31, Math.ceil(nameHeight) + 16));
       };
 
-      doc.addPage();
-      drawPageHeader('Campaign Performance', `All campaign rows for ${client.name} | ${dateLabel}`);
-      drawCard(25, 120, 545, 625, THEME.card, THEME.border);
-      drawSectionTitle('Campaign Table', 45, 130, THEME.violet);
-
       if (!campaigns.length) {
+        doc.addPage();
+        drawPageHeader('Campaign Performance', `All campaign rows for ${client.name} | ${dateLabel}`);
+        drawCard(cardX, cardY, cardW, 145, THEME.card, THEME.border);
+        drawSectionTitle('Campaign Table', 45, 130, THEME.violet);
         doc.fillColor(THEME.muted).fontSize(9).font('Helvetica').text(
           'No campaign-level rows were available.',
           55,
@@ -1526,62 +1529,79 @@ const reportType =
         return;
       }
 
-      let y = firstRowY;
-      let rowIndex = 0;
-      drawCampaignTableHeader(tableX, headerY, widths);
-
-      const startNewCampaignPage = () => {
-        drawFooter(pageNo++);
-        doc.addPage();
-        drawPageHeader('Campaign Performance', `Continued | ${client.name} | ${dateLabel}`);
-        drawCard(25, 120, 545, 625, THEME.card, THEME.border);
-        drawSectionTitle('Campaign Table Continued', 45, 130, THEME.violet);
-        drawCampaignTableHeader(tableX, headerY, widths);
-        y = firstRowY;
-      };
-
+      const campaignRows = [];
+      let pageRows = [];
+      let pageY = firstRowY;
       campaigns.forEach((row) => {
         const rowH = getCampaignRowHeight(row);
-        if (y + rowH > bottomY) {
-          startNewCampaignPage();
+        if (pageRows.length && pageY + rowH > bottomY) {
+          campaignRows.push(pageRows);
+          pageRows = [];
+          pageY = firstRowY;
         }
+        pageRows.push({ row, rowH });
+        pageY += rowH;
+      });
+      if (pageRows.length) campaignRows.push(pageRows);
 
-        doc.roundedRect(tableX, y, tableW, rowH - 3, 4).fill(rowIndex % 2 === 0 ? '#F8FAFC' : '#F5F3FF');
+      let rowIndex = 0;
+      campaignRows.forEach((rowsForPage, pageIndex) => {
+        const rowsHeight = rowsForPage.reduce((sum, item) => sum + item.rowH, 0);
+        const cardH = Math.min(
+          bottomY - cardY + 8,
+          Math.max(108, firstRowY + rowsHeight - cardY + cardBottomPadding)
+        );
 
-        const vals = campaignTableColumns.map((column) => column.value(row));
+        doc.addPage();
+        drawPageHeader(
+          'Campaign Performance',
+          pageIndex === 0 ? `All campaign rows for ${client.name} | ${dateLabel}` : `Continued | ${client.name} | ${dateLabel}`
+        );
+        drawCard(cardX, cardY, cardW, cardH, THEME.card, THEME.border);
+        drawSectionTitle(pageIndex === 0 ? 'Campaign Table' : 'Campaign Table Continued', 45, 130, THEME.violet);
+        drawCampaignTableHeader(tableX, headerY, widths);
 
-        let x = tableX;
-        vals.forEach((value, i) => {
-          const column = campaignTableColumns[i];
-          const isName = column?.key === 'name';
-          const valueText = String(value);
-          const fontSize = isName ? 6.7 : valueText.length > 14 ? 4.9 : valueText.length > 11 ? 5.2 : 5.7;
-          const textWidth = widths[i] - (cellPadX * 2);
-          const textHeight = isName
-            ? rowH - 10
-            : Math.min(rowH - 8, doc.font('Helvetica').fontSize(fontSize).heightOfString(valueText, {
+        let y = firstRowY;
+        rowsForPage.forEach(({ row, rowH }) => {
+          const rowFillH = Math.max(24, rowH - 3);
+
+          doc.roundedRect(tableX, y, tableW, rowFillH, 4).fill(rowIndex % 2 === 0 ? '#F8FAFC' : '#F5F3FF');
+
+          const vals = campaignTableColumns.map((column) => column.value(row));
+
+          let x = tableX;
+          vals.forEach((value, i) => {
+            const column = campaignTableColumns[i];
+            const isName = column?.key === 'name';
+            const valueText = String(value);
+            const fontSize = isName ? 7.2 : valueText.length > 14 ? 5.2 : valueText.length > 11 ? 5.6 : 6.1;
+            const textWidth = widths[i] - (cellPadX * 2);
+            const textHeight = isName
+              ? rowH - 12
+              : Math.min(rowH - 10, doc.font('Helvetica').fontSize(fontSize).heightOfString(valueText, {
+                  width: textWidth,
+                }));
+            doc.fillColor(THEME.text).fontSize(fontSize).font(isName ? 'Helvetica-Bold' : 'Helvetica').text(
+              valueText,
+              x + cellPadX,
+              isName ? y + 7 : y + Math.max(6, (rowH - textHeight) / 2),
+              {
                 width: textWidth,
-              }));
-          doc.fillColor(THEME.text).fontSize(fontSize).font(isName ? 'Helvetica-Bold' : 'Helvetica').text(
-            String(value),
-            x + cellPadX,
-            isName ? y + 6 : y + Math.max(5, (rowH - textHeight) / 2),
-            {
-              width: textWidth,
-              height: isName ? rowH - 10 : textHeight,
-              align: column.align || 'left',
-              lineGap: isName ? 1 : 0,
-              ellipsis: false,
-            }
-          );
-          x += widths[i];
+                height: isName ? rowH - 12 : textHeight,
+                align: column.align || 'left',
+                lineGap: isName ? 1 : 0,
+                ellipsis: false,
+              }
+            );
+            x += widths[i];
+          });
+
+          y += rowH;
+          rowIndex += 1;
         });
 
-        y += rowH;
-        rowIndex += 1;
+        drawFooter(pageNo++);
       });
-
-      drawFooter(pageNo++);
     };
 
     const drawSimpleChartsPage = () => {
