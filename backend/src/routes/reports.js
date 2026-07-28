@@ -1512,7 +1512,9 @@ const reportType =
       const cardW = 545;
       const cardBottomPadding = 16;
       const headerY = 145;
-      const firstRowY = 181;
+      const headerH = 26;
+      const headerBodyGap = 12;
+      const firstRowY = headerY + headerH + headerBodyGap;
       const bottomY = CONTENT_BOTTOM - 10;
       const cellPadX = 6;
       const nameColumnIndex = campaignTableColumns.findIndex((column) => column.key === 'name');
