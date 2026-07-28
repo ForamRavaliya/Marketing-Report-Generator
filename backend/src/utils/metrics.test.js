@@ -519,6 +519,58 @@ const approx = (actual, expected, tolerance = 0.0001) => {
 })();
 
 (() => {
+  const hiddenAvailability = {
+    hasSpend: true,
+    hasImpressions: true,
+    hasClicks: false,
+    hasConversions: true,
+    hasRevenue: false,
+  };
+
+  assert.strictEqual(isMetricAvailable('clicks', hiddenAvailability), false);
+  assert.strictEqual(isMetricAvailable('ctr', hiddenAvailability), false);
+  assert.strictEqual(isMetricAvailable('cpc', hiddenAvailability), false);
+  assert.strictEqual(isMetricAvailable('roas', hiddenAvailability), false);
+  assert.strictEqual(isMetricAvailable('spend', hiddenAvailability), true);
+  assert.strictEqual(isMetricAvailable('conversions', hiddenAvailability), true);
+  assert.strictEqual(isMetricAvailable('impressions', hiddenAvailability), true);
+
+  const explicitZeroAvailability = {
+    hasSpend: true,
+    hasImpressions: true,
+    hasClicks: true,
+    hasConversions: true,
+    hasRevenue: true,
+  };
+
+  assert.strictEqual(isMetricAvailable('clicks', explicitZeroAvailability), true);
+  assert.strictEqual(isMetricAvailable('revenue', explicitZeroAvailability), true);
+  assert.strictEqual(isMetricAvailable('ctr', explicitZeroAvailability), true);
+  assert.strictEqual(isMetricAvailable('cpc', explicitZeroAvailability), true);
+  assert.strictEqual(isMetricAvailable('roas', explicitZeroAvailability), true);
+
+  const oneDistinctMonth = [...new Map([
+    { month: 'Jul 2026', conversions: 206 },
+    { month: 'Jul 2026', conversions: 206 },
+  ].map((row) => [String(row.month), row])).values()];
+  assert.strictEqual(oneDistinctMonth.length >= 2, false);
+
+  const twoDistinctMonths = [...new Map([
+    { month: 'Jun 2026', conversions: 100 },
+    { month: 'Jul 2026', conversions: 206 },
+  ].map((row) => [String(row.month), row])).values()];
+  assert.strictEqual(twoDistinctMonths.length >= 2, true);
+
+  const campaignRows = [
+    { name: 'Auto Audience Leads campaign', spend: 12165.24, impressions: 96844, conversions: 166, cpa: 73.28457831325301 },
+    { name: 'Chitrakut Carousel Leads campaign', spend: 6525.4, impressions: 10743, conversions: 35, cpa: 186.44 },
+    { name: 'New Post Leads campaign', spend: 796.1, impressions: 1791, conversions: 5, cpa: 159.22 },
+  ];
+  approx(campaignRows.reduce((sum, row) => sum + row.spend, 0), 19486.74, 0.01);
+  approx(campaignRows.reduce((sum, row) => sum + row.conversions, 0), 206);
+})();
+
+(() => {
   const validPdfPath = path.join(os.tmpdir(), `valid-${Date.now()}.pdf`);
   const invalidPdfPath = path.join(os.tmpdir(), `invalid-${Date.now()}.pdf`);
 

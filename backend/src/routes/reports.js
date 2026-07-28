@@ -304,8 +304,14 @@ router.post('/generate', async (req, res) => {
         })[0]
       : null;
 
-    const bestMonth = trends.length > 0
-      ? [...trends].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
+    const distinctTrendMonths = [...new Map(
+      trends
+        .filter((row) => row && row.month)
+        .map((row) => [String(row.month), row])
+    ).values()];
+    const hasComparableTrendMonths = distinctTrendMonths.length >= 2;
+    const bestMonth = hasComparableTrendMonths
+      ? [...distinctTrendMonths].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
       : null;
 
    const latestMonth = trends.length >= 1 ? trends[trends.length - 1] : null;
@@ -441,7 +447,7 @@ const reportType =
     safeSummary.hasCpa = safeSummary.hasSpend && safeSummary.hasConversions && safeSummary.conversions > 0;
     safeSummary.hasCpc = safeSummary.hasSpend && safeSummary.hasClicks && safeSummary.clicks > 0;
     safeSummary.hasCtr = safeSummary.hasClicks && safeSummary.hasImpressions && safeSummary.clicks <= safeSummary.impressions;
-    safeSummary.hasRoas = safeSummary.hasSpend && safeSummary.hasRevenue;
+    safeSummary.hasRoas = safeSummary.hasSpend && safeSummary.hasRevenue && safeSummary.spend > 0;
 
     safeSummary.ctr = safeSummary.hasCtr ? safeSummary.ctr : 0;
     safeSummary.cpc = safeSummary.hasCpc ? safeSummary.cpc : 0;
@@ -562,11 +568,14 @@ const reportType =
     };
 
     const drawMiniMetricCards = (items, startX, startY) => {
-      const cardWidth = items.length === 4 ? 120 : 105;
-      const gap = items.length === 4 ? 130 : 112;
+      const availableWidth = 525;
+      const gap = 10;
+      const cardWidth = Math.min(items.length >= 4 ? 120 : 155, (availableWidth - gap * Math.max(0, items.length - 1)) / Math.max(1, items.length));
+      const totalWidth = cardWidth * items.length + gap * Math.max(0, items.length - 1);
+      const baseX = startX + Math.max(0, (availableWidth - totalWidth) / 2);
 
       items.forEach((item, i) => {
-        const x = startX + i * gap;
+        const x = baseX + i * (cardWidth + gap);
         const y = startY;
         drawCard(x, y, cardWidth, 72, item.bg, THEME.border);
 
@@ -1047,11 +1056,17 @@ const reportType =
             },
           ];
 
-          const bestTrendMonth = displayedTrends.length
-            ? [...displayedTrends].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
+          const comparableTrendMonths = [...new Map(
+            displayedTrends
+              .filter((row) => row && row.month)
+              .map((row) => [String(row.month), row])
+          ).values()];
+          const hasComparableTrendCards = comparableTrendMonths.length >= 2;
+          const bestTrendMonth = hasComparableTrendCards
+            ? [...comparableTrendMonths].sort((a, b) => Number(b.conversions || 0) - Number(a.conversions || 0))[0]
             : null;
-          const worstTrendMonth = displayedTrends.length
-            ? [...displayedTrends].sort((a, b) => Number(a.conversions || 0) - Number(b.conversions || 0))[0]
+          const worstTrendMonth = hasComparableTrendCards
+            ? [...comparableTrendMonths].sort((a, b) => Number(a.conversions || 0) - Number(b.conversions || 0))[0]
             : null;
           const avgCpaFromTrends =
             displayedTrends.length && displayedTrends.reduce((sum, row) => sum + Number(row.conversions || 0), 0) > 0
@@ -1132,14 +1147,16 @@ const reportType =
         .text('Executive Summary', 55, 238);
 
       const summaryItems = [
-        ['Marketing Investment', formatCurrency(safeSummary.spend, currency)],
-        ['Business Outcome', safeSummary.hasConversions ? `${formatNum(safeSummary.conversions)} ${metricLabels.conversion}` : 'N/A'],
-        ['Cost Efficiency', safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A'],
-       ['Return on Investment', safeSummary.hasRoas ? `${formatNum(safeSummary.roas, 2)}x` : 'Not Available'],
-      ];
+        safeSummary.hasSpend ? ['Marketing Investment', formatCurrency(safeSummary.spend, currency)] : null,
+        safeSummary.hasConversions ? ['Business Outcome', `${formatNum(safeSummary.conversions)} ${metricLabels.conversion}`] : null,
+        safeSummary.hasCpa ? ['Cost Efficiency', formatCurrency(safeSummary.cpa, currency)] : null,
+        safeSummary.hasRoas ? ['Return on Investment', `${formatNum(safeSummary.roas, 2)}x`] : null,
+      ].filter(Boolean);
 
       summaryItems.forEach(([label, value], i) => {
-        const x = 55 + i * 120;
+        const itemWidth = summaryItems.length ? Math.min(150, 480 / summaryItems.length) : 120;
+        const gap = summaryItems.length > 1 ? (480 - (itemWidth * summaryItems.length)) / (summaryItems.length - 1) : 0;
+        const x = 55 + i * (itemWidth + gap);
         const summaryValue = String(value || '');
         const summaryValueFont =
           summaryValue.length > 18 ? 8 :
@@ -1149,34 +1166,31 @@ const reportType =
         doc.fillColor(THEME.muted)
           .fontSize(7.2)
           .font('Helvetica-Bold')
-          .text(label, x, 266, { width: 108, height: 18, ellipsis: false });
+          .text(label, x, 266, { width: itemWidth - 10, height: 18, ellipsis: false });
 
         doc.fillColor(THEME.text)
           .fontSize(summaryValueFont)
           .font('Helvetica-Bold')
-          .text(summaryValue, x, 284, { width: 108, height: 16, ellipsis: false });
+          .text(summaryValue, x, 284, { width: itemWidth - 10, height: 16, ellipsis: false });
       });
       const kpis = [
-        { key: 'spend',label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue,growth: growth.spend },
-        { key: 'conversions',label: `Total ${metricLabels.conversion}`, value: safeSummary.hasConversions ? formatNum(safeSummary.conversions) : 'N/A', color: THEME.emerald, bg: THEME.softGreen ,growth: growth.conversions},
-        {  key: 'cpa', label: metricLabels.cpaFull, value: safeSummary.hasCpa ? formatCurrency(safeSummary.cpa, currency) : 'N/A', color: THEME.amber, bg: THEME.softAmber,growth: growth.cpa },
-        { key: 'clicks', label: 'Clicks', value: safeSummary.hasClicks ? formatNum(safeSummary.clicks) : 'N/A', color: THEME.violet, bg: THEME.softPurple,growth: growth.clicks },
-        {  key: 'ctr', label: 'CTR', value: safeSummary.hasCtr ? formatPct(safeSummary.ctr) : 'N/A', color: THEME.cyan, bg: '#ECFEFF' ,growth: growth.ctr},
-        {  key: 'cpc', label: 'CPC', value: safeSummary.hasCpc ? formatCurrency(safeSummary.cpc, currency) : 'N/A', color: THEME.rose, bg: THEME.softRose, growth: growth.cpc },
-        {  key: 'impressions', label: 'Impressions', value: safeSummary.hasImpressions ? formatNum(safeSummary.impressions) : 'N/A', color: THEME.royal, bg: THEME.softBlue, growth: growth.impressions },
-        { key: 'roas',
+        safeSummary.hasSpend ? { key: 'spend',label: 'Total Spend', value: formatCurrency(safeSummary.spend, currency), color: THEME.royal, bg: THEME.softBlue,growth: growth.spend } : null,
+        safeSummary.hasConversions ? { key: 'conversions',label: `Total ${metricLabels.conversion}`, value: formatNum(safeSummary.conversions), color: THEME.emerald, bg: THEME.softGreen ,growth: growth.conversions} : null,
+        safeSummary.hasCpa ? {  key: 'cpa', label: metricLabels.cpaFull, value: formatCurrency(safeSummary.cpa, currency), color: THEME.amber, bg: THEME.softAmber,growth: growth.cpa } : null,
+        safeSummary.hasClicks ? { key: 'clicks', label: 'Clicks', value: formatNum(safeSummary.clicks), color: THEME.violet, bg: THEME.softPurple,growth: growth.clicks } : null,
+        safeSummary.hasCtr ? {  key: 'ctr', label: 'CTR', value: formatPct(safeSummary.ctr), color: THEME.cyan, bg: '#ECFEFF' ,growth: growth.ctr} : null,
+        safeSummary.hasCpc ? {  key: 'cpc', label: 'CPC', value: formatCurrency(safeSummary.cpc, currency), color: THEME.rose, bg: THEME.softRose, growth: growth.cpc } : null,
+        safeSummary.hasImpressions ? {  key: 'impressions', label: 'Impressions', value: formatNum(safeSummary.impressions), color: THEME.royal, bg: THEME.softBlue, growth: growth.impressions } : null,
+        safeSummary.hasRoas ? {
+          key: 'roas',
           label: 'ROAS',
-          value: safeSummary.hasRoas
-            ? `${formatNum(safeSummary.roas, 2)}x`
-            : 'Not Available',
-          note: safeSummary.hasRoas
-            ? 'Return on Ad Spend'
-            : 'Revenue data not uploaded',
+          value: `${formatNum(safeSummary.roas, 2)}x`,
+          note: 'Return on Ad Spend',
           color: THEME.rose,
           bg: THEME.softRose,
           growth: growth.roas
-        },
-      ];
+        } : null,
+      ].filter(Boolean);
 
       kpis.forEach((item, i) => {
         const col = i % 3;
@@ -1498,7 +1512,7 @@ const reportType =
       const cardW = 545;
       const cardBottomPadding = 16;
       const headerY = 145;
-      const firstRowY = 176;
+      const firstRowY = 181;
       const bottomY = CONTENT_BOTTOM - 10;
       const cellPadX = 6;
       const nameColumnIndex = campaignTableColumns.findIndex((column) => column.key === 'name');
@@ -1687,31 +1701,31 @@ const reportType =
 
       drawMiniMetricCards(
         [
-          {
+          bestTrendMonth ? {
             label: 'Best Month',
-            value: bestTrendMonth ? bestTrendMonth.month : 'N/A',
+            value: bestTrendMonth.month,
             color: THEME.emerald,
             bg: THEME.softGreen,
-          },
-          {
+          } : null,
+          worstTrendMonth ? {
             label: 'Worst Month',
-            value: worstTrendMonth ? worstTrendMonth.month : 'N/A',
+            value: worstTrendMonth.month,
             color: THEME.rose,
             bg: THEME.softRose,
-          },
-          {
+          } : null,
+          avgCpaFromTrends !== null ? {
             label: `Average ${metricLabels.cpaShort}`,
-            value: avgCpaFromTrends !== null ? formatCurrency(avgCpaFromTrends, currency) : 'N/A',
+            value: formatCurrency(avgCpaFromTrends, currency),
             color: THEME.amber,
             bg: THEME.softAmber,
-          },
+          } : null,
           {
             label: 'Total Campaigns',
             value: formatNum(campaigns.length),
             color: THEME.violet,
             bg: THEME.softPurple,
           },
-        ],
+        ].filter(Boolean),
         35,
         635
       );
