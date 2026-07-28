@@ -30,7 +30,7 @@ router.get('/overview', async (req, res) => {
             CASE
               -- TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 1.
               -- Restore to INR 999 after verification.
-              WHEN plan_name = 'pro' THEN 999
+              WHEN plan_name = 'pro' THEN 1
               WHEN plan_name = 'agency' THEN 2999
               ELSE 0
             END

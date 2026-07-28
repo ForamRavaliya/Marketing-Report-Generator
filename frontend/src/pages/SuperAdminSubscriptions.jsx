@@ -8,7 +8,7 @@ const planPrice = {
   free: 0,
   // TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 999.
   // Restore to INR 999 after verification.
-  pro: 999,
+  pro: 1,
   agency: 2999,
 };
 
