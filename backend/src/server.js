@@ -56,6 +56,33 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Return JSON for unknown API routes
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: 'API endpoint not found'
+  });
+});
+
+// Serve React frontend
+const frontendBuildPath = path.join(__dirname, '../../frontend/build');
+
+app.use(express.static(frontendBuildPath));
+
+// React Router fallback
+app.get('*', (req, res, next) => {
+  res.sendFile(path.join(frontendBuildPath, 'index.html'), err => {
+    if (err) next(err);
+  });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
+});
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
