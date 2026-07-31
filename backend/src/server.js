@@ -64,7 +64,7 @@ app.use('/api', (req, res) => {
 });
 
 // Serve React frontend
-const frontendBuildPath = path.join(__dirname, '../../frontend/build');
+const frontendBuildPath = path.join(__dirname, '../frontend-build');
 
 app.use(express.static(frontendBuildPath));
 
