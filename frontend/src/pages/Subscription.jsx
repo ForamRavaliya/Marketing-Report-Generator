@@ -184,7 +184,7 @@ const getPlanPrice = (planId) => {
   if (planId === 'pro') {
     // TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 1.
     // Restore to INR 999 after verification.
-    return billingCycle === 'yearly' ? '₹9,990/year' : '1/month';
+    return billingCycle === 'yearly' ? '₹9,990/year' : '999/month';
   }
 
   if (planId === 'agency') {
