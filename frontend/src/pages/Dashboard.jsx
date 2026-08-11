@@ -39,8 +39,8 @@ export default function Dashboard() {
           marginBottom: 28,
           padding: '28px 32px',
           borderRadius: 22,
-          background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)',
-          color: '#fff',
+          background: 'linear-gradient(135deg, var(--primary) 0%, var(--purple) 100%)',
+          color: 'var(--on-accent)',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -103,7 +103,7 @@ export default function Dashboard() {
                 fontWeight: 600,
               }}
             >
-              📊 Real-time Performance Tracking
+              📊 Performance Tracking
             </div>
 
             <div
@@ -138,9 +138,9 @@ export default function Dashboard() {
       {/* Quick Stats */}
       <div className="grid grid-3" style={{ marginBottom: 24 }}>
         {[
-          { label: 'Total Clients', value: loading ? '—' : fmt(data?.totalClients), icon: Users, color: '#2563EB', sub: 'Active clients' },
-          { label: 'Reports Generated', value: loading ? '—' : fmt(data?.recentActivity?.length || 0), icon: BarChart3, color: '#7C3AED', sub: 'Recent activity' },
-          { label: 'Platforms Tracked', value: '6', icon: TrendingUp, color: '#059669', sub: 'Meta, Google & more' },
+          { label: 'Total Clients', value: loading ? '—' : fmt(data?.totalClients), icon: Users, color: 'var(--primary)', sub: 'Active clients' },
+          { label: 'Reports Generated', value: loading ? '—' : fmt(data?.recentActivity?.length || 0), icon: BarChart3, color: 'var(--purple)', sub: 'Recent activity' },
+          { label: 'Platforms Tracked', value: '6', icon: TrendingUp, color: 'var(--success)', sub: 'Meta, Google & more' },
         ].map(({ label, value, icon: Icon, color, sub }) => (
           <div key={label} className="card card-pad" style={{ position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: '14px 14px 0 0' }} />
@@ -241,12 +241,12 @@ export default function Dashboard() {
              {
                label: 'Total Clicks',
               value: fmt(data?.clicks || 0),
-               color: '#2563EB',
+               color: 'var(--primary)',
              },
              {
                label: 'Impressions',
               value: fmt(data?.impressions || 0),
-               color: '#7C3AED',
+               color: 'var(--purple)',
              },
            ].map((item) => (
              <div
@@ -348,7 +348,7 @@ export default function Dashboard() {
                 onClick={() => navigate(`/clients/${c.id}`)}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'}
                 onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: ['#EFF6FF', '#F5F3FF', '#ECFDF5', '#FFF7ED', '#FEF2F2'][i % 5], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: ['#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626'][i % 5], marginRight: 12, flexShrink: 0 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: ['var(--primary-light)', 'var(--purple-light)', 'var(--success-light)', 'var(--warning-light)', 'var(--danger-light)'][i % 5], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: ['var(--primary)', 'var(--purple)', 'var(--success)', 'var(--warning)', 'var(--danger)'][i % 5], marginRight: 12, flexShrink: 0 }}>
                   {c.name.charAt(0).toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -366,9 +366,9 @@ export default function Dashboard() {
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Quick Actions</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
-              { label: 'Upload Report Data', sub: 'Import CSV, Excel, PDF or image', to: '/upload', color: '#2563EB', icon: '📤' },
-              { label: 'Add New Client', sub: 'Onboard a new client account', to: '/clients', color: '#7C3AED', icon: '👤' },
-              { label: 'Generate PDF Report', sub: 'Create a client-ready report', to: '/reports', color: '#059669', icon: '📄' },
+              { label: 'Upload Report Data', sub: 'Import CSV, Excel, PDF or image', to: '/upload', color: 'var(--primary)', icon: '📤' },
+              { label: 'Add New Client', sub: 'Onboard a new client account', to: '/clients', color: 'var(--purple)', icon: '👤' },
+              { label: 'Generate PDF Report', sub: 'Create a client-ready report', to: '/reports', color: 'var(--success)', icon: '📄' },
             ].map(({ label, sub, to, color, icon }) => (
               <button key={to} onClick={() => navigate(to)} style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',

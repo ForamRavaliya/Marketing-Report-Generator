@@ -32,7 +32,7 @@ export default function Login() {
           <div style={{ width: 52, height: 52, background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
             <BarChart3 size={24} color="#fff" />
           </div>
-          <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 800 }}>AdInsight</h1>
+          <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 800 }}>Unbrand Agency</h1>
           <p style={{ color: 'rgba(255,255,255,.5)', fontSize: 13, marginTop: 4 }}>Performance Marketing Reports</p>
         </div>
 

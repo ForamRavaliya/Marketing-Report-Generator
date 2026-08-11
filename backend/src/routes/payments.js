@@ -8,6 +8,9 @@ const fs = require('fs');
 
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
+const { safeCompare } = require('../utils/safeCompare');
+const { activatePaidOrder } = require('../services/paymentReconciliationService');
+const { getPlanPricingMap } = require('../services/planPricingService');
 
 router.use(authenticate);
 router.get('/test', (req, res) => {
@@ -24,21 +27,22 @@ router.post('/create-order', async (req, res) => {
   try {
     const { planName, billingCycle = 'monthly' } = req.body;
 
-    const pricing = {
-      free: 0,
-      // TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 1.
-      // Restore to INR 999 after verification.
-      pro: billingCycle === 'yearly' ? 9990 : 999,
-      agency: billingCycle === 'yearly' ? 25000 : 2500,
-    };
+    const cycle = billingCycle === 'yearly' ? 'yearly' : 'monthly';
 
-    if (!pricing.hasOwnProperty(planName)) {
+    // Amount is always resolved server-side from the current, live plan
+    // configuration (subscription_plans, falling back to the static
+    // PLAN_PRICING defaults if that table is unavailable) -- planName is
+    // validated against the same trusted key set, and the client can never
+    // supply or influence the amount that gets charged.
+    const planPricing = await getPlanPricingMap(db);
+
+    if (!planPricing.hasOwnProperty(planName)) {
       return res.status(400).json({
         error: 'Invalid plan selected',
       });
     }
 
-    const amount = pricing[planName];
+    const amount = planPricing[planName][cycle];
 
     if (amount <= 0) {
       return res.status(400).json({
@@ -100,8 +104,6 @@ router.post('/verify', async (req, res) => {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      planName,
-      billingCycle,
     } = req.body;
 
     const generatedSignature = crypto
@@ -111,105 +113,52 @@ router.post('/verify', async (req, res) => {
       )
       .digest('hex');
 
-    if (generatedSignature !== razorpay_signature) {
+    if (!safeCompare(generatedSignature, razorpay_signature)) {
       return res.status(400).json({
         error: 'Invalid payment signature',
       });
     }
 
+    // Ownership check: the order must belong to the caller's own agency.
+    // Plan name, billing cycle and amount are never read from the request —
+    // activatePaidOrder() re-derives them from this same order row.
     const orderResult = await db.query(
-      `SELECT *
+      `SELECT id
        FROM payment_orders
        WHERE provider_order_id = $1
        AND agency_id = $2`,
       [razorpay_order_id, req.user.agency_id]
     );
 
-    const order = orderResult.rows[0];
-
-    if (!order) {
+    if (!orderResult.rows.length) {
       return res.status(404).json({
         error: 'Payment order not found',
       });
     }
 
-    if (order.status === 'paid') {
+    const result = await activatePaidOrder(razorpay_order_id, {
+      paymentId: razorpay_payment_id,
+    });
+
+    if (!result.ok) {
+      if (result.reason === 'amount_mismatch') {
+        console.error(
+          `Verify payment: amount mismatch for order ${razorpay_order_id}`
+        );
+        return res.status(400).json({
+          error: 'Payment amount does not match order',
+        });
+      }
+      return res.status(404).json({
+        error: 'Payment order not found',
+      });
+    }
+
+    if (result.alreadyProcessed) {
       return res.status(409).json({
         error: 'Payment already verified',
       });
     }
-
-    // Save payment
-    const paymentResult = await db.query(
-      `INSERT INTO payments
-       (
-         agency_id,
-         order_id,
-         provider,
-         provider_payment_id,
-         provider_order_id,
-         plan_name,
-         billing_cycle,
-         amount,
-         currency,
-         status
-       )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-       RETURNING *`,
-      [
-        req.user.agency_id,
-        order.id,
-        'razorpay',
-        razorpay_payment_id,
-        razorpay_order_id,
-        order.plan_name,
-        order.billing_cycle || 'monthly',
-        order.amount,
-        'INR',
-        'success',
-      ]
-    );
-
-    const payment = paymentResult.rows[0];
-
-const expiresAt = new Date();
-
-if ((order.billing_cycle || 'monthly') === 'yearly'){
-  expiresAt.setDate(expiresAt.getDate() + 365);
-} else {
-  expiresAt.setDate(expiresAt.getDate() + 30);
-}
-
-    // Update subscription
-    await db.query(
-      `UPDATE subscriptions
-       SET
-         plan_name = $1,
-         billing_cycle = $2,
-         payment_provider = 'razorpay',
-         last_payment_id = $3,
-        status = 'active',
-        started_at = CURRENT_TIMESTAMP,
-        expires_at = $5,
-        updated_at = CURRENT_TIMESTAMP
-       WHERE agency_id = $4`,
-      [
-        order.plan_name,
-        order.billing_cycle || 'monthly',
-        payment.id,
-        req.user.agency_id,
-        expiresAt,
-      ]
-    );
-
-    // Update order status
-    await db.query(
-      `UPDATE payment_orders
-       SET status = 'paid',
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [order.id]
-    );
 
     res.json({
       success: true,

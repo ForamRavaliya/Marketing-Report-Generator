@@ -2,7 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 const db = require('../db');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, JWT_SECRET } = require('../middleware/auth');
 const {
   buildMetaOAuthUrl,
   exchangeCodeForToken: exchangeMetaCodeForToken,
@@ -66,7 +66,7 @@ const handleGoogleCallback = async (req, res) => {
       return res.status(400).send('Google Ads OAuth callback is missing code or state.');
     }
 
-    const payload = jwt.verify(String(state), process.env.JWT_SECRET || 'dev_secret');
+    const payload = jwt.verify(String(state), JWT_SECRET);
     const { agencyId, clientId, userId } = payload;
 
     await assertSyncAllowed(agencyId, 'manual');
@@ -142,7 +142,7 @@ const handleLinkedInCallback = async (req, res) => {
       return res.status(400).send('LinkedIn Ads OAuth callback is missing code or state.');
     }
 
-    const payload = jwt.verify(String(state), process.env.JWT_SECRET || 'dev_secret');
+    const payload = jwt.verify(String(state), JWT_SECRET);
     const { agencyId, clientId, userId } = payload;
 
     await assertSyncAllowed(agencyId, 'manual');
@@ -214,7 +214,7 @@ const handleShopifyCallback = async (req, res) => {
       return res.status(400).send('Invalid Shopify OAuth signature.');
     }
 
-    const payload = jwt.verify(String(state), process.env.JWT_SECRET || 'dev_secret');
+    const payload = jwt.verify(String(state), JWT_SECRET);
     const { agencyId, clientId, userId } = payload;
 
     await assertSyncAllowed(agencyId, 'manual');
@@ -268,7 +268,7 @@ router.get('/meta/callback', async (req, res) => {
       return res.status(400).send('Meta OAuth callback is missing code or state.');
     }
 
-    const payload = jwt.verify(String(state), process.env.JWT_SECRET || 'dev_secret');
+    const payload = jwt.verify(String(state), JWT_SECRET);
     const { agencyId, clientId, userId } = payload;
 
     await assertSyncAllowed(agencyId, 'manual');
@@ -378,7 +378,7 @@ router.post('/:clientId/meta/connect', async (req, res) => {
         clientId,
         userId: req.user.id,
       },
-      process.env.JWT_SECRET || 'dev_secret',
+      JWT_SECRET,
       { expiresIn: '15m' }
     );
 
@@ -413,7 +413,7 @@ router.post('/:clientId/google/connect', async (req, res) => {
         clientId,
         userId: req.user.id,
       },
-      process.env.JWT_SECRET || 'dev_secret',
+      JWT_SECRET,
       { expiresIn: '15m' }
     );
 
@@ -448,7 +448,7 @@ router.post('/:clientId/linkedin/connect', async (req, res) => {
         clientId,
         userId: req.user.id,
       },
-      process.env.JWT_SECRET || 'dev_secret',
+      JWT_SECRET,
       { expiresIn: '15m' }
     );
 
@@ -484,7 +484,7 @@ router.post('/:clientId/shopify/connect', async (req, res) => {
         clientId,
         userId: req.user.id,
       },
-      process.env.JWT_SECRET || 'dev_secret',
+      JWT_SECRET,
       { expiresIn: '15m' }
     );
 

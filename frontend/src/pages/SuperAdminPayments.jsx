@@ -156,13 +156,13 @@ export default function SuperAdminPayments() {
                               ? 'var(--success-light)'
                               : payment.status === 'failed'
                               ? 'var(--danger-light)'
-                              : '#F1F5F9',
+                              : 'var(--bg3)',
                           color:
                             payment.status === 'paid' || payment.status === 'success'
                               ? 'var(--success)'
                               : payment.status === 'failed'
                               ? 'var(--danger)'
-                              : '#475569',
+                              : 'var(--text2)',
                         }}
                       >
                         {payment.status || 'pending'}

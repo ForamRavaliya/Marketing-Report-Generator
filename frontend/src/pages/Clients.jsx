@@ -93,7 +93,7 @@ const [subscription, setSubscription] = useState(null);
              style={{
                marginTop: 8,
                fontSize: 12,
-               color: '#D97706',
+               color: 'var(--warning)',
                fontWeight: 600,
              }}
            >
@@ -146,7 +146,7 @@ const [subscription, setSubscription] = useState(null);
                     width: 38, height: 38, borderRadius: 10, flexShrink: 0,
                     background: ['linear-gradient(135deg,#3B82F6,#6366F1)', 'linear-gradient(135deg,#8B5CF6,#EC4899)', 'linear-gradient(135deg,#10B981,#3B82F6)', 'linear-gradient(135deg,#F59E0B,#EF4444)'][i % 4],
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', fontSize: 16, fontWeight: 800,
+                    color: 'var(--on-accent)', fontSize: 16, fontWeight: 800,
                   }}>
                     {c.name.charAt(0).toUpperCase()}
                   </div>

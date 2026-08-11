@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate, requireSuperAdmin } = require('../middleware/auth');
+const {
+  getAllPlans,
+  getPlanPricingMap,
+  updatePlanPrice,
+  InvalidPlanPricingError,
+} = require('../services/planPricingService');
 
 router.use(authenticate);
 router.use(requireSuperAdmin);
@@ -14,6 +20,7 @@ router.get('/overview', async (req, res) => {
       agenciesResult,
       planStatsResult,
       paymentsResult,
+      planPricing,
     ] = await Promise.all([
       db.query(`
         SELECT
@@ -25,16 +32,7 @@ router.get('/overview', async (req, res) => {
       `),
 
       db.query(`
-        SELECT
-          COALESCE(SUM(
-            CASE
-              -- TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 1.
-              -- Restore to INR 999 after verification.
-              WHEN plan_name = 'pro' THEN 999
-              WHEN plan_name = 'agency' THEN 2999
-              ELSE 0
-            END
-          ), 0)::int AS monthly_revenue
+        SELECT plan_name
         FROM subscriptions
         WHERE status = 'active'
       `),
@@ -46,6 +44,10 @@ router.get('/overview', async (req, res) => {
           a.logo_url,
           a.created_at,
           a.is_active,
+          a.contact_email,
+          a.phone,
+          a.website,
+          a.address,
           (
             SELECT u.email
             FROM users u
@@ -106,7 +108,24 @@ router.get('/overview', async (req, res) => {
         ORDER BY p.created_at DESC
         LIMIT 8
       `),
+      getPlanPricingMap(db),
     ]);
+
+    // Current Estimated MRR: active subscriptions valued at today's plan
+    // prices -- moves the instant Super Admin edits a price. This is
+    // distinct from recentPayments below, which are actual historical
+    // payment rows and must never be recomputed from current pricing.
+    const monthlyPlanValue = (planName) => planPricing[planName]?.monthly ?? 0;
+
+    const monthlyRevenue = revenueResult.rows.reduce(
+      (sum, row) => sum + monthlyPlanValue(row.plan_name),
+      0
+    );
+
+    const agencies = agenciesResult.rows.map((agency) => ({
+      ...agency,
+      monthly_value: monthlyPlanValue(agency.plan_name),
+    }));
 
     res.json({
       totals: {
@@ -115,10 +134,14 @@ router.get('/overview', async (req, res) => {
         clients: totalsResult.rows[0].clients,
         reports: totalsResult.rows[0].reports,
         activeSubscriptions: totalsResult.rows[0].active_subscriptions,
-        monthlyRevenue: revenueResult.rows[0].monthly_revenue,
+        // Current Estimated MRR (live plan prices x active subscriptions),
+        // not a historical total -- see recentPayments for actual payments.
+        monthlyRevenue,
       },
-      agencies: agenciesResult.rows,
+      agencies,
       planStats: planStatsResult.rows,
+      // Historical, actual payment rows -- amounts are exactly what was
+      // charged at the time, independent of any later price change.
       recentPayments: paymentsResult.rows,
     });
   } catch (error) {
@@ -191,6 +214,44 @@ router.put('/agencies/:agencyId/status', async (req, res) => {
   } catch (error) {
     console.error('Agency status update error:', error);
     res.status(500).json({ error: 'Failed to update agency status' });
+  }
+});
+
+// Dynamic plan pricing management. Super-admin only (enforced by the
+// router-level requireSuperAdmin above). Reads/writes subscription_plans
+// directly -- getAllPlans() falls back to static PLAN_PRICING defaults if
+// the migration hasn't been run yet, so this list always renders something
+// sane, but an update attempt against a missing table fails loudly instead
+// of pretending to save.
+router.get('/pricing', async (req, res) => {
+  try {
+    const plans = await getAllPlans(db);
+    res.json({ plans });
+  } catch (error) {
+    console.error('Super admin pricing list error:', error);
+    res.status(500).json({ error: 'Failed to load plan pricing' });
+  }
+});
+
+router.put('/pricing/:planKey', async (req, res) => {
+  try {
+    const { planKey } = req.params;
+    const { monthlyPrice, yearlyPrice } = req.body;
+
+    const updated = await updatePlanPrice(db, {
+      planKey,
+      monthlyPrice: Number(monthlyPrice),
+      yearlyPrice: Number(yearlyPrice),
+      updatedBy: req.user.id,
+    });
+
+    res.json(updated);
+  } catch (error) {
+    if (error instanceof InvalidPlanPricingError) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Super admin pricing update error:', error);
+    res.status(500).json({ error: 'Failed to update plan pricing' });
   }
 });
 

@@ -265,7 +265,7 @@ const handleDeleteReport = async (reportId) => {
                       width: 15,
                       height: 15,
                       border: '2px solid rgba(255,255,255,.3)',
-                      borderTopColor: '#fff',
+                      borderTopColor: 'var(--bg2)',
                       borderRadius: '50%',
                       display: 'inline-block',
                     }}
@@ -284,7 +284,7 @@ const handleDeleteReport = async (reportId) => {
                 style={{
                   padding: '14px 16px',
                   background: 'var(--success-light)',
-                  border: '1px solid #A7F3D0',
+                  border: '1px solid var(--success)',
                   borderRadius: 10,
                 }}
               >
@@ -360,8 +360,8 @@ const handleDeleteReport = async (reportId) => {
                   style={{
                     padding: 14,
                     borderRadius: 12,
-                    background: 'linear-gradient(135deg,#F8FAFC,#EEF2FF)',
-                    border: '1px solid #E2E8F0',
+                    background: 'var(--bg3)',
+                    border: '1px solid var(--border)',
                   }}
                 >
                   <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
@@ -381,9 +381,9 @@ const handleDeleteReport = async (reportId) => {
          <div
            className="card card-pad"
            style={{
-             background: 'linear-gradient(135deg,#EEF2FF,#F8FAFC)',
-             border: '1px solid #C7D2FE',
-             boxShadow: '0 18px 35px rgba(15, 23, 42, 0.08)',
+             background: 'var(--primary-light)',
+             border: '1px solid var(--primary)',
+             boxShadow: 'var(--shadow-lg)',
            }}
          >
 
@@ -393,13 +393,13 @@ const handleDeleteReport = async (reportId) => {
                  width: 38,
                  height: 38,
                  borderRadius: 12,
-                 background: 'linear-gradient(135deg,#2563EB,#7C3AED)',
+                 background: 'linear-gradient(135deg,var(--primary),var(--purple))',
                  display: 'flex',
                  alignItems: 'center',
                  justifyContent: 'center',
                }}
              >
-               <FileBarChart2 size={18} color="#fff" />
+               <FileBarChart2 size={18} color="var(--on-accent)" />
              </div>
              <div>
                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text)' }}>
@@ -424,7 +424,7 @@ const handleDeleteReport = async (reportId) => {
                  display: 'flex',
                  gap: 10,
                  padding: '10px 0',
-                 borderTop: i === 0 ? 'none' : '1px solid rgba(99,102,241,.15)',
+                 borderTop: i === 0 ? 'none' : '1px solid var(--border)',
                }}
              >
                <div
@@ -432,8 +432,8 @@ const handleDeleteReport = async (reportId) => {
                    width: 22,
                    height: 22,
                    borderRadius: '50%',
-                   background: '#DCFCE7',
-                   color: '#15803D',
+                   background: 'var(--success-light)',
+                   color: 'var(--success)',
                    fontSize: 12,
                    fontWeight: 800,
                    display: 'flex',
@@ -551,7 +551,7 @@ const handleDeleteReport = async (reportId) => {
                      type="button"
                      onClick={() => handleDeleteReport(r.id)}
                      className="btn btn-ghost btn-sm"
-                     style={{ color: '#DC2626' }}
+                     style={{ color: 'var(--danger)' }}
                      title="Delete report"
                    >
                      Delete

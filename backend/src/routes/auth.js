@@ -5,10 +5,12 @@ const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { authenticate, JWT_SECRET } = require('../middleware/auth');
 
+const UI_THEMES = ['system', 'light', 'dark'];
+const resolveUiTheme = (value) => (UI_THEMES.includes(value) ? value : 'light');
+
 // Login
 router.post('/login', async (req, res) => {
   try {
-  console.log("JWT_SECRET:", process.env.JWT_SECRET); // ✅ ADD HERE
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
@@ -39,6 +41,7 @@ router.post('/login', async (req, res) => {
         agencyName: user.agency_name,
         primaryColor: user.primary_color,
         secondaryColor: user.secondary_color,
+        uiTheme: resolveUiTheme(user.ui_theme),
       },
     });
   } catch (error) {
@@ -92,6 +95,7 @@ router.post('/register', async (req, res) => {
         agencyName: agency.name,
         primaryColor: agency.primary_color,
         secondaryColor: agency.secondary_color,
+        uiTheme: resolveUiTheme(user.ui_theme),
       },
     });
  } catch (error) {
@@ -102,7 +106,6 @@ router.post('/register', async (req, res) => {
 
 router.get('/me', authenticate, async (req, res) => {
   try {
-  console.log("JWT_SECRET:", process.env.JWT_SECRET); // ✅ ADD HERE
     const result = await db.query(
       `SELECT u.*, a.name as agency_name, a.primary_color, a.secondary_color
        FROM users u
@@ -126,11 +129,39 @@ router.get('/me', authenticate, async (req, res) => {
       agencyName: user.agency_name,
       primaryColor: user.primary_color,
       secondaryColor: user.secondary_color,
+      uiTheme: resolveUiTheme(user.ui_theme),
     });
 
   } catch (error) {
     console.error("ME ERROR:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Update the current user's own UI theme preference. Self-service only --
+// always scoped to req.user.id from the verified JWT, never a client-supplied
+// user id, so no cross-account preference updates are possible.
+router.put('/theme', authenticate, async (req, res) => {
+  try {
+    const { uiTheme } = req.body;
+
+    if (!UI_THEMES.includes(uiTheme)) {
+      return res.status(400).json({ error: `uiTheme must be one of: ${UI_THEMES.join(', ')}` });
+    }
+
+    const result = await db.query(
+      `UPDATE users SET ui_theme = $1 WHERE id = $2 RETURNING ui_theme`,
+      [uiTheme, req.user.id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ uiTheme: resolveUiTheme(result.rows[0].ui_theme) });
+  } catch (error) {
+    console.error('UPDATE THEME ERROR:', error);
+    res.status(500).json({ error: 'Failed to update theme preference' });
   }
 });
 

@@ -28,8 +28,7 @@ const unique = (items = []) => {
 const reportLabels = (summary = {}) => {
   const isSales =
     summary.report_type === 'sales_campaign' ||
-    summary.report_type === 'sales_data' ||
-    (num(summary.revenue) > 0 && num(summary.conversions) > 0);
+    summary.report_type === 'sales_data';
 
   return isSales
     ? {

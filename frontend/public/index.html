@@ -4,10 +4,36 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#2563EB" />
-    <title>AdInsight — Performance Marketing Reports</title>
-    <meta name="description" content="Generate beautiful performance marketing reports for Meta Ads and Google Ads" />
+    <title>Unbrand Agency — Performance Marketing Reporting Software</title>
+    <meta name="description" content="Unbrand Agency is performance marketing reporting software for agencies and marketers. Import campaign data from CSV or Excel and generate professional, client-ready PDF reports." />
+    <meta name="robots" content="index, follow" />
   </head>
   <body>
+    <script>
+      // Resolves and applies the theme before React mounts, so there's no
+      // flash of the wrong theme on load. Mirrors ThemeContext.jsx's own
+      // resolution logic exactly (same storage key, same fallback order:
+      // cached preference, else system). Wrapped defensively so a
+      // localStorage/matchMedia failure never blocks app boot.
+      (function () {
+        try {
+          var KEY = 'ui_theme_preference';
+          var pref = localStorage.getItem(KEY);
+          // Product default is Light -- only an explicit cached 'dark' or
+          // 'system' choice overrides it. Mirrors ThemeContext.jsx exactly.
+          if (pref !== 'light' && pref !== 'dark' && pref !== 'system') pref = 'light';
+          var effective = pref;
+          if (pref === 'system') {
+            effective = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+              ? 'dark'
+              : 'light';
+          }
+          document.documentElement.setAttribute('data-theme', effective);
+        } catch (e) {
+          // Fall through with no attribute set -- CSS defaults to light.
+        }
+      })();
+    </script>
     <div id="root"></div>
   </body>
 </html>

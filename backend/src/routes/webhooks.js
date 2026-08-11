@@ -1,6 +1,10 @@
 const express = require('express');
 const crypto = require('crypto');
-const db = require('../db');
+const { safeCompare } = require('../utils/safeCompare');
+const {
+  activatePaidOrder,
+  markOrderFailed,
+} = require('../services/paymentReconciliationService');
 
 const router = express.Router();
 
@@ -11,6 +15,8 @@ router.post(
     try {
       const signature = req.headers['x-razorpay-signature'];
 
+      // Signature must be computed over the untouched raw body — req.body
+      // here is still the raw Buffer from express.raw(), not JSON-parsed.
       const expectedSignature = crypto
         .createHmac(
           'sha256',
@@ -19,7 +25,7 @@ router.post(
         .update(req.body)
         .digest('hex');
 
-      if (signature !== expectedSignature) {
+      if (!signature || !safeCompare(expectedSignature, signature)) {
         return res.status(400).json({
           error: 'Invalid webhook signature',
         });
@@ -27,20 +33,46 @@ router.post(
 
       const event = JSON.parse(req.body.toString());
 
-      // Payment captured
       if (event.event === 'payment.captured') {
+        // Reconciliation path: if the browser closed or /verify never
+        // reached the backend, this webhook is what actually activates the
+        // subscription. activatePaidOrder() locks the same order row that
+        // /verify uses, so whichever of the two runs first "wins" and the
+        // other becomes a safe no-op.
         const payment = event.payload.payment.entity;
 
-        await db.query(
-          `UPDATE payment_orders
-           SET status = 'paid',
-               updated_at = CURRENT_TIMESTAMP
-           WHERE provider_order_id = $1`,
-          [payment.order_id]
-        );
+        const result = await activatePaidOrder(payment.order_id, {
+          paymentId: payment.id,
+          amountPaise: Number(payment.amount),
+        });
 
+        if (!result.ok) {
+          console.error(
+            `Razorpay webhook: could not reconcile payment ${payment.id} for order ${payment.order_id} (${result.reason})`
+          );
+        } else if (result.alreadyProcessed) {
+          console.log(
+            `Razorpay webhook: order ${payment.order_id} already reconciled, no action needed`
+          );
+        } else {
+          console.log(
+            `✅ Razorpay webhook reconciled payment ${payment.id} for order ${payment.order_id}`
+          );
+        }
+      } else if (event.event === 'payment.failed') {
+        // Informational only — never touches subscriptions, so a failed
+        // retry can never downgrade or corrupt an already-active plan.
+        const payment = event.payload.payment.entity;
+
+        await markOrderFailed(payment.order_id).catch((err) => {
+          console.error(
+            `Razorpay webhook: failed to mark order ${payment.order_id} as failed -`,
+            err.message
+          );
+        });
+      } else {
         console.log(
-          `✅ Razorpay webhook captured payment ${payment.id}`
+          `Razorpay webhook: received unhandled event "${event.event}", no action taken`
         );
       }
 

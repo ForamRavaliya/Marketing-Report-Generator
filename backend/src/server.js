@@ -31,6 +31,7 @@ app.use('/data', express.static(path.join(__dirname, '../data')));
 app.use('/api/email', emailRoutes);
 
 // Routes
+app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/campaigns', require('./routes/campaigns'));

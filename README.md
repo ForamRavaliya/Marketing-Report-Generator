@@ -1,4 +1,4 @@
-# AdInsight — Performance Marketing Report Generator
+# Unbrand Agency — Performance Marketing Report Generator
 
 A full-stack PERN (PostgreSQL, Express, React, Node.js) application for digital marketing agencies to generate professional performance reports for Meta Ads, Google Ads, and other platforms.
 

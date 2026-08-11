@@ -26,6 +26,15 @@ api.interceptors.response.use(
   }
 );
 
+// Public (unauthenticated) -- used by the public marketing site and the
+// Subscription page so pricing is never hardcoded a second time. Source of
+// truth: subscription_plans (DB), falling back to backend/src/config/pricing.js
+// if that table is unavailable.
+export const getPublicPricing = async () => {
+  const res = await api.get('/public/pricing');
+  return res.data;
+};
+
 //Emails
 export const getEmailSettings = async (clientId) => {
   const res = await api.get(`/email/settings/${clientId}`);
@@ -163,6 +172,13 @@ export const getDashboardOverview = () => api.get('/dashboard/overview').then(r 
 export const generateReceipt = (paymentId) =>
   api.get(`/payments/receipt/${paymentId}`).then(r => r.data);
 
+// Super Admin -- dynamic plan pricing management.
+export const getSuperAdminPricing = () =>
+  api.get('/super-admin/pricing').then(r => r.data);
+
+export const updateSuperAdminPricing = (planKey, { monthlyPrice, yearlyPrice }) =>
+  api.put(`/super-admin/pricing/${planKey}`, { monthlyPrice, yearlyPrice }).then(r => r.data);
+
 export const getIntegrations = () =>
   api.get('/integrations').then(r => r.data);
 
@@ -192,4 +208,20 @@ export const updateAgency = async (data) => {
   const res = await api.put('/agency', data);
   return res.data;
 };
+// Small dedicated call for the Settings "Appearance" section's PDF theme
+// control -- reuses the same PUT /agency endpoint as updateAgency() rather
+// than adding a new route, just with a minimal JSON body.
+export const updateAgencyPdfTheme = async (pdfTheme) => {
+  const res = await api.put('/agency', { pdfTheme });
+  return res.data;
+};
+
+// User's own UI theme preference (system/light/dark). ThemeContext calls
+// PUT /auth/theme directly for the optimistic-update flow; this wrapper is
+// exposed for any other caller that just wants a fire-and-forget update.
+export const updateUiTheme = async (uiTheme) => {
+  const res = await api.put('/auth/theme', { uiTheme });
+  return res.data;
+};
+
 export default api;

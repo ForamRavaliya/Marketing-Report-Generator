@@ -34,6 +34,9 @@ import {
 } from 'recharts';
 import { ArrowLeft, TrendingUp, DollarSign, MousePointerClick, Target, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTheme } from '../context/ThemeContext';
+import { useBrandTheme } from '../context/BrandThemeContext';
+import { getReportTheme } from '../theme/reportThemes';
 import {
   getReportMetricConfig,
   getMetricFormatter,
@@ -41,7 +44,10 @@ import {
 } from '../utils/reportMetricConfig';
 
 
-const COLORS = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626', '#0891B2'];
+// Fallback only -- the active brand theme's chartPalette (below, inside the
+// component) is used everywhere charts render; this covers any call site
+// reached before BrandThemeContext resolves.
+const FALLBACK_COLORS = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626', '#0891B2'];
 const PLATFORMS = ['all', 'meta', 'google', 'linkedin', 'twitter', 'tiktok', 'other'];
 // Email Reports is temporarily hidden from users.
 // Set this to true after Google OAuth verification/setup is ready for production.
@@ -79,6 +85,16 @@ const Tooltip_ = ({ active, payload, label, prefix = '', suffix = '' }) => {
 export default function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
+  const { activeTheme } = useBrandTheme();
+  // recharts needs literal color strings, not CSS vars, for tick/axis
+  // colors -- kept in sync with index.css's --text2/--chart-grid values.
+  const chartAxisColor = resolvedTheme === 'dark' ? '#94A3B8' : '#475569';
+  const chartGridColor = resolvedTheme === 'dark' ? '#2B3A55' : '#E2E8F0';
+  // Chart series colors follow the agency's active report theme, kept in
+  // sync with backend/src/utils/pdf/reportThemes.js so app charts and PDF
+  // charts visually match.
+  const COLORS = getReportTheme(activeTheme).chartPalette || FALLBACK_COLORS;
   const [client, setClient] = useState(null);
 const [emailSettings, setEmailSettings] = useState({
   enabled: false,
@@ -309,20 +325,6 @@ const normalizeFrontendReportType = (type) => {
 
 const normalizedReportType = (() => {
   const normalized = normalizeFrontendReportType(detectedReportType);
-
-  const revenue =
-    Number(currentMonthMetrics?.revenue?.current || 0) ||
-    trends.reduce((sum, r) => sum + Number(r.revenue || 0), 0) ||
-    campaigns.reduce((sum, c) => sum + Number(c.revenue || 0), 0) ||
-    platforms.reduce((sum, p) => sum + Number(p.revenue || 0), 0);
-
-  const conversions =
-    Number(currentMonthMetrics?.conversions?.current || 0) ||
-    trends.reduce((sum, r) => sum + Number(r.conversions || 0), 0) ||
-    campaigns.reduce((sum, c) => sum + Number(c.conversions || 0), 0) ||
-    platforms.reduce((sum, p) => sum + Number(p.conversions || 0), 0);
-
-  if (revenue > 0 && conversions > 0) return 'sales_campaign';
 
   if (normalized !== 'needs_review') return normalized;
 
@@ -966,8 +968,11 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                     <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Monthly Spend Trend</div>
                     <ResponsiveContainer width="100%" height={220}>
                       <LineChart data={trends}>
-                        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                        <XAxis dataKey="month" tick={{ fontSize: 11, fill: chartAxisColor }} axisLine={{ stroke: chartGridColor }} tickLine={{ stroke: chartGridColor }} />
                        <YAxis
+                         tick={{ fill: chartAxisColor }}
+                         axisLine={{ stroke: chartGridColor }}
+                         tickLine={{ stroke: chartGridColor }}
                          tickFormatter={(v) =>
                            `${currencySymbol}${Math.round(v / 1000)}k`
                          }
@@ -976,7 +981,7 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                        <Tooltip
                          content={<Tooltip_ prefix={`${currencySymbol} `} />}
                        />
-                        <Line type="monotone" dataKey="spend" stroke="#2563EB" strokeWidth={2.5} dot={{ fill: '#2563EB', r: 3 }} name="Spend" />
+                        <Line type="monotone" dataKey="spend" stroke={COLORS[0]} strokeWidth={2.5} dot={{ fill: COLORS[0], r: 3 }} name="Spend" />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -986,18 +991,18 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                       <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>{trendConfig.title}</div>
                       <ResponsiveContainer width="100%" height={180}>
                         <BarChart data={trends}>
-                          <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 10 }} />
+                          <XAxis dataKey="month" tick={{ fontSize: 10, fill: chartAxisColor }} axisLine={{ stroke: chartGridColor }} tickLine={{ stroke: chartGridColor }} />
+                          <YAxis tick={{ fontSize: 10, fill: chartAxisColor }} axisLine={{ stroke: chartGridColor }} tickLine={{ stroke: chartGridColor }} />
                           <Tooltip content={<Tooltip_ />} />
                          <Bar
                            dataKey={trendConfig.firstKey}
-                           fill="#7C3AED"
+                           fill={COLORS[1]}
                            name={trendConfig.firstLabel}
                            radius={[3, 3, 0, 0]}
                          />
                         <Bar
                           dataKey={trendConfig.secondKey}
-                          fill="#059669"
+                          fill={COLORS[2]}
                           name={trendConfig.secondLabel}
                           radius={[3, 3, 0, 0]}
                         />
@@ -1167,8 +1172,8 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                        style={{
                          padding: 20,
                          borderRadius: 12,
-                         background: '#EFF6FF',
-                         border: '1px solid #BFDBFE',
+                         background: 'var(--primary-light)',
+                         border: '1px solid var(--primary)',
                        }}
                      >
                        <div
@@ -1314,8 +1319,8 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
         gap: 16,
         padding: 14,
         borderRadius: 12,
-        background: gmailConnection.connected ? '#ECFDF5' : '#FFF7ED',
-        border: `1px solid ${gmailConnection.connected ? '#A7F3D0' : '#FED7AA'}`,
+        background: gmailConnection.connected ? 'var(--success-light)' : 'var(--warning-light)',
+        border: `1px solid ${gmailConnection.connected ? 'var(--success)' : 'var(--warning)'}`,
         marginBottom: 18,
       }}
     >
@@ -1422,8 +1427,8 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
         marginTop: 20,
         padding: 14,
         borderRadius: 12,
-        background: '#EFF6FF',
-        border: '1px solid #BFDBFE',
+        background: 'var(--primary-light)',
+        border: '1px solid var(--primary)',
         fontSize: 13,
         color: 'var(--text2)',
         lineHeight: 1.6,
@@ -1529,8 +1534,8 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
             style={{
               padding: 18,
               borderRadius: 14,
-              background: 'linear-gradient(135deg,#EEF2FF,#F8FAFC)',
-              border: '1px solid #C7D2FE',
+              background: 'var(--primary-light)',
+              border: '1px solid var(--primary)',
               marginBottom: 20,
             }}
           >
@@ -1611,8 +1616,8 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
                         minWidth: 28,
                         height: 28,
                         borderRadius: '50%',
-                        background: '#DBEAFE',
-                        color: '#2563EB',
+                        background: 'var(--primary-light)',
+                        color: 'var(--primary)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1921,8 +1926,8 @@ const handleUpdateFrequency = async (accountId, syncFrequency) => {
           style={{
             padding: '6px 12px',
             borderRadius: 999,
-            background: '#DBEAFE',
-            color: '#2563EB',
+            background: 'var(--primary-light)',
+            color: 'var(--primary)',
             fontWeight: 700,
             fontSize: 11,
           }}

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 const {
   getSummaryMetrics,
   getMonthlyTrends,
@@ -49,7 +49,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create client
-router.post('/', async (req, res) => {
+router.post('/', requireAdmin, async (req, res) => {
   try {
     const { name, industry, website, contactEmail, notes } = req.body;
 
@@ -112,7 +112,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update client
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const { name, industry, website, contactEmail, notes } = req.body;
     const result = await db.query(
@@ -128,7 +128,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete client
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     await db.query(
       'UPDATE clients SET is_active=FALSE WHERE id=$1 AND agency_id=$2',

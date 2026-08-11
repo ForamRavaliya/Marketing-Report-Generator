@@ -58,7 +58,7 @@ export default function UploadData() {
   }, [selectedClient]);
 
   const { getRootProps, getInputProps, isDragActive, acceptedFiles } = useDropzone({
-    accept: { 'text/csv': ['.csv'], 'application/vnd.ms-excel': ['.xls'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 'application/pdf': ['.pdf'], 'image/png': ['.png'], 'image/jpeg': ['.jpg', '.jpeg'] },
+    accept: { 'text/csv': ['.csv'], 'application/vnd.ms-excel': ['.xls'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] },
     maxFiles: 1,
     maxSize: 50 * 1024 * 1024,
   });
@@ -214,13 +214,20 @@ const handleConfirmMapping = async () => {
 
           {/* Mode toggle */}
           <div style={{ display: 'flex', background: 'var(--bg3)', padding: 4, borderRadius: 10, gap: 4 }}>
-            {[{ id: 'file', icon: <Upload size={13} />, label: 'Upload File' }, { id: 'manual', icon: <Pencil size={13} />, label: 'Manual Entry' }].map(({ id, icon, label }) => (
-              <button key={id} onClick={() => setMode(id)} style={{
+            {[{ id: 'file', icon: <Upload size={13} />, label: 'Upload File', available: true }, { id: 'manual', icon: <Pencil size={13} />, label: 'Manual Entry (Coming Soon)', available: false }].map(({ id, icon, label, available }) => (
+              <button
+                key={id}
+                onClick={() => available && setMode(id)}
+                disabled={!available}
+                title={available ? undefined : 'Manual entry is not available yet'}
+                style={{
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '7px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
+                padding: '7px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none',
+                cursor: available ? 'pointer' : 'not-allowed',
                 background: mode === id ? 'var(--bg2)' : 'transparent',
-                color: mode === id ? 'var(--text)' : 'var(--text2)',
+                color: available ? (mode === id ? 'var(--text)' : 'var(--text2)') : 'var(--text3)',
                 boxShadow: mode === id ? 'var(--shadow)' : 'none',
+                opacity: available ? 1 : 0.6,
                 transition: 'all .15s',
               }}>
                 {icon} {label}
@@ -242,7 +249,7 @@ const handleConfirmMapping = async () => {
                 <div style={{ fontWeight: 600, marginBottom: 4, color: isDragActive ? 'var(--primary)' : 'var(--text)' }}>
                   {isDragActive ? 'Drop file here' : 'Drag & drop or click to upload'}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text3)' }}>CSV, Excel, PDF, PNG, JPG • Max 50MB</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>CSV, Excel • Max 50MB</div>
               </div>
 
               {acceptedFiles.length > 0 && (
@@ -263,11 +270,11 @@ const handleConfirmMapping = async () => {
               )}
 
               <button className="btn btn-primary" onClick={handleUpload} disabled={uploading || !acceptedFiles.length || !selectedClient} style={{ width: '100%', justifyContent: 'center' }}>
-                {uploading ? <><span className="spin" style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block' }} /> Processing...</> : <><Upload size={14} /> Upload & Extract</>}
+                {uploading ? <><span className="spin" style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,.3)', borderTopColor: 'var(--bg2)', borderRadius: '50%', display: 'inline-block' }} /> Processing...</> : <><Upload size={14} /> Upload & Extract</>}
               </button>
 
               <div style={{ marginTop: 12, fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>
-                Supports Meta Ads, Google Ads exports • OCR for screenshots
+                Supports Meta Ads, Google Ads and other CSV/Excel exports
               </div>
             </div>
           ) : (
@@ -464,8 +471,8 @@ const handleConfirmMapping = async () => {
                     marginTop: 18,
                     padding: 14,
                     borderRadius: 12,
-                    background: importValidationPreview.warningMessage ? '#FFF7ED' : '#EFF6FF',
-                    border: `1px solid ${importValidationPreview.warningMessage ? '#FDBA74' : '#BFDBFE'}`,
+                    background: importValidationPreview.warningMessage ? 'var(--warning-light)' : 'var(--primary-light)',
+                    border: `1px solid ${importValidationPreview.warningMessage ? 'var(--warning)' : 'var(--primary)'}`,
                     color: 'var(--text2)',
                     fontSize: 13,
                     lineHeight: 1.6,
@@ -483,7 +490,7 @@ const handleConfirmMapping = async () => {
                     Difference: {Number(importValidationPreview.differencePercent || 0).toFixed(1)}%
                   </div>
                   {importValidationPreview.warningMessage && (
-                    <div style={{ marginTop: 8, fontWeight: 700, color: '#C2410C' }}>
+                    <div style={{ marginTop: 8, fontWeight: 700, color: 'var(--warning)' }}>
                       {importValidationPreview.warningMessage}
                     </div>
                   )}

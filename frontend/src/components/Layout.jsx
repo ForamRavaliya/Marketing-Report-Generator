@@ -70,14 +70,14 @@ useEffect(() => {
   const Sidebar = ({ mobile = false }) => (
     <aside style={{
       width: mobile ? '100%' : 240,
-      background: '#0F172A',
+      background: 'var(--sidebar-bg)',
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
       flexShrink: 0,
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+      <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--sidebar-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
          {agency?.logo_url ? (
       <img
@@ -93,17 +93,17 @@ useEffect(() => {
         }}
       />
          ) : (
-            <div style={{ width: 30, height: 30, background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 30, height: 30, background: 'var(--accent-gradient)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BarChart3 size={16} color="#fff" />
             </div>
           )}
           <div>
             <div style={{ color: '#fff', fontWeight: 800, fontSize: 14 }}>
-              {agency?.name || 'AdInsight'}
+              {agency?.name || 'Unbrand Agency'}
             </div>
 
             <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 10 }}>
-              Powered by AdInsight
+              Powered by Unbrand Agency
             </div>
           </div>
         </div>
@@ -121,8 +121,8 @@ useEffect(() => {
             style={({ isActive }) => ({
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '9px 12px', borderRadius: 8, marginBottom: 2,
-              color: isActive ? '#fff' : 'rgba(255,255,255,.55)',
-              background: isActive ? 'rgba(255,255,255,.1)' : 'transparent',
+              color: isActive ? 'var(--sidebar-text-active)' : 'var(--sidebar-text)',
+              background: isActive ? 'var(--sidebar-active-bg)' : 'transparent',
               fontWeight: isActive ? 600 : 400, fontSize: 13,
               transition: 'all .15s',
               textDecoration: 'none',
@@ -139,11 +139,11 @@ useEffect(() => {
       </nav>
 
       {/* User */}
-      <div style={{ padding: '12px 10px', borderTop: '1px solid rgba(255,255,255,.07)' }}>
+      <div style={{ padding: '12px 10px', borderTop: '1px solid var(--sidebar-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, marginBottom: 4 }}>
           <div style={{
             width: 30, height: 30, borderRadius: '50%',
-            background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)',
+            background: 'var(--accent-gradient)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0,
           }}>
@@ -189,7 +189,7 @@ useEffect(() => {
           color: 'rgba(255,255,255,.4)', fontSize: 13, cursor: 'pointer',
           border: 'none', transition: 'all .15s',
         }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,.07)'; }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'var(--sidebar-border)'; }}
           onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,.4)'; e.currentTarget.style.background = 'transparent'; }}>
           <LogOut size={14} />
           Sign out
@@ -221,12 +221,12 @@ useEffect(() => {
         {/* Mobile topbar */}
         <div style={{
           display: 'none', padding: '12px 16px',
-          background: '#0F172A', alignItems: 'center', justifyContent: 'space-between',
+          background: 'var(--sidebar-bg)', alignItems: 'center', justifyContent: 'space-between',
         }} className="mobile-topbar">
           <button onClick={() => setSidebarOpen(true)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
             <Menu size={20} />
           </button>
-          <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>AdInsight</div>
+          <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Unbrand Agency</div>
           <div style={{ width: 20 }} />
         </div>
 

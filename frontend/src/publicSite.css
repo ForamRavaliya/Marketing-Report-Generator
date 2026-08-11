@@ -1,0 +1,366 @@
+/* Public marketing site design system. Scoped under .public-site so it can
+   never leak into or collide with the authenticated app's index.css rules.
+   Reuses the app's CSS custom properties (--bg, --text, --primary, etc.)
+   from index.css so light/dark mode and brand accent stay consistent with
+   the rest of the product -- this file only adds marketing-specific layout
+   and typography, never redefines the token values themselves. */
+
+.public-site {
+  --pub-max: 1180px;
+  --pub-gap: 24px;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.public-site * { box-sizing: border-box; }
+
+.pub-container {
+  max-width: var(--pub-max);
+  margin: 0 auto;
+  padding: 0 24px;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .pub-container { padding: 0 18px; }
+}
+
+/* ---------- Navbar ---------- */
+.pub-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: color-mix(in srgb, var(--bg2) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+.pub-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+}
+
+.pub-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--text);
+}
+
+.pub-logo-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--accent-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.pub-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.pub-nav-link {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text2);
+  transition: color .15s;
+}
+.pub-nav-link:hover { color: var(--text); }
+.pub-nav-link.active { color: var(--primary); }
+
+.pub-nav-actions { display: flex; align-items: center; gap: 10px; }
+
+.pub-nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 6px;
+}
+
+.pub-mobile-menu {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0 18px;
+  border-top: 1px solid var(--border);
+}
+.pub-mobile-menu.open { display: flex; }
+.pub-mobile-menu .pub-nav-link { padding: 12px 4px; border-bottom: 1px solid var(--border); }
+
+@media (max-width: 860px) {
+  .pub-nav-links { display: none; }
+  .pub-nav-toggle { display: inline-flex; align-items: center; justify-content: center; }
+  .pub-nav-actions .pub-btn-secondary { display: none; }
+}
+
+/* ---------- Buttons ---------- */
+.pub-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  transition: all .15s ease;
+  white-space: nowrap;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+}
+.pub-btn-sm { padding: 9px 16px; font-size: 13px; }
+.pub-btn-primary { background: var(--primary); color: #fff; }
+.pub-btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+.pub-btn-secondary { background: transparent; color: var(--text); border-color: var(--border2); }
+.pub-btn-secondary:hover { background: var(--bg3); }
+.pub-btn-ghost { background: transparent; color: var(--text2); }
+.pub-btn-ghost:hover { color: var(--text); }
+.pub-btn-block { width: 100%; }
+
+/* ---------- Sections / typography ---------- */
+.pub-section { padding: 96px 0; }
+.pub-section-sm { padding: 56px 0; }
+@media (max-width: 760px) {
+  .pub-section { padding: 64px 0; }
+  .pub-section-sm { padding: 40px 0; }
+}
+
+.pub-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 6px 14px;
+  border-radius: 999px;
+  margin-bottom: 18px;
+}
+
+.pub-h1 {
+  font-size: clamp(34px, 5.2vw, 58px);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.pub-h2 {
+  font-size: clamp(26px, 3.6vw, 38px);
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.pub-h3 { font-size: 20px; font-weight: 800; color: var(--text); }
+
+.pub-lede {
+  font-size: clamp(16px, 1.8vw, 19px);
+  line-height: 1.65;
+  color: var(--text2);
+  max-width: 640px;
+}
+
+.pub-body { font-size: 15px; line-height: 1.75; color: var(--text2); }
+
+.pub-section-head { max-width: 720px; margin: 0 auto 56px; text-align: center; }
+.pub-section-head.left { margin: 0 0 44px; text-align: left; }
+
+.pub-accent-text {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---------- Grids / cards ---------- */
+.pub-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+.pub-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.pub-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.pub-grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+
+@media (max-width: 900px) {
+  .pub-grid-2 { grid-template-columns: 1fr; gap: 32px; }
+  .pub-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .pub-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .pub-grid-5 { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 560px) {
+  .pub-grid-3 { grid-template-columns: 1fr; }
+  .pub-grid-4 { grid-template-columns: 1fr; }
+  .pub-grid-5 { grid-template-columns: repeat(2, 1fr); }
+}
+
+.pub-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.pub-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--border2); }
+
+.pub-icon-box {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.pub-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.pub-badge-live { background: var(--success-light); color: var(--success); }
+.pub-badge-soon { background: var(--warning-light); color: var(--warning); }
+.pub-badge-plan { background: var(--purple-light); color: var(--purple); }
+
+/* ---------- Hero ---------- */
+.pub-hero {
+  padding: 76px 0 40px;
+  position: relative;
+}
+.pub-hero-cta-row { display: flex; gap: 14px; margin-top: 32px; flex-wrap: wrap; }
+.pub-hero-note { margin-top: 18px; font-size: 13px; color: var(--text3); }
+
+/* ---------- Reveal-on-scroll (IntersectionObserver driven; CSS-only cost) ---------- */
+.pub-reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+.pub-reveal.in { opacity: 1; transform: translateY(0); }
+
+/* ---------- Product mockup shell ---------- */
+.pub-mock-window {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.pub-mock-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+}
+.pub-mock-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border2); }
+
+/* ---------- Steps ---------- */
+.pub-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; counter-reset: step; }
+@media (max-width: 900px) { .pub-steps { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .pub-steps { grid-template-columns: 1fr; } }
+.pub-step-num {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--accent-gradient); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 16px; margin-bottom: 16px;
+}
+
+/* ---------- Pricing ---------- */
+.pub-pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: stretch; }
+@media (max-width: 900px) { .pub-pricing-grid { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; } }
+.pub-price-card {
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  border-radius: 18px;
+  padding: 32px 26px;
+  display: flex;
+  flex-direction: column;
+}
+.pub-price-card.featured {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-light), var(--shadow-lg);
+  position: relative;
+}
+.pub-price-amount { font-size: 40px; font-weight: 800; color: var(--text); margin: 10px 0 4px; }
+.pub-price-amount span { font-size: 14px; font-weight: 600; color: var(--text3); }
+.pub-price-list { list-style: none; margin: 22px 0; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.pub-price-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text2); }
+
+.pub-toggle-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 40px; }
+.pub-toggle {
+  position: relative; width: 46px; height: 26px; border-radius: 999px;
+  background: var(--border2); border: none; cursor: pointer; flex-shrink: 0;
+}
+.pub-toggle::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+  border-radius: 50%; background: #fff; transition: transform .18s ease;
+}
+.pub-toggle.on { background: var(--primary); }
+.pub-toggle.on::after { transform: translateX(20px); }
+
+/* ---------- FAQ ---------- */
+.pub-faq-item { border-bottom: 1px solid var(--border); }
+.pub-faq-q {
+  width: 100%; text-align: left; background: none; border: none; padding: 20px 4px;
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  font-size: 15px; font-weight: 700; color: var(--text); cursor: pointer;
+}
+.pub-faq-a { padding: 0 4px 20px; font-size: 14px; line-height: 1.7; color: var(--text2); max-width: 760px; }
+
+/* ---------- Table (report metrics) ---------- */
+.pub-table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--border); }
+.pub-table { width: 100%; border-collapse: collapse; min-width: 480px; }
+.pub-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text3); background: var(--bg3); padding: 12px 16px; }
+.pub-table td { padding: 13px 16px; font-size: 14px; color: var(--text2); border-top: 1px solid var(--border); }
+
+/* ---------- Footer ---------- */
+.pub-footer { border-top: 1px solid var(--border); padding: 60px 0 30px; background: var(--bg2); }
+.pub-footer-grid { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 30px; }
+@media (max-width: 860px) { .pub-footer-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .pub-footer-grid { grid-template-columns: 1fr; } }
+.pub-footer-col h4 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text3); margin-bottom: 16px; }
+.pub-footer-col a, .pub-footer-col p { display: block; font-size: 14px; color: var(--text2); margin-bottom: 12px; }
+.pub-footer-col a:hover { color: var(--primary); }
+.pub-footer-bottom { margin-top: 46px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--text3); }
+
+/* ---------- Final CTA band ---------- */
+.pub-cta-band {
+  background: var(--accent-gradient);
+  border-radius: 24px;
+  padding: 60px 40px;
+  text-align: center;
+  color: #fff;
+}
+.pub-cta-band .pub-h2 { color: #fff; }
+.pub-cta-band .pub-lede { color: rgba(255,255,255,.85); margin: 0 auto; }
+@media (max-width: 560px) { .pub-cta-band { padding: 40px 22px; } }
+
+/* ---------- Legal / simple content pages ---------- */
+.pub-doc { max-width: 780px; margin: 0 auto; }
+.pub-doc h2 { font-size: 20px; font-weight: 800; margin: 34px 0 12px; color: var(--text); }
+.pub-doc p, .pub-doc li { font-size: 14.5px; line-height: 1.75; color: var(--text2); }
+.pub-doc ul { padding-left: 20px; margin: 10px 0; }
+.pub-doc .pub-notice {
+  background: var(--warning-light); color: var(--warning);
+  border-radius: 12px; padding: 14px 18px; font-size: 13px; font-weight: 600; margin-bottom: 32px;
+}

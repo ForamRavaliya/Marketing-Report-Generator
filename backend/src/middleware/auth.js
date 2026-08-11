@@ -1,7 +1,13 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'mysecretkey123';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error(
+    'JWT_SECRET environment variable is required. Refusing to start with an insecure default secret.'
+  );
+}
 
 const authenticate = async (req, res, next) => {
   try {
@@ -64,4 +70,12 @@ const requireSuperAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, requireSuperAdmin, JWT_SECRET };
+const requireAdmin = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  next();
+};
+
+module.exports = { authenticate, requireSuperAdmin, requireAdmin, JWT_SECRET };

@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { BrandThemeProvider } from './context/BrandThemeContext';
 import './index.css';
 
 import Layout from './components/Layout';
@@ -22,13 +24,26 @@ import SuperAdminSubscriptions from './pages/SuperAdminSubscriptions';
 import SuperAdminPayments from './pages/SuperAdminPayments';
 import SuperAdminSettings from './pages/SuperAdminSettings';
 
+import PublicHome from './pages/public/PublicHome';
+import PublicFeatures from './pages/public/PublicFeatures';
+import PublicHowItWorks from './pages/public/PublicHowItWorks';
+import PublicReports from './pages/public/PublicReports';
+import PublicPricing from './pages/public/PublicPricing';
+import PublicAbout from './pages/public/PublicAbout';
+import PublicContact from './pages/public/PublicContact';
+import PublicFaq from './pages/public/PublicFaq';
+import PublicPrivacy from './pages/public/PublicPrivacy';
+import PublicTerms from './pages/public/PublicTerms';
+import PublicSecurity from './pages/public/PublicSecurity';
+import PublicNotFound from './pages/public/PublicNotFound';
+
 const ENABLE_PLATFORM_SYNC = process.env.REACT_APP_ENABLE_PLATFORM_SYNC === 'true';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-      <div className="spin" style={{ width: 32, height: 32, border: '3px solid #E2E8F0', borderTopColor: '#2563EB', borderRadius: '50%' }} />
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>
+      <div className="spin" style={{ width: 32, height: 32, border: '3px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%' }} />
     </div>
   );
   return user ? children : <Navigate to="/login" replace />;
@@ -67,46 +82,51 @@ const RoleRoute = ({ allowedRoles, children }) => {
 
   return children;
 };
-const HomeRedirect = () => {
-  const { user } = useAuth();
-
-  return (
-    <Navigate
-      to={user?.role === 'super_admin'
-        ? '/super-admin'
-        : '/dashboard'}
-      replace
-    />
-  );
-};
-
 function App() {
   return (
     <AuthProvider>
+      <ThemeProvider>
+      <BrandThemeProvider>
       <BrowserRouter>
         <Toaster
           position="top-right"
           toastOptions={{
-            style: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, borderRadius: 10 },
+            style: {
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 13,
+              borderRadius: 10,
+              background: 'var(--bg-elevated)',
+              color: 'var(--text)',
+              boxShadow: 'var(--shadow-lg)',
+              border: '1px solid var(--border)',
+            },
             success: { iconTheme: { primary: '#059669', secondary: '#fff' } },
             error: { iconTheme: { primary: '#DC2626', secondary: '#fff' } },
           }}
         />
         <Routes>
+          {/* Public marketing site -- open to everyone, no auth required. */}
+          <Route path="/" element={<PublicHome />} />
+          <Route path="/features" element={<PublicFeatures />} />
+          <Route path="/how-it-works" element={<PublicHowItWorks />} />
+          <Route path="/reporting" element={<PublicReports />} />
+          <Route path="/pricing" element={<PublicPricing />} />
+          <Route path="/about" element={<PublicAbout />} />
+          <Route path="/contact" element={<PublicContact />} />
+          <Route path="/faq" element={<PublicFaq />} />
+          <Route path="/security" element={<PublicSecurity />} />
+          <Route path="/privacy" element={<PublicPrivacy />} />
+          <Route path="/terms" element={<PublicTerms />} />
+
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-          <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-           <Route
-             index
-             element={
-               <RoleRoute allowedRoles={['admin', 'super_admin']}>
-                 <HomeRedirect />
-               </RoleRoute>
 
-             }
-           />
+          {/* Authenticated application shell -- pathless layout route so
+              every child below keeps its existing absolute URL (e.g.
+              "/dashboard") while "/" is free for the public homepage above. */}
+          <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
            <Route
-             path="super-admin/agencies"
+             path="/super-admin/agencies"
              element={
                <RoleRoute allowedRoles={['super_admin']}>
                  <SuperAdminAgencies />
@@ -115,7 +135,7 @@ function App() {
            />
 
            <Route
-             path="super-admin/subscriptions"
+             path="/super-admin/subscriptions"
              element={
                <RoleRoute allowedRoles={['super_admin']}>
                  <SuperAdminSubscriptions />
@@ -124,7 +144,7 @@ function App() {
            />
 
            <Route
-             path="super-admin/payments"
+             path="/super-admin/payments"
              element={
                <RoleRoute allowedRoles={['super_admin']}>
                  <SuperAdminPayments />
@@ -133,7 +153,7 @@ function App() {
            />
 
            <Route
-             path="super-admin/settings"
+             path="/super-admin/settings"
              element={
                <RoleRoute allowedRoles={['super_admin']}>
                  <SuperAdminSettings />
@@ -141,7 +161,7 @@ function App() {
              }
            />
            <Route
-             path="dashboard"
+             path="/dashboard"
              element={
                <RoleRoute allowedRoles={['admin']}>
                  <Dashboard />
@@ -150,7 +170,7 @@ function App() {
            />
 
            <Route
-             path="clients"
+             path="/clients"
              element={
                <RoleRoute allowedRoles={['admin']}>
                  <Clients />
@@ -159,7 +179,7 @@ function App() {
            />
 
            <Route
-             path="clients/:id"
+             path="/clients/:id"
              element={
                <RoleRoute allowedRoles={['admin']}>
                  <ClientDetail />
@@ -168,7 +188,7 @@ function App() {
            />
 
            <Route
-             path="upload"
+             path="/upload"
              element={
                <RoleRoute allowedRoles={['admin']}>
                  <UploadData />
@@ -177,7 +197,7 @@ function App() {
            />
 
            <Route
-             path="reports"
+             path="/reports"
              element={
                <RoleRoute allowedRoles={['admin']}>
                  <Reports />
@@ -186,7 +206,7 @@ function App() {
            />
 
            <Route
-             path="subscription"
+             path="/subscription"
              element={
                <RoleRoute allowedRoles={['admin']}>
                  <Subscription />
@@ -195,7 +215,7 @@ function App() {
            />
 
            <Route
-             path="billing"
+             path="/billing"
              element={
                <RoleRoute allowedRoles={['admin']}>
                  <Billing />
@@ -204,7 +224,7 @@ function App() {
            />
 
            <Route
-             path="integrations"
+             path="/integrations"
              element={
                <RoleRoute allowedRoles={['admin']}>
                  {ENABLE_PLATFORM_SYNC ? <Integrations /> : <Navigate to="/dashboard" replace />}
@@ -213,7 +233,7 @@ function App() {
            />
 
            <Route
-             path="settings"
+             path="/settings"
              element={
                <RoleRoute allowedRoles={['admin']}>
                  <Settings />
@@ -222,7 +242,7 @@ function App() {
            />
 
            <Route
-             path="super-admin"
+             path="/super-admin"
              element={
                <RoleRoute allowedRoles={['super_admin']}>
                  <SuperAdminDashboard />
@@ -232,10 +252,11 @@ function App() {
 
           </Route>
 
-
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<PublicNotFound />} />
         </Routes>
       </BrowserRouter>
+      </BrandThemeProvider>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

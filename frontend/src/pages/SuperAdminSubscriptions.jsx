@@ -4,14 +4,6 @@ import toast from 'react-hot-toast';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
-const planPrice = {
-  free: 0,
-  // TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 999.
-  // Restore to INR 999 after verification.
-  pro: 999,
-  agency: 2999,
-};
-
 export default function SuperAdminSubscriptions() {
   const [data, setData] = useState(null);
   const [updating, setUpdating] = useState(false);
@@ -55,10 +47,7 @@ export default function SuperAdminSubscriptions() {
   const proCount = agencies.filter((a) => a.plan_name === 'pro').length;
   const agencyCount = agencies.filter((a) => a.plan_name === 'agency').length;
 
-  const monthlyRevenue = agencies.reduce(
-    (sum, a) => sum + (planPrice[a.plan_name] || 0),
-    0
-  );
+  const monthlyRevenue = data.totals?.monthlyRevenue || 0;
 
   return (
     <div className="fade-in">
@@ -158,23 +147,23 @@ export default function SuperAdminSubscriptions() {
                         textTransform: 'capitalize',
                         background:
                           agency.plan_name === 'agency'
-                            ? '#F3E8FF'
+                            ? 'var(--purple-light)'
                             : agency.plan_name === 'pro'
-                            ? '#DBEAFE'
-                            : '#F1F5F9',
+                            ? 'var(--primary-light)'
+                            : 'var(--bg3)',
                         color:
                           agency.plan_name === 'agency'
-                            ? '#7E22CE'
+                            ? 'var(--purple)'
                             : agency.plan_name === 'pro'
-                            ? '#2563EB'
-                            : '#475569',
+                            ? 'var(--primary)'
+                            : 'var(--text2)',
                       }}
                     >
                       {agency.plan_name || 'free'}
                     </span>
                   </td>
 
-                  <td>₹{fmt(planPrice[agency.plan_name] || 0)}</td>
+                  <td>₹{fmt(agency.monthly_value)}</td>
 
                   <td>
                     <span

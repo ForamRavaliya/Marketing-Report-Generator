@@ -1,0 +1,17 @@
+# Public marketing pages are indexable. Authenticated application routes
+# and API paths are not content and should not be crawled/indexed.
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /clients
+Disallow: /upload
+Disallow: /reports
+Disallow: /subscription
+Disallow: /billing
+Disallow: /integrations
+Disallow: /settings
+Disallow: /super-admin
+Disallow: /login
+Disallow: /register
+
+Sitemap: https://your-production-domain.example/sitemap.xml

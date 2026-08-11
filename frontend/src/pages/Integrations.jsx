@@ -562,22 +562,22 @@ function IntegrationsEnabled() {
   return (
     <div>
       <div style={{ marginBottom: 22 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', margin: 0 }}>
           Integrations
         </h1>
-        <p style={{ color: '#64748b', marginTop: 6, fontSize: 13 }}>
+        <p style={{ color: 'var(--text2)', marginTop: 6, fontSize: 13 }}>
           Connect client platforms and sync imported metrics into the same reporting engine used by manual uploads.
         </p>
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: 18, marginBottom: 18 }}>
-        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 8 }}>
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 18 }}>
+        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8 }}>
           Client
         </label>
         <select
           value={selectedClient}
           onChange={(event) => setSelectedClient(event.target.value)}
-          style={{ width: '100%', maxWidth: 420, padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 10 }}
+          style={{ width: '100%', maxWidth: 420, padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 10 }}
         >
           <option value="">Select Client</option>
           {clients.map((client) => (
@@ -588,7 +588,7 @@ function IntegrationsEnabled() {
         </select>
 
         {message && (
-          <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 600 }}>
+          <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: 'var(--primary-light)', color: 'var(--primary-dark)', fontSize: 13, fontWeight: 600 }}>
             {message}
           </div>
         )}
@@ -600,11 +600,11 @@ function IntegrationsEnabled() {
           const busy = loading.includes(platform.key) || loading.includes(connection?.id);
 
           return (
-            <div key={platform.key} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 18 }}>
+            <div key={platform.key} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 16, padding: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 16, color: '#0f172a' }}>{platform.name}</h3>
-                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#64748b' }}>{platform.description}</p>
+                  <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text)' }}>{platform.name}</h3>
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text2)' }}>{platform.description}</p>
                 </div>
                 <span style={{
                   height: 24,
@@ -612,8 +612,8 @@ function IntegrationsEnabled() {
                   borderRadius: 999,
                   fontSize: 11,
                   fontWeight: 800,
-                  background: connection ? '#dcfce7' : platform.available ? '#dbeafe' : '#f1f5f9',
-                  color: connection ? '#15803d' : platform.available ? '#1d4ed8' : '#64748b',
+                  background: connection ? 'var(--success-light)' : platform.available ? 'var(--primary-light)' : 'var(--bg3)',
+                  color: connection ? 'var(--success)' : platform.available ? 'var(--primary-dark)' : 'var(--text2)',
                 }}>
                   {connection ? connection.status : platform.available ? 'Available' : 'Coming Soon'}
                 </span>
@@ -621,24 +621,24 @@ function IntegrationsEnabled() {
 
               {connection ? (
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ background: '#f8fafc', borderRadius: 12, padding: 12, fontSize: 12, color: '#475569', lineHeight: 1.8 }}>
+                  <div style={{ background: 'var(--bg3)', borderRadius: 12, padding: 12, fontSize: 12, color: 'var(--text2)', lineHeight: 1.8 }}>
                     <div><strong>Account:</strong> {connection.account_name || connection.account_id}</div>
                     <div><strong>Frequency:</strong> {connection.sync_frequency}</div>
                     <div><strong>Last Sync:</strong> {formatDate(connection.last_sync_at)}</div>
-                    {connection.last_error && <div style={{ color: '#dc2626' }}><strong>Error:</strong> {connection.last_error}</div>}
+                    {connection.last_error && <div style={{ color: 'var(--danger)' }}><strong>Error:</strong> {connection.last_error}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     <button
                       onClick={() => handleSync(connection)}
                       disabled={busy}
-                      style={{ flex: 1, border: 0, borderRadius: 10, background: '#2563eb', color: '#fff', padding: '10px 12px', fontWeight: 800, cursor: 'pointer' }}
+                      style={{ flex: 1, border: 0, borderRadius: 10, background: 'var(--primary)', color: 'var(--on-accent)', padding: '10px 12px', fontWeight: 800, cursor: 'pointer' }}
                     >
                       {busy ? 'Working...' : 'Sync Now'}
                     </button>
                     <button
                       onClick={() => handleDisconnect(connection)}
                       disabled={busy}
-                      style={{ border: '1px solid #fecaca', borderRadius: 10, background: '#fff', color: '#dc2626', padding: '10px 12px', fontWeight: 800, cursor: 'pointer' }}
+                      style={{ border: '1px solid var(--danger)', borderRadius: 10, background: 'var(--bg2)', color: 'var(--danger)', padding: '10px 12px', fontWeight: 800, cursor: 'pointer' }}
                     >
                       Disconnect
                     </button>
@@ -653,8 +653,8 @@ function IntegrationsEnabled() {
                     marginTop: 18,
                     border: 0,
                     borderRadius: 10,
-                    background: platform.available ? '#0f172a' : '#e2e8f0',
-                    color: platform.available ? '#fff' : '#64748b',
+                    background: platform.available ? 'var(--text)' : 'var(--border)',
+                    color: platform.available ? 'var(--bg2)' : 'var(--text2)',
                     padding: '10px 12px',
                     fontWeight: 800,
                     cursor: platform.available ? 'pointer' : 'not-allowed',
@@ -668,22 +668,22 @@ function IntegrationsEnabled() {
         })}
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 18, marginTop: 18 }}>
-        <h2 style={{ margin: 0, fontSize: 18, color: '#0f172a' }}>Sync Logs</h2>
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 16, padding: 18, marginTop: 18 }}>
+        <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text)' }}>Sync Logs</h2>
         <div style={{ marginTop: 14 }}>
           {!activeConnectionId || logs.length === 0 ? (
-            <div style={{ padding: 18, border: '1px dashed #cbd5e1', borderRadius: 12, color: '#64748b', fontSize: 13 }}>
+            <div style={{ padding: 18, border: '1px dashed var(--border2)', borderRadius: 12, color: 'var(--text2)', fontSize: 13 }}>
               No sync logs yet.
             </div>
           ) : (
             logs.map((log) => (
-              <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
+              <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--bg3)', fontSize: 13 }}>
                 <div>
-                  <strong style={{ color: log.status === 'failed' ? '#dc2626' : '#0f172a' }}>{log.status}</strong>
-                  <span style={{ color: '#64748b' }}> · fetched {log.rows_fetched || 0}, imported {log.rows_imported || 0}</span>
-                  {log.error_message && <div style={{ color: '#dc2626', marginTop: 4 }}>{log.error_message}</div>}
+                  <strong style={{ color: log.status === 'failed' ? 'var(--danger)' : 'var(--text)' }}>{log.status}</strong>
+                  <span style={{ color: 'var(--text2)' }}> · fetched {log.rows_fetched || 0}, imported {log.rows_imported || 0}</span>
+                  {log.error_message && <div style={{ color: 'var(--danger)', marginTop: 4 }}>{log.error_message}</div>}
                 </div>
-                <span style={{ color: '#94a3b8' }}>{formatDate(log.created_at)}</span>
+                <span style={{ color: 'var(--text3)' }}>{formatDate(log.created_at)}</span>
               </div>
             ))
           )}

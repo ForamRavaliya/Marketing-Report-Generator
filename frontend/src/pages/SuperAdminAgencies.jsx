@@ -184,7 +184,7 @@ export default function SuperAdminAgencies() {
                             height: 34,
                             borderRadius: 10,
                             background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)',
-                            color: '#fff',
+                            color: 'var(--on-accent)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -269,9 +269,9 @@ export default function SuperAdminAgencies() {
                           disabled={updating}
                           style={{
                             background:
-                              agency.is_active === false ? '#DCFCE7' : '#FEF3C7',
+                              agency.is_active === false ? 'var(--success-light)' : 'var(--warning-light)',
                             color:
-                              agency.is_active === false ? '#15803D' : '#92400E',
+                              agency.is_active === false ? 'var(--success)' : 'var(--warning)',
                           }}
                           onClick={() => updateAgencyStatus(agency)}
                         >
@@ -282,8 +282,8 @@ export default function SuperAdminAgencies() {
                           className="btn btn-sm"
                           disabled
                           style={{
-                            background: '#E2E8F0',
-                            color: '#64748B',
+                            background: 'var(--border)',
+                            color: 'var(--text2)',
                             cursor: 'not-allowed',
                           }}
                         >
@@ -362,7 +362,7 @@ export default function SuperAdminAgencies() {
                     height: 70,
                     borderRadius: 18,
                     background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)',
-                    color: '#fff',
+                    color: 'var(--on-accent)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

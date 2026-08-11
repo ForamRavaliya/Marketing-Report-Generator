@@ -7,28 +7,32 @@ import {
     verifyPayment,
     cancelDowngrade,
 } from '../utils/api';
+import usePublicPricing from '../hooks/usePublicPricing';
 
+// Kept in sync by hand with components/public/planFeatures.js -- both are
+// derived from the same backend enforcement (routes/clients.js client
+// limits, routes/reports.js free-plan report cap and PDF page gating,
+// canUseAgencyBranding). Do not add a feature here that isn't actually
+// gated in the backend.
 const plans = [
   {
     id: 'free',
     name: 'Free',
     features: [
-      'Up to 3 clients',
-      'Manual data entry',
-      'Basic dashboard',
-      '5 reports/month',
+      'Up to 2 clients',
+      'CSV & Excel upload',
+      '5 PDF reports / month',
+      'Dashboard, trends & campaign analytics',
     ],
   },
   {
     id: 'pro',
     name: 'Pro',
     features: [
-      'Unlimited reports',
-      'Unlimited clients',
-      'Excel/CSV upload',
-      'Professional PDF export',
-      'White-label PDF',
-      'AI insights',
+      'Up to 15 clients',
+      'Unlimited PDF reports',
+      'Full PDF report structure (trends, platform performance, recommendations)',
+      'Agency branding on reports',
       'Report history',
     ],
   },
@@ -37,11 +41,7 @@ const plans = [
     name: 'Agency',
     features: [
       'Everything in Pro',
-      'Multiple team members',
-      'Multiple client workspaces',
-      'Custom branding & logo',
-      'Advanced analytics',
-      'Priority support',
+      'No client limit',
     ],
   },
 ];
@@ -67,6 +67,7 @@ export default function Subscription() {
   const [processingPlan, setProcessingPlan] = useState(null);
   const [paymentSuccess, setPaymentSuccess] = useState(null);
   const [billingCycle, setBillingCycle] = useState('monthly');
+  const { plans: livePricing, loaded: pricingLoaded } = usePublicPricing();
 
   const loadSubscription = async () => {
     try {
@@ -143,7 +144,7 @@ export default function Subscription() {
         },
 
         theme: {
-          color: '#2563EB',
+          color: 'var(--primary)',
         },
       };
 
@@ -178,20 +179,18 @@ const handleCancelDowngrade = async () => {
   }
 };
 
+// Prices come from GET /api/public/pricing (subscription_plans, Super Admin
+// editable) via usePublicPricing -- the same live source the public site
+// and checkout resolve from. No plan price is hardcoded here.
+const fmtInr = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+
 const getPlanPrice = (planId) => {
   if (planId === 'free') return '₹0';
 
-  if (planId === 'pro') {
-    // TEMPORARY LIVE PAYMENT CHECK: Pro monthly INR 1.
-    // Restore to INR 999 after verification.
-    return billingCycle === 'yearly' ? '₹9,990/year' : '999/month';
-  }
+  const amount = livePricing[planId]?.[billingCycle];
+  if (amount == null) return pricingLoaded ? '' : 'Loading...';
 
-  if (planId === 'agency') {
-    return billingCycle === 'yearly' ? '₹25,000/year' : '₹2,500/month';
-  }
-
-  return '';
+  return `${fmtInr(amount)}/${billingCycle === 'yearly' ? 'year' : 'month'}`;
 };
 
   return (
@@ -206,8 +205,8 @@ const getPlanPrice = (planId) => {
             className="card card-pad"
             style={{
               marginTop: 18,
-              background: 'linear-gradient(135deg,#EEF2FF,#F8FAFC)',
-              border: '1px solid #C7D2FE',
+              background: 'var(--primary-light)',
+              border: '1px solid var(--primary)',
             }}
           >
             <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
@@ -236,11 +235,11 @@ const getPlanPrice = (planId) => {
                   marginTop: 14,
                   padding: 12,
                   borderRadius: 12,
-                  background: '#FFF7ED',
-                  border: '1px solid #FDBA74',
+                  background: 'var(--warning-light)',
+                  border: '1px solid var(--warning)',
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#C2410C' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--warning)' }}>
                   Downgrade scheduled
                 </div>
 
@@ -273,15 +272,15 @@ const getPlanPrice = (planId) => {
     className="card card-pad"
     style={{
       marginBottom: 22,
-      border: '1px solid #A7F3D0',
-      background: 'linear-gradient(135deg,#ECFDF5,#F8FAFC)',
+      border: '1px solid var(--success)',
+      background: 'var(--success-light)',
     }}
   >
     <div
       style={{
         fontWeight: 900,
         fontSize: 18,
-        color: '#059669',
+        color: 'var(--success)',
         marginBottom: 6,
       }}
     >
@@ -350,8 +349,8 @@ const getPlanPrice = (planId) => {
             style={{
               marginLeft: 6,
               fontSize: 10,
-              background: '#DCFCE7',
-              color: '#166534',
+              background: 'var(--success-light)',
+              color: 'var(--success)',
               padding: '2px 6px',
               borderRadius: 999,
               fontWeight: 800,
@@ -382,7 +381,7 @@ const getPlanPrice = (planId) => {
                 key={plan.id}
                 className="card card-pad"
                 style={{
-                  border: active ? '2px solid #2563EB' : '1px solid var(--border)',
+                  border: active ? '2px solid var(--primary)' : '1px solid var(--border)',
                   position: 'relative',
                 }}
               >
@@ -392,8 +391,8 @@ const getPlanPrice = (planId) => {
                       position: 'absolute',
                       top: 14,
                       right: 14,
-                      background: '#DBEAFE',
-                      color: '#2563EB',
+                      background: 'var(--primary-light)',
+                      color: 'var(--primary)',
                       padding: '4px 10px',
                       borderRadius: 999,
                       fontSize: 11,

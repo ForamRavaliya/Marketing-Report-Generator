@@ -8,6 +8,7 @@
   --bg: #F8FAFC;
   --bg2: #FFFFFF;
   --bg3: #F1F5F9;
+  --bg-elevated: #FFFFFF;
   --border: #E2E8F0;
   --border2: #CBD5E1;
   --text: #0F172A;
@@ -16,6 +17,8 @@
   --primary: #2563EB;
   --primary-light: #EFF6FF;
   --primary-dark: #1D4ED8;
+  --accent-soft: var(--primary-light);
+  --accent-gradient: linear-gradient(135deg, #3B82F6, #8B5CF6);
   --success: #059669;
   --success-light: #ECFDF5;
   --danger: #DC2626;
@@ -29,9 +32,63 @@
   --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -2px rgba(0,0,0,.05);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.04);
+  --chart-grid: #E2E8F0;
+  --table-header: var(--bg3);
+  --sidebar-bg: #0F172A;
+  --sidebar-border: rgba(255,255,255,.08);
+  --sidebar-text: rgba(255,255,255,.55);
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-active-bg: rgba(255,255,255,.1);
+  /* Foreground for text/icons placed directly on a saturated brand surface
+     (accent gradients, solid --primary buttons/badges, avatar initials).
+     Deliberately constant across light/dark -- --primary/--purple/
+     --accent-gradient stay bright and saturated in both themes by design,
+     so white always reads correctly on them. Never use --bg2 for this: it's
+     a page-surface-elevation token (white in light, near-black in dark)
+     and using it here is exactly the bug that made dark-mode banners
+     unreadable. */
+  --on-accent: #FFFFFF;
 }
 
-body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+/* Dark theme: a deliberately designed surface hierarchy, not a straight
+   color inversion. bg < bg2 < bg3 < bg-elevated in perceived elevation;
+   text is off-white (never pure #FFF on large areas) for softer contrast;
+   accent tones are boosted in brightness so they stay legible on dark
+   surfaces; "light" badge-background variants become dark-tinted instead
+   of pale, since a pale badge bg would vanish against a dark card. */
+:root[data-theme="dark"] {
+  --bg: #0B1220;
+  --bg2: #111827;
+  --bg3: #1E293B;
+  --bg-elevated: #1E293B;
+  --border: #2B3A55;
+  --border2: #3E4C6B;
+  --text: #F1F5F9;
+  --text2: #94A3B8;
+  --text3: #64748B;
+  --primary: #3B82F6;
+  --primary-light: #1E3A5F;
+  --primary-dark: #60A5FA;
+  --accent-soft: var(--primary-light);
+  --success: #34D399;
+  --success-light: #064E3B;
+  --danger: #F87171;
+  --danger-light: #4C0D0D;
+  --warning: #FBBF24;
+  --warning-light: #451A03;
+  --purple: #A78BFA;
+  --purple-light: #3B2E6B;
+  --shadow: 0 1px 3px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,.45), 0 2px 4px -2px rgba(0,0,0,.35);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.5), 0 4px 6px -4px rgba(0,0,0,.4);
+  --chart-grid: #2B3A55;
+  --table-header: #1A2436;
+  --sidebar-bg: #060A13;
+  --sidebar-border: rgba(255,255,255,.06);
+}
+
+html { background: var(--bg); }
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; transition: background-color .15s ease, color .15s ease; }
 
 a { color: inherit; text-decoration: none; }
 button { font-family: var(--font); cursor: pointer; border: none; outline: none; }
@@ -58,6 +115,16 @@ input, select, textarea { font-family: var(--font); }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 .btn-lg { padding: 11px 22px; font-size: 15px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Disabled form controls: explicit tokens rather than relying on browser
+   defaults, which don't reliably read as "disabled" against a dark theme. */
+.form-input:disabled, .form-select:disabled, textarea:disabled {
+  background: var(--bg3);
+  color: var(--text3);
+  border-color: var(--border);
+  cursor: not-allowed;
+  opacity: .7;
+}
 
 .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .badge-blue { background: var(--primary-light); color: var(--primary); }
@@ -116,7 +183,7 @@ input, select, textarea { font-family: var(--font); }
 /* Table */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
-th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg3); }
+th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); background: var(--table-header); }
 td { padding: 12px 14px; font-size: 13px; color: var(--text); border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--bg3); }
@@ -133,7 +200,7 @@ tr:hover td { background: var(--bg3); }
 
 /* Modal overlay */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 999; display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn .2s ease; }
-.modal { background: var(--bg2); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+.modal { background: var(--bg-elevated); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
 .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 .modal-body { padding: 20px 24px; }
 .modal-footer { padding: 16px 24px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
